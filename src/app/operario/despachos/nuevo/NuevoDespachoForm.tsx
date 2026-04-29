@@ -30,6 +30,9 @@ export default function NuevoDespachoForm({
 }) {
   const router = useRouter()
 
+  // Toggle: ¿los rollos ya están físicamente en el depósito?
+  const [confirmadoFisico, setConfirmadoFisico] = useState(true)
+
   // Header
   const [tintoreriaId, setTintoreriaId] = useState('')
   const [articuloId, setArticuloId] = useState('')
@@ -92,14 +95,21 @@ export default function NuevoDespachoForm({
       totalKilosNum === null ||
       Math.abs(totalKilosNum - sumaKilos) < 0.01
 
+    // Si está confirmado físicamente, todos los rollos cargados deben tener ubicación
+    const rollosCargados = rollos.filter((r) => r.numero_pieza.trim())
+    const ubicacionesFaltantes = confirmadoFisico
+      ? rollosCargados.filter((r) => !r.ubicacion.trim()).length
+      : 0
+
     return {
       sumaKilos,
       cantidadRollos,
       duplicados,
       cantidadCoincide,
       kilosCoinciden,
+      ubicacionesFaltantes,
     }
-  }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
+  }, [rollos, totalRollosDeclarado, totalKilosDeclarado, confirmadoFisico])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -114,6 +124,7 @@ export default function NuevoDespachoForm({
       total_rollos_declarado: totalRollosDeclarado,
       total_kilos_declarado: totalKilosDeclarado,
       rollos: rollos.filter((r) => r.numero_pieza.trim()),
+      confirmado_fisico: confirmadoFisico,
     })
 
     if (result.error) {
@@ -122,7 +133,7 @@ export default function NuevoDespachoForm({
       return
     }
 
-    router.push(`/admin/despachos/${result.despachoId}`)
+    router.push(`/operario/despachos/${result.despachoId}`)
     router.refresh()
   }
 
@@ -132,10 +143,53 @@ export default function NuevoDespachoForm({
     !articuloId ||
     !fecha ||
     validations.cantidadRollos === 0 ||
-    validations.duplicados.length > 0
+    validations.duplicados.length > 0 ||
+    validations.ubicacionesFaltantes > 0
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Toggle de confirmación física */}
+      <div className="rounded-lg border bg-white p-5 shadow-sm space-y-3">
+        <h2 className="font-semibold">¿Los rollos ya están en el depósito?</h2>
+        <div className="space-y-2">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="confirmado"
+              checked={confirmadoFisico}
+              onChange={() => setConfirmadoFisico(true)}
+              className="mt-1"
+            />
+            <div>
+              <p className="text-sm font-medium">
+                Sí, los tengo en mano — quedan en stock
+              </p>
+              <p className="text-xs text-muted-foreground">
+                La ubicación es obligatoria. El despacho queda confirmado.
+              </p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="confirmado"
+              checked={!confirmadoFisico}
+              onChange={() => setConfirmadoFisico(false)}
+              className="mt-1"
+            />
+            <div>
+              <p className="text-sm font-medium">
+                Todavía no llegaron — solo precargo la planilla
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Los rollos quedan en estado &quot;pendiente&quot;. El operario
+                los confirma con scanner cuando lleguen.
+              </p>
+            </div>
+          </label>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="rounded-lg border bg-white p-5 shadow-sm space-y-4">
         <h2 className="font-semibold">Datos del despacho</h2>
@@ -248,7 +302,9 @@ export default function NuevoDespachoForm({
                 <th className="px-3 py-2 font-medium w-24">Kilos</th>
                 <th className="px-3 py-2 font-medium w-24">Metros</th>
                 <th className="px-3 py-2 font-medium w-20">Ratio</th>
-                <th className="px-3 py-2 font-medium w-28">Ubicación</th>
+                <th className="px-3 py-2 font-medium w-28">
+                  Ubicación{confirmadoFisico ? ' *' : ''}
+                </th>
                 <th className="px-3 py-2 w-10"></th>
               </tr>
             </thead>
@@ -257,6 +313,10 @@ export default function NuevoDespachoForm({
                 const isDuplicate =
                   r.numero_pieza.trim() &&
                   validations.duplicados.includes(r.numero_pieza.trim())
+                const ubicacionFaltante =
+                  confirmadoFisico &&
+                  r.numero_pieza.trim() &&
+                  !r.ubicacion.trim()
                 return (
                   <tr
                     key={i}
@@ -338,7 +398,11 @@ export default function NuevoDespachoForm({
                           updateRollo(i, 'ubicacion', e.target.value)
                         }
                         placeholder="A42"
-                        className="w-full rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+                          ubicacionFaltante
+                            ? 'border-destructive'
+                            : 'border-input'
+                        }`}
                       />
                     </td>
                     <td className="px-3 py-1 text-center">
@@ -371,6 +435,7 @@ export default function NuevoDespachoForm({
 
       {/* Validaciones / warnings */}
       {(validations.duplicados.length > 0 ||
+        validations.ubicacionesFaltantes > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-4 space-y-1 text-sm">
@@ -378,6 +443,13 @@ export default function NuevoDespachoForm({
             <p className="text-destructive">
               ⚠ Números de pieza duplicados:{' '}
               {validations.duplicados.join(', ')}
+            </p>
+          )}
+          {validations.ubicacionesFaltantes > 0 && (
+            <p className="text-destructive">
+              ⚠ Faltan ubicaciones en {validations.ubicacionesFaltantes} rollo
+              {validations.ubicacionesFaltantes > 1 ? 's' : ''} (obligatorio
+              cuando los rollos ya están en el depósito).
             </p>
           )}
           {!validations.cantidadCoincide && (
@@ -409,7 +481,7 @@ export default function NuevoDespachoForm({
         </button>
         <button
           type="button"
-          onClick={() => router.push('/admin/despachos')}
+          onClick={() => router.push('/operario/despachos')}
           className="rounded-md border bg-white px-5 py-2 text-sm font-medium hover:bg-zinc-50 transition-colors"
         >
           Cancelar

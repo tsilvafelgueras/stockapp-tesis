@@ -57,7 +57,7 @@ export default async function DespachoDetailPage({
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div>
         <Link
-          href="/admin/despachos"
+          href="/operario/despachos"
           className="text-xs text-muted-foreground hover:text-foreground"
         >
           ← Volver a despachos

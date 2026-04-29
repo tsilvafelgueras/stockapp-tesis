@@ -19,25 +19,31 @@ export type DespachoInput = {
   total_rollos_declarado: string
   total_kilos_declarado: string
   rollos: RolloInput[]
+  /** true = los rollos ya están físicamente en el depósito */
+  confirmado_fisico: boolean
 }
 
 export async function createDespacho(input: DespachoInput) {
   const supabase = await createClient()
 
-  // Validaciones server-side básicas
+  // Validaciones server-side
   if (!input.tintoreria_id) return { error: 'Falta seleccionar la tintorería.' }
   if (!input.articulo_id) return { error: 'Falta seleccionar el artículo.' }
   if (!input.fecha_despacho) return { error: 'Falta la fecha del despacho.' }
   if (!input.rollos.length) return { error: 'Cargá al menos un rollo.' }
 
-  // Cada rollo debe tener al menos número de pieza
   for (const r of input.rollos) {
     if (!r.numero_pieza.trim()) {
       return { error: 'Todos los rollos deben tener número de pieza.' }
     }
+    if (input.confirmado_fisico && !r.ubicacion.trim()) {
+      return {
+        error:
+          'Cuando los rollos ya están en el depósito, todos deben tener ubicación.',
+      }
+    }
   }
 
-  // Números de pieza únicos dentro del despacho
   const numeros = input.rollos.map((r) => r.numero_pieza.trim())
   const unicos = new Set(numeros)
   if (unicos.size !== numeros.length) {
@@ -49,6 +55,10 @@ export async function createDespacho(input: DespachoInput) {
   } = await supabase.auth.getUser()
 
   if (!user) return { error: 'Sesión expirada — volvé a iniciar sesión.' }
+
+  // Estado del despacho y de los rollos según confirmación física
+  const despachoEstado = input.confirmado_fisico ? 'confirmado' : 'borrador'
+  const rolloEstado = input.confirmado_fisico ? 'en_stock' : 'pendiente'
 
   // 1. Insert despacho
   const { data: despacho, error: dError } = await supabase
@@ -64,7 +74,8 @@ export async function createDespacho(input: DespachoInput) {
       total_kilos_declarado: input.total_kilos_declarado
         ? parseFloat(input.total_kilos_declarado)
         : null,
-      estado: 'borrador',
+      estado: despachoEstado,
+      origen: 'manual',
       created_by: user.id,
     })
     .select()
@@ -86,13 +97,12 @@ export async function createDespacho(input: DespachoInput) {
       ? parseFloat(r.ratio_rendimiento)
       : null,
     ubicacion: r.ubicacion.trim() || null,
-    estado: 'pendiente',
+    estado: rolloEstado,
   }))
 
   const { error: rError } = await supabase.from('rollos').insert(rollosToInsert)
 
   if (rError) {
-    // Cleanup: borrar el despacho huérfano
     await supabase.from('despachos').delete().eq('id', despacho.id)
     return { error: `No se pudieron cargar los rollos: ${rError.message}` }
   }

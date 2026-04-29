@@ -20,7 +20,10 @@ export default async function OperarioLayout({
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'operario') redirect('/')
+  // Operario y admin acceden a /operario/* (admin es superset)
+  if (profile?.role !== 'operario' && profile?.role !== 'admin') {
+    redirect('/')
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50">

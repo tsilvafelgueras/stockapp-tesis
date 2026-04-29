@@ -70,7 +70,11 @@ export async function updateSession(request: NextRequest) {
     ) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
-    if (pathname.startsWith('/operario') && role !== 'operario') {
+    if (
+      pathname.startsWith('/operario') &&
+      role !== 'operario' &&
+      role !== 'admin'
+    ) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
   }

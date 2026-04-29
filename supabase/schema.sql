@@ -97,6 +97,8 @@ CREATE TABLE despachos (
   total_kilos_declarado  NUMERIC(10, 2),
   estado                 TEXT NOT NULL DEFAULT 'borrador'
                            CHECK (estado IN ('borrador', 'auditado', 'confirmado')),
+  origen                 TEXT NOT NULL DEFAULT 'manual'
+                           CHECK (origen IN ('manual', 'planilla_ia')),
   imagen_url             TEXT,
   created_by             UUID REFERENCES profiles(id),
   created_at             TIMESTAMPTZ DEFAULT NOW()

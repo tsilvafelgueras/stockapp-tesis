@@ -28,9 +28,9 @@ export default async function AdminDashboard() {
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card
-            href="/admin/despachos"
+            href="/operario/despachos"
             title="Ingresos"
-            description="Registrar despachos de tintorerías"
+            description="Despachos de tintorerías"
           />
           <Card
             disabled
