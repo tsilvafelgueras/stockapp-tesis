@@ -15,6 +15,7 @@ export default async function Home() {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role === 'deposito') redirect('/deposito/dashboard')
+  if (profile?.role === 'operario') redirect('/operario/dashboard')
+  if (profile?.role === 'ventas') redirect('/ventas/dashboard')
   redirect('/admin/dashboard')
 }

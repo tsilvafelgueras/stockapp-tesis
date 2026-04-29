@@ -1,6 +1,14 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+type Role = 'operario' | 'ventas' | 'admin'
+
+function dashboardForRole(role: Role | null | undefined): string {
+  if (role === 'operario') return '/operario/dashboard'
+  if (role === 'ventas') return '/ventas/dashboard'
+  return '/admin/dashboard' // admin (dueño) y default
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -31,7 +39,7 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Sin sesión → redirigir al login
+  // Sin sesión → al login (excepto si ya está en /login)
   if (!user && pathname !== '/login') {
     return NextResponse.redirect(new URL('/login', request.url))
   }
@@ -43,23 +51,27 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    const role = profile?.role
+    const role = profile?.role as Role | undefined
+    const dest = dashboardForRole(role)
 
-    // En login o raíz → redirigir al dashboard según rol
+    // En login o raíz → al dashboard del rol
     if (pathname === '/' || pathname === '/login') {
-      const dest =
-        role === 'deposito' ? '/deposito/dashboard' : '/admin/dashboard'
       return NextResponse.redirect(new URL(dest, request.url))
     }
 
-    // Ruta /admin/* → solo admins
+    // Guards por sección
     if (pathname.startsWith('/admin') && role !== 'admin') {
-      return NextResponse.redirect(new URL('/deposito/dashboard', request.url))
+      return NextResponse.redirect(new URL(dest, request.url))
     }
-
-    // Ruta /deposito/* → solo depósito
-    if (pathname.startsWith('/deposito') && role !== 'deposito') {
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+    if (
+      pathname.startsWith('/ventas') &&
+      role !== 'ventas' &&
+      role !== 'admin'
+    ) {
+      return NextResponse.redirect(new URL(dest, request.url))
+    }
+    if (pathname.startsWith('/operario') && role !== 'operario') {
+      return NextResponse.redirect(new URL(dest, request.url))
     }
   }
 

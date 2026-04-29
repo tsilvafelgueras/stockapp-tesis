@@ -34,8 +34,10 @@ export default function LoginPage() {
       .eq('id', data.user.id)
       .single()
 
-    if (profile?.role === 'deposito') {
-      router.push('/deposito/dashboard')
+    if (profile?.role === 'operario') {
+      router.push('/operario/dashboard')
+    } else if (profile?.role === 'ventas') {
+      router.push('/ventas/dashboard')
     } else {
       router.push('/admin/dashboard')
     }

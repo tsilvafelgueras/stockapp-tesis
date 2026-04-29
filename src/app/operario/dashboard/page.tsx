@@ -1,4 +1,4 @@
-export default function DepositoDashboard() {
+export default function OperarioDashboard() {
   return (
     <div className="max-w-lg mx-auto">
       <div className="mb-6">
@@ -17,9 +17,9 @@ export default function DepositoDashboard() {
         </button>
 
         <button className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform">
-          <span className="block text-lg font-semibold">Picking de órdenes</span>
+          <span className="block text-lg font-semibold">Picking de pedidos</span>
           <span className="block text-sm text-muted-foreground mt-1">
-            Armar pedidos pendientes
+            Preparar pedidos pendientes
           </span>
         </button>
       </div>

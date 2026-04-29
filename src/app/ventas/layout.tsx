@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import LogoutButton from '@/components/LogoutButton'
 
-export default async function DepositoLayout({
+export default async function VentasLayout({
   children,
 }: {
   children: React.ReactNode
@@ -20,18 +20,21 @@ export default async function DepositoLayout({
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'deposito') redirect('/admin/dashboard')
+  // /ventas/* lo pueden ver ventas y admin (admin es superset)
+  if (profile?.role !== 'ventas' && profile?.role !== 'admin') {
+    redirect('/')
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50">
-      <header className="border-b bg-white px-4 py-3 flex items-center justify-between">
-        <span className="font-semibold text-sm">StockApp — Depósito</span>
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen flex flex-col">
+      <header className="border-b bg-white px-6 py-3 flex items-center justify-between">
+        <span className="font-semibold text-sm">StockApp — Ventas</span>
+        <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">{profile.nombre}</span>
           <LogoutButton />
         </div>
       </header>
-      <main className="flex-1 p-4">{children}</main>
+      <main className="flex-1 bg-zinc-50">{children}</main>
     </div>
   )
 }

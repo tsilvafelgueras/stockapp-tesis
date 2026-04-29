@@ -1,6 +1,8 @@
 -- ============================================================
--- StockApp Muter — Schema completo
--- Ejecutar en: Supabase → SQL Editor → New Query → Run All
+-- StockApp — Schema completo (Etapa 2)
+-- Ejecutar en Supabase → SQL Editor → Run All para una DB nueva.
+-- Para una DB existente con la estructura de Etapa 1, ver:
+--   supabase/migrations/001_etapa2_refactor.sql
 -- ============================================================
 
 
@@ -10,7 +12,8 @@
 CREATE TABLE profiles (
   id         UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   nombre     TEXT NOT NULL,
-  role       TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'deposito')),
+  role       TEXT NOT NULL DEFAULT 'admin'
+               CHECK (role IN ('operario', 'ventas', 'admin')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -42,6 +45,7 @@ CREATE TRIGGER on_auth_user_created
 
 
 -- ── ARTÍCULOS ───────────────────────────────────────────────
+-- Catálogo de tipos de tela. Lo gestiona admin/dueño.
 
 CREATE TABLE articulos (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -56,7 +60,7 @@ ALTER TABLE articulos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Autenticados leen artículos"
   ON articulos FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admins gestionan artículos"
+CREATE POLICY "Admin gestiona artículos"
   ON articulos FOR ALL TO authenticated
   USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
 
@@ -75,12 +79,13 @@ ALTER TABLE tintorerias ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Autenticados leen tintorerías"
   ON tintorerias FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admins gestionan tintorerías"
+CREATE POLICY "Admin gestiona tintorerías"
   ON tintorerias FOR ALL TO authenticated
   USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
 
 
 -- ── DESPACHOS ───────────────────────────────────────────────
+-- Cada llegada de tintorería con su planilla.
 
 CREATE TABLE despachos (
   id                     UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -102,30 +107,42 @@ ALTER TABLE despachos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Autenticados leen despachos"
   ON despachos FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admins gestionan despachos"
+CREATE POLICY "Admin gestiona despachos"
   ON despachos FOR ALL TO authenticated
   USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
 
-CREATE POLICY "Depósito actualiza despachos"
+CREATE POLICY "Operario actualiza despachos"
   ON despachos FOR UPDATE TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'deposito');
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'operario');
 
 
 -- ── ROLLOS ──────────────────────────────────────────────────
+-- El item central. Cada rollo físico de tela.
 
 CREATE TABLE rollos (
   id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   despacho_id       UUID NOT NULL REFERENCES despachos(id),
   articulo_id       UUID NOT NULL REFERENCES articulos(id),
   numero_pieza      TEXT NOT NULL,
-  codigo_externo    TEXT,
+  codigo_externo    TEXT,                   -- QR/barcode de la tintorería
   color             TEXT,
-  ubicacion         TEXT,                  -- ej: "A42" — slot físico en el depósito
+  ubicacion         TEXT,                   -- slot físico (ej: "A42")
+  pantone           TEXT,                   -- código pantone para colores lisos
+  foto_url          TEXT,                   -- foto del rollo
+
+  -- Datos del proveedor (de la planilla)
   kilos             NUMERIC(10, 2),
   metros            NUMERIC(10, 2),
   ratio_rendimiento NUMERIC(10, 4),
+
+  -- Datos propios (después del control de calidad en recepción)
+  kilos_propios     NUMERIC(10, 2),
+  metros_propios    NUMERIC(10, 2),
+  ancho_propio      NUMERIC(10, 2),
+  gramaje_propio    NUMERIC(10, 2),         -- g/m² (pesar 10x10cm)
+
   estado            TEXT NOT NULL DEFAULT 'pendiente'
-                      CHECK (estado IN ('pendiente', 'en_stock', 'reservado', 'despachado')),
+                      CHECK (estado IN ('pendiente', 'en_stock', 'reservado', 'entregado', 'baja')),
   confianza_ia      NUMERIC(4, 3),
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (despacho_id, numero_pieza)
@@ -136,74 +153,60 @@ ALTER TABLE rollos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Autenticados leen rollos"
   ON rollos FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admins gestionan rollos"
+CREATE POLICY "Admin gestiona rollos"
   ON rollos FOR ALL TO authenticated
   USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
 
-CREATE POLICY "Depósito actualiza rollos"
+CREATE POLICY "Operario actualiza rollos"
   ON rollos FOR UPDATE TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'deposito');
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'operario');
 
 
--- ── ÓRDENES ─────────────────────────────────────────────────
+-- ── PEDIDOS (antes "ordenes") ───────────────────────────────
+-- Lo que ventas/dueño reservan para un cliente.
 
-CREATE TABLE ordenes (
-  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  numero_orden TEXT UNIQUE,
-  cliente      TEXT NOT NULL,
-  estado       TEXT NOT NULL DEFAULT 'pendiente'
-                 CHECK (estado IN ('pendiente', 'en_preparacion', 'lista', 'despachada')),
-  created_by   UUID REFERENCES profiles(id),
-  created_at   TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE pedidos (
+  id                    UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  numero_pedido         TEXT UNIQUE,
+  cliente               TEXT NOT NULL,
+  numero_remito_externo TEXT,                 -- link al sistema de facturación (Softland u otro)
+  estado                TEXT NOT NULL DEFAULT 'pendiente'
+                          CHECK (estado IN ('pendiente', 'en_preparacion', 'lista', 'entregada', 'cancelada')),
+  created_by            UUID REFERENCES profiles(id),
+  created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE ordenes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Autenticados leen órdenes"
-  ON ordenes FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Autenticados leen pedidos"
+  ON pedidos FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admins gestionan órdenes"
-  ON ordenes FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
+CREATE POLICY "Ventas y admin gestionan pedidos"
+  ON pedidos FOR ALL TO authenticated
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin'));
+
+CREATE POLICY "Operario actualiza estado de pedidos"
+  ON pedidos FOR UPDATE TO authenticated
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'operario');
 
 
--- ── ORDEN ITEMS ─────────────────────────────────────────────
+-- ── PEDIDO_ROLLOS ───────────────────────────────────────────
+-- Many-to-many: qué rollos cubren qué pedido.
+-- Reemplaza al modelo orden_items + asignaciones.
 
-CREATE TABLE orden_items (
-  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  orden_id        UUID NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
-  articulo_id     UUID NOT NULL REFERENCES articulos(id),
-  color           TEXT,
-  kilos_pedidos   NUMERIC(10, 2) NOT NULL,
-  kilos_asignados NUMERIC(10, 2) NOT NULL DEFAULT 0,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE pedido_rollos (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pedido_id  UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+  rollo_id   UUID NOT NULL REFERENCES rollos(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (rollo_id) -- un rollo solo puede estar reservado en un pedido
 );
 
-ALTER TABLE orden_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedido_rollos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Autenticados leen ítems de órdenes"
-  ON orden_items FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Autenticados leen pedido_rollos"
+  ON pedido_rollos FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admins gestionan ítems de órdenes"
-  ON orden_items FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-
-
--- ── ASIGNACIONES ────────────────────────────────────────────
--- Qué rollo cubre qué ítem de orden
-
-CREATE TABLE asignaciones (
-  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  orden_item_id UUID NOT NULL REFERENCES orden_items(id) ON DELETE CASCADE,
-  rollo_id      UUID NOT NULL REFERENCES rollos(id),
-  created_at    TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (rollo_id) -- un rollo solo puede estar en una asignación
-);
-
-ALTER TABLE asignaciones ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Autenticados leen asignaciones"
-  ON asignaciones FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Usuarios autenticados gestionan asignaciones"
-  ON asignaciones FOR ALL TO authenticated USING (true);
+CREATE POLICY "Ventas y admin gestionan pedido_rollos"
+  ON pedido_rollos FOR ALL TO authenticated
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin'));
