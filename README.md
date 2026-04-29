@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# StockApp Muter
 
-## Getting Started
+Sistema de gestión de stock de rollos textiles para Muter Textil. Proyecto MVP de tesis (ITBA).
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS v4 + shadcn/ui
+- Drizzle ORM + Supabase (Postgres + Auth + Storage) — *próxima etapa*
+- Gemini 2.5 Flash para extracción de planillas — *próxima etapa*
+- Despliegue en Vercel
+
+## Correr local
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrí [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estado
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- ✅ **Etapa 0** — bootstrap (Next + Tailwind + shadcn, deploy a Vercel)
+- ⏳ Etapa 1 — modelo de datos + auth con roles
+- ⏳ Etapa 2 — ingreso manual de despacho
+- ⏳ Etapa 3 — extracción IA + auditoría
+- ⏳ Etapa 4 — confirmación física en mobile (scanner QR/barcode)
+- ⏳ Etapa 5 — vista de stock
+- ⏳ Etapa 6 — órdenes + picking
+- ⏳ Etapa 7 — muestras + reportes
