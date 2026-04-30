@@ -6,7 +6,7 @@ type Role = 'operario' | 'ventas' | 'admin'
 function dashboardForRole(role: Role | null | undefined): string {
   if (role === 'operario') return '/operario/dashboard'
   if (role === 'ventas') return '/ventas/dashboard'
-  return '/admin/dashboard' // admin (dueño) y default
+  return '/admin/dashboard'
 }
 
 export async function updateSession(request: NextRequest) {
@@ -39,27 +39,45 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Sin sesión → al login (excepto si ya está en /login)
-  if (!user && pathname !== '/login') {
+  // Rutas públicas o de verificación de auth no requieren sesión
+  const isPublic =
+    pathname === '/login' ||
+    pathname.startsWith('/auth/confirm') ||
+    pathname === '/auth/recover'
+
+  if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_super_admin')
       .eq('id', user.id)
       .single()
 
     const role = profile?.role as Role | undefined
+    const isSuperAdmin = profile?.is_super_admin === true
     const dest = dashboardForRole(role)
 
-    // En login o raíz → al dashboard del rol
+    // /auth/setup requiere sesión pero no debe rebotar al dashboard
+    if (pathname === '/auth/setup') {
+      return supabaseResponse
+    }
+
+    // En login o raíz → al dashboard del rol (super-admin va a /super)
     if (pathname === '/' || pathname === '/login') {
+      return NextResponse.redirect(
+        new URL(isSuperAdmin ? '/super' : dest, request.url)
+      )
+    }
+
+    // /super solo para super-admin
+    if (pathname.startsWith('/super') && !isSuperAdmin) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
 
-    // Guards por sección
+    // Guards por sección de rol
     if (pathname.startsWith('/admin') && role !== 'admin') {
       return NextResponse.redirect(new URL(dest, request.url))
     }

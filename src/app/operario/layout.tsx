@@ -16,19 +16,24 @@ export default async function OperarioLayout({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, nombre')
+    .select('role, nombre, empresas(nombre)')
     .eq('id', user.id)
     .single()
 
-  // Operario y admin acceden a /operario/* (admin es superset)
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
     redirect('/')
   }
 
+  const empresaNombre = (
+    profile.empresas as unknown as { nombre: string } | null
+  )?.nombre
+
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50">
       <header className="border-b bg-white px-4 py-3 flex items-center justify-between">
-        <span className="font-semibold text-sm">StockApp — Depósito</span>
+        <span className="font-semibold text-sm">
+          StockApp — Depósito{empresaNombre ? ` · ${empresaNombre}` : ''}
+        </span>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{profile.nombre}</span>
           <LogoutButton />

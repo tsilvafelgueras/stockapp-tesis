@@ -62,6 +62,19 @@ export default async function AdminDashboard() {
           />
         </div>
       </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Equipo
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card
+            href="/admin/equipo"
+            title="Usuarios"
+            description="Invitar y listar usuarios de la empresa"
+          />
+        </div>
+      </section>
     </div>
   )
 }
