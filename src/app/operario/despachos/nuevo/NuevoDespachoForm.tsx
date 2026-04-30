@@ -145,7 +145,7 @@ export default function NuevoDespachoForm({
       return
     }
 
-    router.push(`/operario/despachos/${result.despachoId}`)
+    router.push(`/operario/despachos/${result.despachoId}?creado=1`)
     router.refresh()
   }
 

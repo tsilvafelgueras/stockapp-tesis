@@ -18,10 +18,13 @@ const ESTADO_ROLLO: Record<string, { text: string; className: string }> = {
 
 export default async function DespachoDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ creado?: string }>
 }) {
   const { id } = await params
+  const { creado } = await searchParams
   const supabase = await createClient()
 
   const { data: despacho } = await supabase
@@ -55,6 +58,13 @@ export default async function DespachoDetailPage({
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {creado === '1' && (
+        <div className="rounded-lg border bg-success/10 border-success/30 px-4 py-3 text-sm text-foreground">
+          ✓ Despacho guardado correctamente con {rollos?.length ?? 0} rollo
+          {(rollos?.length ?? 0) !== 1 ? 's' : ''}.
+        </div>
+      )}
+
       <div>
         <Link
           href="/operario/despachos"
