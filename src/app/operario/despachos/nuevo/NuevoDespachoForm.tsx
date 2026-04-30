@@ -129,6 +129,8 @@ export default function NuevoDespachoForm({
     setSubmitting(true)
     setSubmitError(null)
 
+    // El action hace un redirect server-side cuando todo sale OK,
+    // así que solo volvemos acá si hubo error.
     const result = await createDespacho({
       tintoreria_id: tintoreriaId,
       articulo_id: articuloId,
@@ -139,14 +141,10 @@ export default function NuevoDespachoForm({
       rollos: rollos.filter((r) => r.numero_pieza.trim()),
     })
 
-    if (result.error) {
+    if (result?.error) {
       setSubmitError(result.error)
       setSubmitting(false)
-      return
     }
-
-    router.push(`/operario/despachos/${result.despachoId}?creado=1`)
-    router.refresh()
   }
 
   const blockSubmit =

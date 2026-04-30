@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 
 export type RolloInput = {
   numero_pieza: string
@@ -105,7 +106,8 @@ export async function createDespacho(input: DespachoInput) {
     return { error: `No se pudieron cargar los rollos: ${rError.message}` }
   }
 
-  return { success: true, despachoId: despacho.id }
+  // Server-side redirect: preserva ?creado=1 de forma confiable
+  redirect(`/operario/despachos/${despacho.id}?creado=1`)
 }
 
 // ── Creación inline desde el form ───────────────────────────

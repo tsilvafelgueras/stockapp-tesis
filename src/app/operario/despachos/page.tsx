@@ -16,11 +16,10 @@ export default async function DespachosPage() {
       id,
       fecha_despacho,
       numero_remito,
-      total_rollos_declarado,
-      total_kilos_declarado,
       estado,
       tintorerias ( nombre ),
-      articulos ( nombre )
+      articulos ( nombre ),
+      rollos ( kilos )
     `)
     .order('fecha_despacho', { ascending: false })
 
@@ -70,6 +69,14 @@ export default async function DespachosPage() {
                 const articulo = (
                   d.articulos as unknown as { nombre: string } | null
                 )?.nombre
+                const rollosArr = (d.rollos as unknown as
+                  | { kilos: number | null }[]
+                  | null) ?? []
+                const cantidadRollos = rollosArr.length
+                const sumaKilos = rollosArr.reduce(
+                  (acc, r) => acc + Number(r.kilos ?? 0),
+                  0
+                )
                 return (
                   <tr
                     key={d.id}
@@ -88,13 +95,9 @@ export default async function DespachosPage() {
                     <td className="px-4 py-3 text-muted-foreground">
                       {d.numero_remito ?? '—'}
                     </td>
+                    <td className="px-4 py-3">{cantidadRollos}</td>
                     <td className="px-4 py-3">
-                      {d.total_rollos_declarado ?? '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {d.total_kilos_declarado
-                        ? `${d.total_kilos_declarado} kg`
-                        : '—'}
+                      {sumaKilos > 0 ? `${sumaKilos.toFixed(2)} kg` : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span
