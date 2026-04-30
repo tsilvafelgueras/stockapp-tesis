@@ -109,13 +109,9 @@ ALTER TABLE despachos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Autenticados leen despachos"
   ON despachos FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admin gestiona despachos"
+CREATE POLICY "Admin y operario gestionan despachos"
   ON despachos FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-
-CREATE POLICY "Operario actualiza despachos"
-  ON despachos FOR UPDATE TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'operario');
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('admin', 'operario'));
 
 
 -- ── ROLLOS ──────────────────────────────────────────────────
@@ -155,13 +151,9 @@ ALTER TABLE rollos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Autenticados leen rollos"
   ON rollos FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Admin gestiona rollos"
+CREATE POLICY "Admin y operario gestionan rollos"
   ON rollos FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-
-CREATE POLICY "Operario actualiza rollos"
-  ON rollos FOR UPDATE TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'operario');
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('admin', 'operario'));
 
 
 -- ── PEDIDOS (antes "ordenes") ───────────────────────────────
