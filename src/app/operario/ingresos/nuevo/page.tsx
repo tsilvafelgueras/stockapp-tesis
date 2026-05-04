@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import NuevoDespachoForm from './NuevoDespachoForm'
+import NuevoIngresoForm from './NuevoIngresoForm'
 
-export default async function NuevoDespachoPage() {
+export default async function NuevoIngresoPage() {
   const supabase = await createClient()
 
   const [{ data: tintorerias }, { data: articulos }] = await Promise.all([
@@ -18,29 +18,27 @@ export default async function NuevoDespachoPage() {
       .order('nombre'),
   ])
 
-  // Si faltan catálogos, no se puede crear despacho
-  const sinCatalogos =
-    !tintorerias?.length || !articulos?.length
+  const sinCatalogos = !tintorerias?.length || !articulos?.length
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div>
         <Link
-          href="/operario/despachos"
+          href="/operario/ingresos"
           className="text-xs text-muted-foreground hover:text-foreground"
         >
-          ← Volver a despachos
+          ← Volver a ingresos
         </Link>
-        <h1 className="text-2xl font-bold mt-1">Nuevo despacho</h1>
+        <h1 className="text-xl sm:text-2xl font-bold mt-1">Nuevo ingreso</h1>
         <p className="text-sm text-muted-foreground">
-          Carga manual de la planilla de tintorería
+          Carga manual o automática (con IA) de la planilla de tintorería
         </p>
       </div>
 
       {sinCatalogos ? (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-5">
           <p className="text-sm font-medium text-foreground">
-            Antes de crear un despacho necesitás tener al menos un artículo y
+            Antes de crear un ingreso necesitás tener al menos un artículo y
             una tintorería cargados.
           </p>
           <div className="flex gap-3 mt-3 text-sm">
@@ -63,10 +61,7 @@ export default async function NuevoDespachoPage() {
           </div>
         </div>
       ) : (
-        <NuevoDespachoForm
-          tintorerias={tintorerias!}
-          articulos={articulos!}
-        />
+        <NuevoIngresoForm tintorerias={tintorerias!} articulos={articulos!} />
       )}
     </div>
   )

@@ -61,9 +61,9 @@
 
 | Rol | Quién | Dónde trabaja | Qué hace |
 |---|---|---|---|
-| `operario` | Personal de depósito | Mobile-first | Carga despachos manualmente, escanea QR/código de barras para confirmar ingresos, asigna ubicaciones, hace picking de pedidos |
+| `operario` | Personal de depósito | Mobile-first | Carga ingresos manualmente o con IA, escanea QR/código de barras para confirmar llegadas, asigna ubicaciones, hace picking de pedidos |
 | `ventas` | Empleados de ventas (ej: Belén en Muter) | Desktop | Ve stock, crea pedidos seleccionando rollos específicos, asocia con número de remito externo |
-| `admin` | Dueño/gerente de **una empresa-cliente** | Desktop | Gestiona catálogos, equipo, ve reportes, hace bajas, libera reservas. Es superset funcional de ventas y operario para SU empresa |
+| `admin` | Dueño/gerente de **una empresa-cliente** | Desktop / Mobile | Gestiona catálogos, equipo, ve reportes, hace bajas, libera reservas. **Filosofía PyMe**: el admin tiene acceso a TODO lo de operario y ventas (no son funciones principales pero está habilitado para tomar tareas de cualquier área cuando hace falta). El sidebar le muestra todos los links agrupados por sección. |
 | `super` | Trinidad y compañeras (gestionan la plataforma StockApp en sí) | Desktop | Crea empresas-cliente, invita primeros admins, ve todas las empresas. NO pertenece a ninguna empresa-cliente |
 
 **Reglas duras (enforced en DB con CHECK constraint)**:
@@ -103,20 +103,22 @@ Tablas principales:
 
 ### `tintorerias`
 - id, empresa_id, nombre, activo, created_at
-- Mismas reglas que articulos
+- **Post-008**: agrega `extraction_config_key TEXT NULL`. Es el identificador de la config de extracción IA específica de esa tintorería (matchea con un archivo en `src/lib/extraccion/tintorerias/{key}.ts`). Si NULL, se usa el prompt default. **Lo seteamos los devs vía SQL** cuando damos de alta una tintorería con formato específico — el admin de la empresa-cliente NO ve ni edita esto.
+- Mismas reglas RLS que articulos
 
-### `despachos`
+### `ingresos` (renombrada desde `despachos` en migración 008)
 - id, empresa_id, tintoreria_id, articulo_id, fecha_despacho, numero_remito, total_rollos_declarado, total_kilos_declarado, estado, **origen** (`manual`|`planilla_ia`), imagen_url, created_by, created_at
-- **Post-007** se agregan: `color` (movido desde rollos), `ot`, `rem_tejeduria`, `referencia` (todos TEXT NULL)
+- **Post-007** agrega: `color` (movido desde rollos), `ot`, `rem_tejeduria`, `referencia` (todos TEXT NULL)
 - Estados: `borrador` → `auditado` → `confirmado`
-- "Despacho" = una llegada de mercadería con su remito (header). Los rollos son las "líneas".
+- "Ingreso" = una llegada de mercadería con su remito (header). Los rollos son las "líneas". Se llamaba `despachos` pero "despacho" era ambiguo (también lo usábamos para "despacho a cliente" = pedido). Renombre en migración 008.
 
 ### `rollos`
-- id, empresa_id, despacho_id, articulo_id, numero_pieza (string), color, **ubicacion** (slot tipo "A42"), pantone, foto_url, kilos, metros, ratio_rendimiento, kilos_propios, metros_propios, ancho_propio, gramaje_propio, estado, confianza_ia, created_at
-- **Post-007**: `codigo_externo` ELIMINADO (era redundante: el QR físico codifica el mismo `numero_pieza`). `color` ELIMINADO (se movió a `despachos`). Se agrega `gramaje_planilla NUMERIC(5,2) NULL`.
+- id, empresa_id, ingreso_id, articulo_id, numero_pieza (string), **ubicacion** (slot tipo "A42"), pantone, foto_url, kilos, metros, ratio_rendimiento, kilos_propios, metros_propios, ancho_propio, gramaje_propio, estado, confianza_ia, gramaje_planilla, created_at
+- **Post-007**: `codigo_externo` ELIMINADO (era redundante: el QR físico codifica el mismo `numero_pieza`). `color` ELIMINADO (se movió a `ingresos`). Se agrega `gramaje_planilla NUMERIC(5,2) NULL`.
+- **Post-008**: la columna FK `despacho_id` se renombró a `ingreso_id`.
 - Estados: `pendiente` → `en_stock` → `reservado` → `entregado`
 - Salidas adicionales: `reservado` → `en_stock` (cancelación), cualquiera → `baja` (dueño)
-- UNIQUE (despacho_id, numero_pieza)
+- UNIQUE (ingreso_id, numero_pieza)
 
 ### `pedidos`
 - id, empresa_id, numero_pedido, cliente, **numero_remito_externo** (link al sistema de facturación tipo Softland), estado, created_by, created_at
@@ -219,8 +221,9 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 005 | **Multi-tenant**. Tabla `empresas`, `empresa_id` en todas, RLS por empresa, trigger auto-set, helper functions |
 | 006 | Super-admin como rol propio (`role='super'`), empresa_id NULLABLE solo para super, CHECK constraint |
 | 007 | **Cleanup pre-IA** (Etapa 3): `color` movido de `rollos` a `despachos` (1 lote = 1 color), `codigo_externo` eliminado de `rollos` (redundante con `numero_pieza`), agrega `ot/rem_tejeduria/referencia` en `despachos` y `gramaje_planilla` en `rollos` para trazabilidad de planilla |
+| 008 | **Rename + config por tintorería** (post-test E2E): `despachos` renombrada a `ingresos` (+ `rollos.despacho_id` → `ingreso_id`). Agrega `tintorerias.extraction_config_key` para sistema de prompts IA específicos por tintorería. |
 
-**Schema canónico**: ⚠ `supabase/schema.sql` está **DESACTUALIZADO** — refleja solo Etapa 2 base, sin migraciones 005/006/007. Para DB nueva: correr `schema.sql` + todas las migraciones en orden. Actualización pendiente agendada en Etapa 7D.
+**Schema canónico**: ⚠ `supabase/schema.sql` está **DESACTUALIZADO** — refleja solo Etapa 2 base, sin migraciones 005/006/007/008. Para DB nueva: correr `schema.sql` + todas las migraciones en orden. Actualización pendiente agendada en Etapa 7D.
 
 ---
 
@@ -275,8 +278,8 @@ Por default Supabase usa el flow **legacy** que no funciona con SSR. Hay que cus
 | 1 | Modelo de datos + auth con roles | ✅ |
 | 2 | Ingreso manual de despacho con sus rollos | ✅ |
 | Multi-tenant | (no era etapa, se metió entre 2 y 3) | ✅ pendiente último test de invitación con email template fixeado |
-| **3** | **Extracción IA de planilla (foto/PDF) + auditoría relajada** | ⏳ en curso |
-| 4 | Confirmación física en mobile (scanner QR) | ⏳ |
+| **3** | **Extracción IA con configs por tintorería + sidebar/nav + mobile-first** | ✅ completa post-correcciones |
+| 4 | Confirmación física en mobile (scanner QR) | ⏳ próxima |
 | 5 | Vista de stock con filtros | ⏳ |
 | 6 | Pedidos + picking | ⏳ |
 | 7 | Muestras + reportes + rediseño UI/UX | ⏳ |
@@ -289,12 +292,12 @@ En cada etapa que se cierre, dedicar 20-30 min a que las pantallas nuevas no que
 
 ### Etapa 3 — Extracción IA de planilla + auditoría relajada
 
-**Objetivo**: el **admin** sube foto o PDF de la planilla de tintorería. Una IA (Gemini 2.5 Flash) extrae los rollos en formato tabla. El admin audita rápido (umbral de confianza visual, sin validación celda-por-celda) y guarda. Los rollos quedan en estado `pendiente` hasta que en Etapa 4 el operario los confirme físicamente con scanner. Es el feature **diferenciador del MVP**.
+**Objetivo**: el admin u operario sube foto o PDF de la planilla de tintorería. Una IA (Gemini 2.5 Flash) extrae los rollos en formato tabla, usando un prompt **específico de la tintorería elegida** (cada tintorería tiene su propio config). El usuario audita rápido (umbral de confianza visual, sin validación celda-por-celda) y guarda. Los rollos quedan en estado `pendiente` hasta que en Etapa 4 el operario los confirme físicamente con scanner. Es el feature **diferenciador del MVP**.
 
 #### Decisiones acordadas en grilling (mayo 2026)
 
 1. **Modelo B confirmado**: planilla IA crea rollos `pendiente` → scanner físico (Etapa 4) los pasa a `en_stock`.
-2. **Admin Y operario pueden subir planilla** en Etapa 3. Ventas NO (su rol es crear pedidos, no cargar despachos). La pantalla `/operario/despachos/nuevo` (existente desde Etapa 2) se extiende con un toggle "Cargar a mano" / "Subir planilla con IA" — admin accede al mismo path porque es superset de operario. Cero duplicación de código.
+2. **Admin Y operario pueden subir planilla** en Etapa 3. Ventas NO (su rol es crear pedidos, no cargar ingresos). La pantalla `/operario/ingresos/nuevo` (existente desde Etapa 2) se extiende con un toggle "Cargar a mano" / "Subir planilla con IA" — admin accede al mismo path porque es superset de operario. Cero duplicación de código.
 3. **Diseño desktop-first** (admin típicamente está en oficina con PC). Mobile-first sigue aplicando para Etapa 4 (operario en depósito con celu).
 4. **Side-by-side cancelado**: el admin tiene la planilla física en la mano (o la imagen en otra ventana), no necesita comparar contra una imagen embebida. Layout simple: tabla editable a pantalla completa. Imagen guardada en Storage queda accesible vía thumbnail/modal por si hace falta.
 5. **Multi-formato planilla**: solo **foto (JPG/PNG) y PDF** en MVP. Excel queda postergado (la mayoría de tintorerías mandan foto/PDF; Excel es <10% según user).
@@ -308,6 +311,17 @@ En cada etapa que se cierre, dedicar 20-30 min a que las pantallas nuevas no que
     - **Calidad pobre** (>30% de celdas <0.85 confianza) → banner gris con recomendación. No bloquea.
     La filosofía: avisar fuerte, NUNCA bloquear el guardado en Etapa 3. El bloqueo duro es de Etapa 4 (scanner).
 11. **Caso "rollos llegan sin planilla" postergado a Etapa 7**. Ocurre "a veces" (~10-25% según user). Se va a medir en uso real con Muter; si confirma frecuencia alta, se construye flow de cross-check entonces.
+
+#### Correcciones post-test E2E (mayo 2026)
+
+Después del primer test de la Etapa 3 base, el user identificó 6 cosas a corregir. Se implementaron en una iteración inmediata antes de declarar Etapa 3 cerrada.
+
+1. **Mobile-first del form completo**. La tabla densa solo se ve en desktop (≥640px). En mobile, cada rollo es un card con grid 2-col de inputs, labels chicos arriba, `inputMode="decimal/numeric"` para teclados móviles correctos. El header del ingreso pasa de 3 columnas a 1 en mobile.
+2. **Sidebar + drawer mobile + botón Home**. Componente único `src/components/AppShell.tsx` consumido por los 4 layouts (operario/admin/ventas/super). En desktop sidebar fijo a la izquierda; en mobile drawer hamburger desde la izquierda. Botón Home explícito en el header mobile (ícono de casa).
+3. **Permisos cruzados PyMe**: el admin tiene en su sidebar TODOS los links — no solo los de admin sino también los de operario (Ingresos, Confirmar, Picking) y ventas (Stock, Pedidos). Filosofía: "es una PyMe, todos hacen de todo cuando hace falta". Los items disabled muestran badge "Etapa X" de la sección que los habilita.
+4. **Rename `despachos` → `ingresos`** en toda la app (tabla, columna FK, paths URL, tipos TS, textos UI). Migración 008 hace el rename SQL idempotente. La palabra "despacho" creaba ambigüedad con "despacho a cliente" (que en el schema es `pedidos`).
+5. **Sistema de prompts por tintorería** (cambio arquitectural): cada tintorería con formato específico tiene su propio archivo en `src/lib/extraccion/tintorerias/{key}.ts`. El usuario selecciona tintorería **antes** de subir la planilla (paso 1 explícito en la UI). El server action busca el `extraction_config_key` de esa tintorería y le pasa el prompt específico a Gemini. Si la tintorería tiene config `null`, se usa el prompt default genérico. **Workflow de alta**: cliente nos avisa nueva tintorería → recibimos planillas de muestra → creamos archivo `.ts` con la config → commit + deploy → SQL: `UPDATE tintorerias SET extraction_config_key = '{key}' WHERE id = '...'`. El admin de la empresa-cliente NO ve ni edita esto.
+6. **Ventas en Etapa 6**: confirmado que ventas hoy solo tiene dashboard placeholder. Se desarrolla entero en Etapa 6 (pedidos + picking). Mientras tanto, el admin puede cubrir las funciones de ventas si hace falta.
 
 #### Plan de sub-etapas
 
@@ -325,42 +339,49 @@ En cada etapa que se cierre, dedicar 20-30 min a que las pantallas nuevas no que
 - Bucket privado `planillas` en Supabase Storage + RLS por `current_empresa_id()`
 - `npm install @google/genai`
 
-**3.2 — Función pura de extracción (~60 min)**
-- `src/lib/extraccion/extraerPlanilla.ts`: tipos `DespachoExtraido`, `RolloExtraido` con `confianza` por campo
-- `src/lib/extraccion/gemini.ts`: implementación con `responseSchema` estructurado, prompt diseñado para "bloques paralelos de columnas" (estilo planilla Muter)
-- Probarla aislada con la planilla de Muter (foto compartida en grilling)
+**3.2 — Función pura de extracción**
+- `src/lib/extraccion/extraerPlanilla.ts`: tipos `IngresoExtraido`, `RolloExtraido` con `confianza` por campo. Función `extraerPlanilla(buffer, mimeType, configKey)`.
+- `src/lib/extraccion/gemini.ts`: implementación con `responseSchema` estructurado. Construye el prompt mergeando `PROMPT_BASE` + las instrucciones específicas de la config de la tintorería elegida.
 
-**3.3 — Storage helpers (~20 min)**
-- `src/lib/storage/planillas.ts`: upload con path `{empresa_id}/{yyyy-mm}/{uuid}.{ext}`, devuelve URL firmada para mostrar imagen guardada
+**3.3 — Storage helpers**
+- `src/lib/storage/planillas.ts`: upload con path `{empresa_id}/{yyyy-mm}/{uuid}.{ext}`, devuelve URL firmada para mostrar imagen guardada.
 
-**3.4 — UI extendida en `/operario/despachos/nuevo` (~60 min)**
-- Toggle al inicio: "Cargar a mano" (default) / "Subir planilla con IA"
-- Si IA: drag-drop (foto/PDF), spinner durante extracción, auto-fill de tabla editable
-- Tabla con celdas de baja confianza marcadas amarillas + tooltip
-- Banners de fallback (los 3 casos del punto 10)
-- Imagen guardada accesible vía thumbnail (modal con zoom)
-- Layout desktop-first (cards/tabla densa); mobile responsive como bonus
-- Mismo path que Etapa 2 — admin entra como superset de operario
+**3.4 — UI extendida en `/operario/ingresos/nuevo`**
+- Toggle al inicio: "Cargar a mano" (default) / "Planilla con IA"
+- En modo IA: paso 1 obligatorio = elegir tintorería; paso 2 = drag-drop (foto/PDF) → spinner → auto-fill de tabla editable.
+- Una vez subida la planilla, el dropdown de tintorería queda **bloqueado** (cambiarla = cambiar config = empezar de cero).
+- Tabla con celdas de baja confianza marcadas con borde naranja (color "warning" del tema, paleta navy+naranja).
+- Banners de fallback 3-tier (falla técnica / extracción incompleta / calidad pobre).
+- Mobile-first: cards apilados en mobile (≤640px), tabla densa en desktop.
 
-**3.6 — Persistencia y verificación E2E (~30 min)**
-- Server action: upload imagen → llamar IA → crear despacho con `origen='planilla_ia'`, `estado='auditado'` y rollos en `pendiente`
-- Probar end-to-end con planilla real de Muter
+**3.5 — Sistema de configs por tintorería** (post-test correction)
+- `src/lib/extraccion/tintorerias/_types.ts`: tipo `TintoreriaConfig`.
+- `src/lib/extraccion/tintorerias/_default.ts`: config genérica (cuando `extraction_config_key = null`).
+- `src/lib/extraccion/tintorerias/_registry.ts`: mapa `key → config`. Función `getConfig(key | null)` que devuelve el default si no encuentra.
+- `src/lib/extraccion/tintorerias/muter-textil.ts`: config para Muter (24 rollos en 3 bloques paralelos, header lateral).
+- Para agregar tintorería nueva: crear archivo `.ts` + agregarlo al registry + commit + `UPDATE tintorerias SET extraction_config_key = '{key}'` por SQL.
+
+**3.6 — Persistencia y verificación E2E**
+- Server action `crearIngreso`: crea ingreso con `origen='planilla_ia'`, `estado='auditado'` y rollos en `pendiente`. Si origen='manual', el estado deriva de los rollos.
+- Verificable: el usuario sube la planilla de Muter, selecciona tintorería "Muter Textil" (que tiene `extraction_config_key='muter-textil'`), ve la tabla extraída con confianza visual, corrige lo que la IA leyó mal, guarda, ve el ingreso cargado en estado `auditado` con N rollos en `pendiente`.
 
 **Archivos nuevos**:
-- `supabase/migrations/007_cleanup_schema_pre_ia.sql`
+- `supabase/migrations/007_cleanup_schema_pre_ia.sql`, `008_rename_despachos_a_ingresos.sql`
 - `src/lib/extraccion/extraerPlanilla.ts`, `src/lib/extraccion/gemini.ts`
+- `src/lib/extraccion/tintorerias/{_types,_default,_registry,muter-textil}.ts`
 - `src/lib/storage/planillas.ts`
+- `src/components/AppShell.tsx` (sidebar + drawer + botón Home, usado por los 4 layouts)
 
-**Archivos a modificar**:
-- `src/app/operario/despachos/nuevo/NuevoDespachoForm.tsx` — agregar toggle IA + drag-drop + spinner + auto-fill + fallbacks
-- `src/app/operario/despachos/nuevo/actions.ts` — agregar `procesarPlanillaConIA` + adaptar `createDespacho` para soportar `imagen_path` y `origen='planilla_ia'`
-- Schema canónico en `supabase/schema.sql` se actualiza con todos los cambios de 007 (pendiente).
+**Archivos modificados**:
+- `src/app/operario/ingresos/nuevo/NuevoIngresoForm.tsx` (renombrado desde NuevoDespachoForm)
+- `src/app/operario/ingresos/nuevo/actions.ts`
+- `src/app/operario/ingresos/page.tsx` y `[id]/page.tsx` (mobile-first)
+- `src/app/{operario,admin,ventas,super}/layout.tsx` (todos usan AppShell)
+- `src/app/{operario,admin}/dashboard/page.tsx` (links actualizados a `/ingresos`)
 
 **Variables de entorno nuevas**: `GEMINI_API_KEY`.
 
-**Verificable**: el admin sube la planilla compartida de Muter (24 rollos blancos), ve la tabla extraída con confianza visual, corrige lo que la IA leyó mal (típico: 0/O, decimales borrosos), guarda, ve el despacho cargado en estado `auditado` con 24 rollos en `pendiente`.
-
-**Tiempo estimado**: 4-5 horas guiadas (sin contar la decisión inicial de Etapa 3 ya gastada en grilling).
+**Tiempo estimado**: 6-8 horas guiadas (incluye correcciones post-test E2E).
 
 ---
 

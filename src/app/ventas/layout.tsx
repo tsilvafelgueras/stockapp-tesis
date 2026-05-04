@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import LogoutButton from '@/components/LogoutButton'
+import AppShell from '@/components/AppShell'
 
 export default async function VentasLayout({
   children,
@@ -20,26 +20,21 @@ export default async function VentasLayout({
     .eq('id', user.id)
     .single()
 
+  // Permitido: ventas y admin (admin es superset, filosofía PyMe)
   if (profile?.role !== 'ventas' && profile?.role !== 'admin') {
     redirect('/')
   }
 
-  const empresaNombre = (
-    profile.empresas as unknown as { nombre: string } | null
-  )?.nombre
+  const empresaNombre =
+    (profile.empresas as unknown as { nombre: string } | null)?.nombre ?? null
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b bg-white px-6 py-3 flex items-center justify-between">
-        <span className="font-semibold text-sm">
-          StockApp — Ventas{empresaNombre ? ` · ${empresaNombre}` : ''}
-        </span>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">{profile.nombre}</span>
-          <LogoutButton />
-        </div>
-      </header>
-      <main className="flex-1 bg-zinc-50">{children}</main>
-    </div>
+    <AppShell
+      role={profile.role}
+      userName={profile.nombre}
+      empresaNombre={empresaNombre}
+    >
+      {children}
+    </AppShell>
   )
 }

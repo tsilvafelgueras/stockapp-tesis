@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import LogoutButton from '@/components/LogoutButton'
+import AppShell from '@/components/AppShell'
 
 export default async function OperarioLayout({
   children,
@@ -20,26 +20,21 @@ export default async function OperarioLayout({
     .eq('id', user.id)
     .single()
 
+  // Permitido: operario y admin (admin es superset, sigue la filosofía PyMe)
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
     redirect('/')
   }
 
-  const empresaNombre = (
-    profile.empresas as unknown as { nombre: string } | null
-  )?.nombre
+  const empresaNombre =
+    (profile.empresas as unknown as { nombre: string } | null)?.nombre ?? null
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50">
-      <header className="border-b bg-white px-4 py-3 flex items-center justify-between">
-        <span className="font-semibold text-sm">
-          StockApp — Depósito{empresaNombre ? ` · ${empresaNombre}` : ''}
-        </span>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">{profile.nombre}</span>
-          <LogoutButton />
-        </div>
-      </header>
-      <main className="flex-1 p-4">{children}</main>
-    </div>
+    <AppShell
+      role={profile.role}
+      userName={profile.nombre}
+      empresaNombre={empresaNombre}
+    >
+      {children}
+    </AppShell>
   )
 }

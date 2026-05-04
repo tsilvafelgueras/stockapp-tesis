@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "StockApp",
   description: "Sistema de gestión de stock de rollos textiles",
+};
+
+// CRÍTICO para mobile: sin esto, los celulares renderizan la página al ancho
+// virtual de 980px y todo el CSS responsive se rompe. `width=device-width` le
+// dice al browser que use el ancho real del dispositivo.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({

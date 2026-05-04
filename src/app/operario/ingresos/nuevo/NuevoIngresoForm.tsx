@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  createDespacho,
+  crearIngreso,
   createTintoreriaInline,
   createArticuloInline,
   procesarPlanillaConIA,
@@ -11,7 +11,7 @@ import {
 } from './actions'
 import {
   UMBRAL_BAJA_CONFIANZA,
-  type DespachoExtraido,
+  type IngresoExtraido,
   type Field,
 } from '@/lib/extraccion/extraerPlanilla'
 
@@ -19,10 +19,6 @@ type Catalog = { id: string; nombre: string }
 
 type Modo = 'manual' | 'ia'
 
-/**
- * Confianza por celda — mismo shape que `DespachoExtraido` pero solo con los
- * números de confianza, alineado con los rollos por índice.
- */
 type Confianzas = {
   numero_remito: number
   fecha: number
@@ -61,19 +57,16 @@ function fmt(v: number | null): string {
   return v === null || v === undefined ? '' : String(v)
 }
 
-/** Normaliza un Field<T> para usarlo en el form (string vacío si null). */
 function valOf<T>(f: Field<T>): string {
   if (f.value === null || f.value === undefined) return ''
   return String(f.value)
 }
 
-/** Promedio simple de confianzas — usado para el `confianza_ia` por rollo. */
 function avg(nums: number[]): number {
   if (!nums.length) return 0
   return nums.reduce((a, b) => a + b, 0) / nums.length
 }
 
-/** Clase Tailwind para celdas con baja confianza (borde amarillo). */
 function celdaCls(confianza: number | undefined): string {
   if (confianza === undefined) return 'border-input'
   return confianza < UMBRAL_BAJA_CONFIANZA
@@ -81,7 +74,7 @@ function celdaCls(confianza: number | undefined): string {
     : 'border-input'
 }
 
-export default function NuevoDespachoForm({
+export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
 }: {
@@ -91,14 +84,11 @@ export default function NuevoDespachoForm({
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Catálogos (mutable porque se pueden agregar inline)
   const [tintorerias, setTintorerias] = useState(initialTintorerias)
   const [articulos, setArticulos] = useState(initialArticulos)
 
-  // Modo de carga
   const [modo, setModo] = useState<Modo>('manual')
 
-  // Estado del flow IA
   const [archivo, setArchivo] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [imagenPath, setImagenPath] = useState<string | null>(null)
@@ -107,7 +97,6 @@ export default function NuevoDespachoForm({
   const [warnings, setWarnings] = useState<string[]>([])
   const [confianzas, setConfianzas] = useState<Confianzas | null>(null)
 
-  // Header
   const [tintoreriaId, setTintoreriaId] = useState('')
   const [articuloId, setArticuloId] = useState('')
   const [fecha, setFecha] = useState(todayISO())
@@ -119,7 +108,6 @@ export default function NuevoDespachoForm({
   const [totalRollosDeclarado, setTotalRollosDeclarado] = useState('')
   const [totalKilosDeclarado, setTotalKilosDeclarado] = useState('')
 
-  // Rollos
   const [rollos, setRollos] = useState<RolloInput[]>([emptyRollo()])
 
   const [submitting, setSubmitting] = useState(false)
@@ -130,9 +118,7 @@ export default function NuevoDespachoForm({
     field: K,
     value: RolloInput[K]
   ) {
-    setRollos(
-      rollos.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
-    )
+    setRollos(rollos.map((r, i) => (i === idx ? { ...r, [field]: value } : r)))
   }
 
   function addRow() {
@@ -164,20 +150,20 @@ export default function NuevoDespachoForm({
 
   function cambiarModo(nuevo: Modo) {
     if (nuevo === modo) return
-    if (nuevo === 'manual') {
-      // Pasar a manual: limpio estado IA pero conservo lo que el usuario haya editado en el form
-      resetIA()
-    }
+    if (nuevo === 'manual') resetIA()
     setModo(nuevo)
   }
 
   async function handleArchivoSeleccionado(file: File) {
+    if (!tintoreriaId) {
+      setExtraccionError('Primero seleccioná la tintorería arriba.')
+      return
+    }
     setArchivo(file)
     setExtraccionError(null)
     setWarnings([])
     setConfianzas(null)
 
-    // Preview local (solo para imágenes; PDF queda con preview genérico)
     if (file.type.startsWith('image/')) {
       const reader = new FileReader()
       reader.onload = (e) => setPreviewUrl(e.target?.result as string)
@@ -189,6 +175,7 @@ export default function NuevoDespachoForm({
     setExtrayendo(true)
     const formData = new FormData()
     formData.set('archivo', file)
+    formData.set('tintoreria_id', tintoreriaId)
     const result = await procesarPlanillaConIA(formData)
     setExtrayendo(false)
 
@@ -203,8 +190,7 @@ export default function NuevoDespachoForm({
     aplicarDatosIA(result.datos)
   }
 
-  function aplicarDatosIA(datos: DespachoExtraido) {
-    // Header
+  function aplicarDatosIA(datos: IngresoExtraido) {
     setNumeroRemito(valOf(datos.numero_remito))
     if (datos.fecha.value) setFecha(datos.fecha.value)
     setColor(valOf(datos.color))
@@ -222,7 +208,6 @@ export default function NuevoDespachoForm({
         : ''
     )
 
-    // Rollos: en flow IA arrancan en `pendiente` (esperan scanner físico de Etapa 4)
     const rollosFromIA: RolloInput[] = datos.rollos.map((r) => ({
       numero_pieza: valOf(r.numero_pieza),
       kilos: fmt(r.kilos.value),
@@ -241,7 +226,6 @@ export default function NuevoDespachoForm({
     }))
     setRollos(rollosFromIA.length > 0 ? rollosFromIA : [emptyRollo()])
 
-    // Confianzas para el render visual
     setConfianzas({
       numero_remito: datos.numero_remito.confidence,
       fecha: datos.fecha.confidence,
@@ -261,19 +245,14 @@ export default function NuevoDespachoForm({
     })
   }
 
-  // Validaciones derivadas
   const validations = useMemo(() => {
     const sumaKilos = rollos.reduce(
       (acc, r) => acc + (parseFloat(r.kilos) || 0),
       0
     )
-    const cantidadRollos = rollos.filter((r) =>
-      r.numero_pieza.trim()
-    ).length
+    const cantidadRollos = rollos.filter((r) => r.numero_pieza.trim()).length
 
-    const numeros = rollos
-      .map((r) => r.numero_pieza.trim())
-      .filter(Boolean)
+    const numeros = rollos.map((r) => r.numero_pieza.trim()).filter(Boolean)
     const seen = new Set<string>()
     const duplicadosSet = new Set<string>()
     for (const n of numeros) {
@@ -288,10 +267,8 @@ export default function NuevoDespachoForm({
     const cantidadCoincide =
       totalRollosNum === null || totalRollosNum === cantidadRollos
     const kilosCoinciden =
-      totalKilosNum === null ||
-      Math.abs(totalKilosNum - sumaKilos) < 0.01
+      totalKilosNum === null || Math.abs(totalKilosNum - sumaKilos) < 0.01
 
-    // Solo en modo manual: ubicación obligatoria si estado=en_stock
     const ubicacionesFaltantes =
       modo === 'manual'
         ? rollos.filter(
@@ -317,10 +294,10 @@ export default function NuevoDespachoForm({
     setSubmitting(true)
     setSubmitError(null)
 
-    const result = await createDespacho({
+    const result = await crearIngreso({
       tintoreria_id: tintoreriaId,
       articulo_id: articuloId,
-      fecha_despacho: fecha,
+      fecha,
       numero_remito: numeroRemito,
       color,
       ot,
@@ -349,14 +326,18 @@ export default function NuevoDespachoForm({
     validations.duplicados.length > 0 ||
     validations.ubicacionesFaltantes > 0
 
+  // En modo IA, una vez subida la planilla, la tintorería queda fija
+  // (cambiarla = cambiar config = empezar de cero)
+  const tintoreriaBloqueada = modo === 'ia' && archivo !== null
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Toggle de modo */}
-      <div className="rounded-lg border bg-white p-4 shadow-sm flex items-center gap-2">
+    <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+      {/* Toggle modo */}
+      <div className="rounded-lg border bg-white p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={() => cambiarModo('manual')}
-          className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
             modo === 'manual'
               ? 'bg-primary text-primary-foreground'
               : 'bg-zinc-100 hover:bg-zinc-200'
@@ -367,101 +348,177 @@ export default function NuevoDespachoForm({
         <button
           type="button"
           onClick={() => cambiarModo('ia')}
-          className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
             modo === 'ia'
               ? 'bg-primary text-primary-foreground'
               : 'bg-zinc-100 hover:bg-zinc-200'
           }`}
         >
-          Subir planilla con IA
+          Planilla con IA
         </button>
       </div>
 
-      {/* Zona de subida + estado IA */}
+      {/* Modo IA: paso 1 (tintorería) + paso 2 (upload) */}
       {modo === 'ia' && (
-        <div className="rounded-lg border bg-white p-5 shadow-sm space-y-4">
-          {!archivo && !extrayendo && !extraccionError && (
-            <UploadArea
-              onFile={handleArchivoSeleccionado}
-              fileInputRef={fileInputRef}
-            />
-          )}
-
-          {extrayendo && (
-            <div className="flex items-center gap-3 rounded-md bg-zinc-50 px-4 py-6 text-sm">
-              <Spinner />
-              <div>
-                <p className="font-medium">Procesando planilla con IA...</p>
-                <p className="text-xs text-muted-foreground">
-                  Esto suele tomar 5-10 segundos.
-                </p>
-              </div>
+        <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm space-y-4">
+          {/* Paso 1: tintorería */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                1
+              </span>
+              <label className="text-sm font-medium">
+                Tintorería de la que viene la planilla *
+              </label>
             </div>
-          )}
+            <select
+              value={tintoreriaId}
+              onChange={(e) => setTintoreriaId(e.target.value)}
+              disabled={tintoreriaBloqueada}
+              required
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:bg-zinc-50 disabled:cursor-not-allowed"
+            >
+              <option value="">Seleccionar tintorería...</option>
+              {tintorerias.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
+                </option>
+              ))}
+            </select>
+            {!tintoreriaBloqueada && (
+              <InlineCreator
+                label="+ Nueva tintorería"
+                placeholder="Nombre de la tintorería"
+                onCreate={async (nombre) => {
+                  const res = await createTintoreriaInline(nombre)
+                  if (res.success && res.data) {
+                    setTintorerias([
+                      ...tintorerias,
+                      { id: res.data.id, nombre: res.data.nombre },
+                    ])
+                    setTintoreriaId(res.data.id)
+                  }
+                  return res
+                }}
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              La IA usa instrucciones específicas según el formato de cada
+              tintorería.
+            </p>
+          </div>
 
-          {extraccionError && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-3">
-              <p className="text-sm font-medium text-destructive">
-                ⚠ La IA no pudo procesar la planilla
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {extraccionError}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => archivo && handleArchivoSeleccionado(archivo)}
-                  className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          {/* Paso 2: upload (solo aparece si hay tintorería elegida) */}
+          {tintoreriaId && (
+            <div className="space-y-2 pt-3 border-t">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                    archivo
+                      ? 'bg-success text-success-foreground'
+                      : 'bg-primary text-primary-foreground'
+                  }`}
                 >
-                  Reintentar IA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => cambiarModo('manual')}
-                  className="rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
-                >
-                  Cargar a mano
-                </button>
-              </div>
-            </div>
-          )}
-
-          {archivo && !extrayendo && !extraccionError && (
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 rounded-md border bg-zinc-50 p-3">
-                {previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt="Planilla"
-                    className="h-20 w-20 object-cover rounded"
-                  />
-                ) : (
-                  <div className="h-20 w-20 rounded bg-zinc-200 flex items-center justify-center text-xs text-muted-foreground">
-                    PDF
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{archivo.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(archivo.size / 1024).toFixed(1)} KB · datos extraídos
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={resetIA}
-                  className="text-xs text-muted-foreground hover:text-destructive"
-                >
-                  Quitar
-                </button>
+                  2
+                </span>
+                <label className="text-sm font-medium">Subir planilla</label>
               </div>
 
-              {warnings.length > 0 && (
-                <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-1">
-                  {warnings.map((w, i) => (
-                    <p key={i} className="text-xs text-foreground">
-                      💡 {w}
+              {!archivo && !extrayendo && !extraccionError && (
+                <UploadArea
+                  onFile={handleArchivoSeleccionado}
+                  fileInputRef={fileInputRef}
+                />
+              )}
+
+              {extrayendo && (
+                <div className="flex items-center gap-3 rounded-md bg-zinc-50 px-4 py-6 text-sm">
+                  <Spinner />
+                  <div>
+                    <p className="font-medium">Procesando planilla con IA...</p>
+                    <p className="text-xs text-muted-foreground">
+                      Esto suele tomar 5-10 segundos.
                     </p>
-                  ))}
+                  </div>
+                </div>
+              )}
+
+              {extraccionError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 sm:p-4 space-y-3">
+                  <p className="text-sm font-medium text-destructive">
+                    ⚠ La IA no pudo procesar la planilla
+                  </p>
+                  <p className="text-xs text-muted-foreground break-words">
+                    {extraccionError}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        archivo && handleArchivoSeleccionado(archivo)
+                      }
+                      className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      Reintentar IA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cambiarModo('manual')}
+                      className="rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
+                    >
+                      Cargar a mano
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetIA}
+                      className="rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
+                    >
+                      Subir otra
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {archivo && !extrayendo && !extraccionError && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 rounded-md border bg-zinc-50 p-3">
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Planilla"
+                        className="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 sm:h-20 sm:w-20 rounded bg-zinc-200 flex items-center justify-center text-xs text-muted-foreground flex-shrink-0">
+                        PDF
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {archivo.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {(archivo.size / 1024).toFixed(1)} KB · datos extraídos
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetIA}
+                      className="text-xs text-muted-foreground hover:text-destructive flex-shrink-0"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+
+                  {warnings.length > 0 && (
+                    <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-1">
+                      {warnings.map((w, i) => (
+                        <p key={i} className="text-xs text-foreground">
+                          💡 {w}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -469,39 +526,45 @@ export default function NuevoDespachoForm({
         </div>
       )}
 
-      {/* Header */}
-      <div className="rounded-lg border bg-white p-5 shadow-sm space-y-4">
-        <h2 className="font-semibold">Datos del despacho</h2>
+      {/* Header del ingreso */}
+      <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm space-y-4">
+        <h2 className="font-semibold">Datos del ingreso</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Tintorería *</label>
-            <select
-              value={tintoreriaId}
-              onChange={(e) => setTintoreriaId(e.target.value)}
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">Seleccionar...</option>
-              {tintorerias.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
-            <InlineCreator
-              label="+ Nueva tintorería"
-              placeholder="Nombre de la tintorería"
-              onCreate={async (nombre) => {
-                const res = await createTintoreriaInline(nombre)
-                if (res.success && res.data) {
-                  setTintorerias([...tintorerias, res.data])
-                  setTintoreriaId(res.data.id)
-                }
-                return res
-              }}
-            />
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {/* En manual: dropdown de tintorería. En IA: ya se eligió en step 1. */}
+          {modo === 'manual' && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Tintorería *</label>
+              <select
+                value={tintoreriaId}
+                onChange={(e) => setTintoreriaId(e.target.value)}
+                required
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Seleccionar...</option>
+                {tintorerias.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+              <InlineCreator
+                label="+ Nueva tintorería"
+                placeholder="Nombre de la tintorería"
+                onCreate={async (nombre) => {
+                  const res = await createTintoreriaInline(nombre)
+                  if (res.success && res.data) {
+                    setTintorerias([
+                      ...tintorerias,
+                      { id: res.data.id, nombre: res.data.nombre },
+                    ])
+                    setTintoreriaId(res.data.id)
+                  }
+                  return res
+                }}
+              />
+            </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Artículo *</label>
@@ -549,7 +612,7 @@ export default function NuevoDespachoForm({
               type="text"
               value={numeroRemito}
               onChange={(e) => setNumeroRemito(e.target.value)}
-              placeholder="Ej: 0001-00012345"
+              placeholder="Ej: 49447"
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.numero_remito)}`}
             />
           </div>
@@ -572,6 +635,7 @@ export default function NuevoDespachoForm({
             <input
               type="number"
               min="0"
+              inputMode="numeric"
               value={totalRollosDeclarado}
               onChange={(e) => setTotalRollosDeclarado(e.target.value)}
               placeholder="Ej: 24"
@@ -587,6 +651,7 @@ export default function NuevoDespachoForm({
               type="number"
               step="0.01"
               min="0"
+              inputMode="decimal"
               value={totalKilosDeclarado}
               onChange={(e) => setTotalKilosDeclarado(e.target.value)}
               placeholder="Ej: 480.50"
@@ -631,7 +696,7 @@ export default function NuevoDespachoForm({
 
       {/* Rollos */}
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b bg-zinc-50 flex items-center justify-between">
+        <div className="px-3 sm:px-4 py-3 border-b bg-zinc-50 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-sm">Rollos</h2>
           <span className="text-xs text-muted-foreground">
             {validations.cantidadRollos} cargados · suma{' '}
@@ -639,7 +704,32 @@ export default function NuevoDespachoForm({
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile: cards apilados */}
+        <div className="sm:hidden divide-y">
+          {rollos.map((r, i) => (
+            <RolloCardMobile
+              key={i}
+              rollo={r}
+              index={i}
+              confianzas={confianzas?.rollos[i]}
+              isDuplicate={
+                !!r.numero_pieza.trim() &&
+                validations.duplicados.includes(r.numero_pieza.trim())
+              }
+              ubicacionFaltante={
+                modo === 'manual' &&
+                !!r.numero_pieza.trim() &&
+                r.estado === 'en_stock' &&
+                !r.ubicacion.trim()
+              }
+              onUpdate={(field, value) => updateRollo(i, field, value)}
+              onRemove={() => removeRow(i)}
+            />
+          ))}
+        </div>
+
+        {/* Desktop: tabla */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left border-b">
               <tr>
@@ -693,10 +783,9 @@ export default function NuevoDespachoForm({
                         type="number"
                         step="0.01"
                         min="0"
+                        inputMode="decimal"
                         value={r.kilos}
-                        onChange={(e) =>
-                          updateRollo(i, 'kilos', e.target.value)
-                        }
+                        onChange={(e) => updateRollo(i, 'kilos', e.target.value)}
                         placeholder="20.5"
                         className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.kilos)}`}
                       />
@@ -706,6 +795,7 @@ export default function NuevoDespachoForm({
                         type="number"
                         step="0.01"
                         min="0"
+                        inputMode="decimal"
                         value={r.metros}
                         onChange={(e) =>
                           updateRollo(i, 'metros', e.target.value)
@@ -719,6 +809,7 @@ export default function NuevoDespachoForm({
                         type="number"
                         step="0.01"
                         min="0"
+                        inputMode="decimal"
                         value={r.ratio_rendimiento}
                         onChange={(e) =>
                           updateRollo(i, 'ratio_rendimiento', e.target.value)
@@ -732,6 +823,7 @@ export default function NuevoDespachoForm({
                         type="number"
                         step="0.01"
                         min="0"
+                        inputMode="decimal"
                         value={r.gramaje_planilla ?? ''}
                         onChange={(e) =>
                           updateRollo(i, 'gramaje_planilla', e.target.value)
@@ -790,7 +882,7 @@ export default function NuevoDespachoForm({
           </table>
         </div>
 
-        <div className="px-4 py-3 border-t bg-zinc-50">
+        <div className="px-3 sm:px-4 py-3 border-t bg-zinc-50">
           <button
             type="button"
             onClick={addRow}
@@ -806,7 +898,7 @@ export default function NuevoDespachoForm({
         validations.ubicacionesFaltantes > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
-        <div className="rounded-lg border bg-warning/10 border-warning/30 p-4 space-y-1 text-sm">
+        <div className="rounded-lg border bg-warning/10 border-warning/30 p-3 sm:p-4 space-y-1 text-sm">
           {validations.duplicados.length > 0 && (
             <p className="text-destructive">
               ⚠ Números de pieza duplicados:{' '}
@@ -835,31 +927,182 @@ export default function NuevoDespachoForm({
         </div>
       )}
 
-      {submitError && (
-        <p className="text-sm text-destructive">{submitError}</p>
-      )}
+      {submitError && <p className="text-sm text-destructive">{submitError}</p>}
 
-      <div className="flex gap-3">
+      <div className="flex flex-col-reverse sm:flex-row gap-3">
+        <button
+          type="button"
+          onClick={() => router.push('/operario/ingresos')}
+          className="rounded-md border bg-white px-5 py-2.5 text-sm font-medium hover:bg-zinc-50 transition-colors"
+        >
+          Cancelar
+        </button>
         <button
           type="submit"
           disabled={blockSubmit}
-          className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {submitting ? 'Guardando...' : 'Guardar despacho'}
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push('/operario/despachos')}
-          className="rounded-md border bg-white px-5 py-2 text-sm font-medium hover:bg-zinc-50 transition-colors"
-        >
-          Cancelar
+          {submitting ? 'Guardando...' : 'Guardar ingreso'}
         </button>
       </div>
     </form>
   )
 }
 
-// ── Componentes auxiliares ──────────────────────────────────
+// ── Card de rollo (mobile) ──────────────────────────────────
+
+function RolloCardMobile({
+  rollo,
+  index,
+  confianzas,
+  isDuplicate,
+  ubicacionFaltante,
+  onUpdate,
+  onRemove,
+}: {
+  rollo: RolloInput
+  index: number
+  confianzas:
+    | {
+        numero_pieza: number
+        kilos: number
+        metros: number
+        ratio: number
+        gramaje_planilla: number
+      }
+    | undefined
+  isDuplicate: boolean
+  ubicacionFaltante: boolean
+  onUpdate: <K extends keyof RolloInput>(field: K, value: RolloInput[K]) => void
+  onRemove: () => void
+}) {
+  return (
+    <div className={`p-3 space-y-2 ${isDuplicate ? 'bg-destructive/5' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">#{index + 1}</span>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-muted-foreground hover:text-destructive text-xl leading-none px-2"
+          aria-label="Eliminar fila"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          N° Pieza *
+        </label>
+        <input
+          type="text"
+          value={rollo.numero_pieza}
+          onChange={(e) => onUpdate('numero_pieza', e.target.value)}
+          placeholder="204021911"
+          className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+            isDuplicate
+              ? 'border-destructive'
+              : celdaCls(confianzas?.numero_pieza)
+          }`}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Kilos
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            value={rollo.kilos}
+            onChange={(e) => onUpdate('kilos', e.target.value)}
+            placeholder="20.5"
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.kilos)}`}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Metros
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            value={rollo.metros}
+            onChange={(e) => onUpdate('metros', e.target.value)}
+            placeholder="50"
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.metros)}`}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Ratio
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            value={rollo.ratio_rendimiento}
+            onChange={(e) => onUpdate('ratio_rendimiento', e.target.value)}
+            placeholder="2.4"
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.ratio)}`}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Gramaje
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            value={rollo.gramaje_planilla ?? ''}
+            onChange={(e) => onUpdate('gramaje_planilla', e.target.value)}
+            placeholder="142"
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.gramaje_planilla)}`}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Estado
+          </label>
+          <select
+            value={rollo.estado}
+            onChange={(e) =>
+              onUpdate('estado', e.target.value as RolloInput['estado'])
+            }
+            className="w-full rounded border border-input bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="en_stock">En stock</option>
+            <option value="pendiente">Pendiente</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">
+            Ubicación
+          </label>
+          <input
+            type="text"
+            value={rollo.ubicacion}
+            onChange={(e) => onUpdate('ubicacion', e.target.value)}
+            placeholder={rollo.estado === 'en_stock' ? 'A42' : 'opcional'}
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+              ubicacionFaltante ? 'border-destructive' : 'border-input'
+            }`}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Auxiliares ──────────────────────────────────────────────
 
 function UploadArea({
   onFile,
@@ -883,22 +1126,23 @@ function UploadArea({
         const file = e.dataTransfer.files?.[0]
         if (file) onFile(file)
       }}
-      className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors ${
+      className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 sm:p-8 cursor-pointer transition-colors ${
         dragOver
           ? 'border-primary bg-primary/5'
           : 'border-input hover:bg-zinc-50'
       }`}
     >
-      <p className="text-sm font-medium">
-        Arrastrá la planilla acá o hacé click para elegir
+      <p className="text-sm font-medium text-center">
+        Arrastrá la planilla acá o tocá para elegir
       </p>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground text-center">
         JPG, PNG, WebP, HEIC o PDF
       </p>
       <input
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf"
+        capture="environment"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0]
@@ -934,8 +1178,6 @@ function Spinner() {
   )
 }
 
-// ── Componente para crear catálogo inline ───────────────────
-
 function InlineCreator({
   label,
   placeholder,
@@ -945,7 +1187,11 @@ function InlineCreator({
   placeholder: string
   onCreate: (
     nombre: string
-  ) => Promise<{ success?: boolean; data?: Catalog; error?: string }>
+  ) => Promise<{
+    success?: boolean
+    data?: { id: string; nombre: string }
+    error?: string
+  }>
 }) {
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
@@ -986,7 +1232,7 @@ function InlineCreator({
 
   return (
     <div className="space-y-1">
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
           value={value}
@@ -1003,21 +1249,23 @@ function InlineCreator({
           }}
           className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={loading || !value.trim()}
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          {loading ? '...' : 'Guardar'}
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
-        >
-          Cancelar
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading || !value.trim()}
+            className="flex-1 sm:flex-initial rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {loading ? '...' : 'Guardar'}
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            className="flex-1 sm:flex-initial rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
+          >
+            Cancelar
+          </button>
+        </div>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

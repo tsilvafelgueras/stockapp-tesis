@@ -2,7 +2,7 @@
  * Interfaces públicas para extracción de planillas con IA.
  *
  * La IA nos devuelve cada campo extraído como `{ value, confidence }` para
- * que la UI pueda mostrar borde amarillo (baja confianza) por campo.
+ * que la UI pueda mostrar borde de "baja confianza" por campo.
  *
  * - `value` puede ser null si la IA no encontró el campo en la planilla.
  * - `confidence` va de 0 a 1. Umbral de "baja confianza" actualmente: 0.85.
@@ -21,7 +21,7 @@ export type RolloExtraido = {
   gramaje_planilla: Field<number>
 }
 
-export type DespachoExtraido = {
+export type IngresoExtraido = {
   numero_remito: Field<string>
   fecha: Field<string> // ISO 'YYYY-MM-DD'
   color: Field<string>
@@ -40,26 +40,33 @@ export type CodigoErrorExtraccion =
   | 'OTHER'
 
 export type ExtraccionResult =
-  | { ok: true; data: DespachoExtraido }
+  | { ok: true; data: IngresoExtraido }
   | { ok: false; error: string; codigo: CodigoErrorExtraccion }
 
 /**
  * Procesa una imagen (JPG/PNG) o PDF de planilla y devuelve los datos
  * estructurados con confianza por campo.
  *
+ * @param fileBuffer Buffer del archivo
+ * @param mimeType MIME type del archivo
+ * @param configKey Identificador de la config específica de la tintorería
+ *   (matchea con un archivo en `./tintorerias/{key}.ts`). Si es null o no
+ *   existe, se usa el prompt default genérico.
+ *
  * Importa la implementación de Gemini "lazy" para que tests/builds que no
  * usan la IA no carguen el SDK.
  */
 export async function extraerPlanilla(
   fileBuffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  configKey: string | null
 ): Promise<ExtraccionResult> {
   const { extraerConGemini } = await import('./gemini')
-  return extraerConGemini(fileBuffer, mimeType)
+  return extraerConGemini(fileBuffer, mimeType, configKey)
 }
 
 /**
  * Umbral por debajo del cual marcamos una celda como "baja confianza"
- * (borde amarillo en la UI). Decidido en grilling de Etapa 3 (mayo 2026).
+ * (borde de warning en la UI). Decidido en grilling de Etapa 3 (mayo 2026).
  */
 export const UMBRAL_BAJA_CONFIANZA = 0.85

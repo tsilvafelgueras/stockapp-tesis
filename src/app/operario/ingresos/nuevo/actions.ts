@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import {
   extraerPlanilla,
-  type DespachoExtraido,
+  type IngresoExtraido,
   UMBRAL_BAJA_CONFIANZA,
 } from '@/lib/extraccion/extraerPlanilla'
 import { subirPlanilla } from '@/lib/storage/planillas'
@@ -23,10 +23,10 @@ export type RolloInput = {
   confianza_ia?: number
 }
 
-export type DespachoInput = {
+export type IngresoInput = {
   tintoreria_id: string
   articulo_id: string
-  fecha_despacho: string
+  fecha: string
   numero_remito: string
   color: string
   ot?: string
@@ -46,7 +46,7 @@ export type ProcesarPlanillaResult =
   | {
       ok: true
       imagen_path: string
-      datos: DespachoExtraido
+      datos: IngresoExtraido
       warnings: string[]
     }
   | {
@@ -54,6 +54,7 @@ export type ProcesarPlanillaResult =
       error: string
       codigo:
         | 'NO_FILE'
+        | 'NO_TINTORERIA'
         | 'TIPO_INVALIDO'
         | 'NO_AUTH'
         | 'SIN_EMPRESA'
@@ -76,12 +77,25 @@ const MIME_ACEPTADOS = [
   'application/pdf',
 ]
 
+/**
+ * Procesa una planilla con IA aplicando la config de la tintorería elegida.
+ * Si la tintorería no tiene `extraction_config_key`, usa el prompt default.
+ */
 export async function procesarPlanillaConIA(
   formData: FormData
 ): Promise<ProcesarPlanillaResult> {
   const file = formData.get('archivo')
+  const tintoreriaId = formData.get('tintoreria_id')
+
   if (!(file instanceof File)) {
     return { ok: false, error: 'No se recibió archivo.', codigo: 'NO_FILE' }
+  }
+  if (typeof tintoreriaId !== 'string' || !tintoreriaId.trim()) {
+    return {
+      ok: false,
+      error: 'Hay que seleccionar la tintorería antes de subir la planilla.',
+      codigo: 'NO_TINTORERIA',
+    }
   }
   if (!MIME_ACEPTADOS.includes(file.type)) {
     return {
@@ -112,6 +126,16 @@ export async function procesarPlanillaConIA(
     }
   }
 
+  // Lookup de la config de la tintorería elegida.
+  // Si no tiene `extraction_config_key`, queda null y se usa el default.
+  const { data: tintoreria } = await supabase
+    .from('tintorerias')
+    .select('extraction_config_key')
+    .eq('id', tintoreriaId)
+    .single()
+
+  const configKey = tintoreria?.extraction_config_key ?? null
+
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const upload = await subirPlanilla(buffer, file.type, profile.empresa_id)
@@ -119,7 +143,7 @@ export async function procesarPlanillaConIA(
     return { ok: false, error: upload.error, codigo: 'STORAGE_ERROR' }
   }
 
-  const extraccion = await extraerPlanilla(buffer, file.type)
+  const extraccion = await extraerPlanilla(buffer, file.type, configKey)
   if (!extraccion.ok) {
     return {
       ok: false,
@@ -140,7 +164,7 @@ export async function procesarPlanillaConIA(
 }
 
 /** Banners de fallback 3-tier: incompleto + calidad pobre. (Falla técnica se maneja arriba.) */
-function calcularWarnings(data: DespachoExtraido): string[] {
+function calcularWarnings(data: IngresoExtraido): string[] {
   const warnings: string[] = []
 
   const declarados = data.total_rollos_declarado.value
@@ -190,14 +214,14 @@ function calcularWarnings(data: DespachoExtraido): string[] {
   return warnings
 }
 
-// ── Server action: crear despacho (flow manual o IA) ───────
+// ── Server action: crear ingreso (flow manual o IA) ────────
 
-export async function createDespacho(input: DespachoInput) {
+export async function crearIngreso(input: IngresoInput) {
   const supabase = await createClient()
 
   if (!input.tintoreria_id) return { error: 'Falta seleccionar la tintorería.' }
   if (!input.articulo_id) return { error: 'Falta seleccionar el artículo.' }
-  if (!input.fecha_despacho) return { error: 'Falta la fecha del despacho.' }
+  if (!input.fecha) return { error: 'Falta la fecha del ingreso.' }
   if (!input.rollos.length) return { error: 'Cargá al menos un rollo.' }
 
   const origen = input.origen ?? 'manual'
@@ -217,7 +241,7 @@ export async function createDespacho(input: DespachoInput) {
   const numeros = input.rollos.map((r) => r.numero_pieza.trim())
   const unicos = new Set(numeros)
   if (unicos.size !== numeros.length) {
-    return { error: 'Hay números de pieza duplicados en el despacho.' }
+    return { error: 'Hay números de pieza duplicados en el ingreso.' }
   }
 
   const {
@@ -226,23 +250,23 @@ export async function createDespacho(input: DespachoInput) {
 
   if (!user) return { error: 'Sesión expirada — volvé a iniciar sesión.' }
 
-  // Estado del despacho derivado del origen:
+  // Estado del ingreso derivado del origen:
   // - planilla_ia → siempre `auditado` (rollos quedan `pendiente`, esperan scanner físico en Etapa 4)
   // - manual: si todos los rollos están en_stock → `confirmado`, si alguno está pendiente → `borrador`
-  let despachoEstado: 'borrador' | 'auditado' | 'confirmado'
+  let ingresoEstado: 'borrador' | 'auditado' | 'confirmado'
   if (origen === 'planilla_ia') {
-    despachoEstado = 'auditado'
+    ingresoEstado = 'auditado'
   } else {
     const algunoPendiente = input.rollos.some((r) => r.estado === 'pendiente')
-    despachoEstado = algunoPendiente ? 'borrador' : 'confirmado'
+    ingresoEstado = algunoPendiente ? 'borrador' : 'confirmado'
   }
 
-  const { data: despacho, error: dError } = await supabase
-    .from('despachos')
+  const { data: ingreso, error: iError } = await supabase
+    .from('ingresos')
     .insert({
       tintoreria_id: input.tintoreria_id,
       articulo_id: input.articulo_id,
-      fecha_despacho: input.fecha_despacho,
+      fecha_despacho: input.fecha,
       numero_remito: input.numero_remito.trim() || null,
       color: input.color.trim() || null,
       ot: input.ot?.trim() || null,
@@ -255,19 +279,19 @@ export async function createDespacho(input: DespachoInput) {
         ? parseFloat(input.total_kilos_declarado)
         : null,
       imagen_url: input.imagen_path ?? null,
-      estado: despachoEstado,
+      estado: ingresoEstado,
       origen,
       created_by: user.id,
     })
     .select()
     .single()
 
-  if (dError || !despacho) {
-    return { error: `No se pudo crear el despacho: ${dError?.message}` }
+  if (iError || !ingreso) {
+    return { error: `No se pudo crear el ingreso: ${iError?.message}` }
   }
 
   const rollosToInsert = input.rollos.map((r) => ({
-    despacho_id: despacho.id,
+    ingreso_id: ingreso.id,
     articulo_id: input.articulo_id,
     numero_pieza: r.numero_pieza.trim(),
     kilos: r.kilos ? parseFloat(r.kilos) : null,
@@ -286,11 +310,11 @@ export async function createDespacho(input: DespachoInput) {
   const { error: rError } = await supabase.from('rollos').insert(rollosToInsert)
 
   if (rError) {
-    await supabase.from('despachos').delete().eq('id', despacho.id)
+    await supabase.from('ingresos').delete().eq('id', ingreso.id)
     return { error: `No se pudieron cargar los rollos: ${rError.message}` }
   }
 
-  redirect(`/operario/despachos/${despacho.id}?creado=1`)
+  redirect(`/operario/ingresos/${ingreso.id}?creado=1`)
 }
 
 // ── Creación inline desde el form ───────────────────────────
@@ -303,7 +327,7 @@ export async function createTintoreriaInline(nombre: string) {
   const { data, error } = await supabase
     .from('tintorerias')
     .insert({ nombre: cleanName })
-    .select('id, nombre')
+    .select('id, nombre, extraction_config_key')
     .single()
 
   if (error || !data) return { error: error?.message ?? 'Error al crear.' }

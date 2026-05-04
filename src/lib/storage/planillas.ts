@@ -8,7 +8,7 @@
  *     Dashboard sea navegable.
  *   - El nombre final es un UUID + extensión derivada del MIME type.
  *
- * En la tabla `despachos.imagen_url` guardamos el PATH (no la URL firmada),
+ * En la tabla `ingresos.imagen_url` guardamos el PATH (no la URL firmada),
  * porque las URLs firmadas expiran. Cuando la UI necesite mostrar la imagen,
  * llama a `getSignedUrl(path)` y obtiene una URL temporal.
  */

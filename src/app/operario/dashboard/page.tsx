@@ -12,24 +12,22 @@ export default function OperarioDashboard() {
 
       <div className="flex flex-col gap-4">
         <Link
-          href="/operario/despachos/nuevo"
+          href="/operario/ingresos/nuevo"
           className="w-full rounded-2xl border-2 border-primary bg-primary/5 p-6 text-left active:scale-95 transition-transform"
         >
-          <span className="block text-lg font-semibold">
-            Cargar despacho a mano
-          </span>
+          <span className="block text-lg font-semibold">Cargar ingreso</span>
           <span className="block text-sm text-muted-foreground mt-1">
-            Ingresar rollos cuando llega mercadería sin planilla digital
+            Subir planilla con IA o cargar a mano cuando llega mercadería
           </span>
         </Link>
 
         <Link
-          href="/operario/despachos"
+          href="/operario/ingresos"
           className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
         >
-          <span className="block text-lg font-semibold">Ver despachos</span>
+          <span className="block text-lg font-semibold">Ver ingresos</span>
           <span className="block text-sm text-muted-foreground mt-1">
-            Listado de despachos cargados y pendientes
+            Listado de ingresos cargados y pendientes
           </span>
         </Link>
 
