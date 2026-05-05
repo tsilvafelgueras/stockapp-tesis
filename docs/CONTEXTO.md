@@ -675,6 +675,13 @@ $0 actualmente. Free tiers de GitHub + Vercel + Supabase + Google AI Studio (cua
    - `admin@probando.com` (admin de Muter Textil — fake email, no recibe mails, password seteado a mano)
    - `tsilvafelgueras@itba.edu.ar` (super-admin de la plataforma — Trinidad)
 10. **Email rate limit 2/h en Supabase built-in**: durante todo el desarrollo del MVP nos vamos a chocar con esto si invitamos varios usuarios seguidos. Workarounds en dev: esperar 1 hora entre tandas, usar cuentas ya creadas con password seteado a mano desde Supabase Dashboard → Authentication → Users (no requiere mail), o resetear password manualmente. El fix definitivo (Resend) está agendado en Etapa 7D punto 25 — **antes del launch sí o sí**.
+11. **Activar config de tintorería en producción** (post deploy de Etapa 3): cuando creamos `src/lib/extraccion/tintorerias/{key}.ts` para una nueva tintorería, el código solo entra en juego si la fila correspondiente en la tabla `tintorerias` tiene `extraction_config_key = '{key}'`. Lo seteamos por SQL desde Supabase Dashboard. Para Muter Textil (config ya creada en `muter-textil.ts`), correr una vez por cada empresa-cliente que tenga Muter como tintorería:
+    ```sql
+    UPDATE tintorerias
+       SET extraction_config_key = 'muter-textil'
+     WHERE nombre ILIKE '%muter%';
+    ```
+    Si la fila tiene `extraction_config_key = NULL`, la IA usa el prompt default genérico (funciona pero menos preciso para layouts en bloques paralelos como el de Muter).
 
 ---
 
@@ -686,6 +693,28 @@ $0 actualmente. Free tiers de GitHub + Vercel + Supabase + Google AI Studio (cua
 2. Decile al asistente la próxima etapa que querés encarar.
 3. Mencioná tu working style si no está claro: "vamos por etapas chicas, propose-then-act, español argentino, sin gold-plating".
 
+### Onboarding de un colaborador nuevo (handoff)
+
+Cuando otra persona del equipo (compañero, futuro contributor) toma una tarea:
+
+**Para solo testear la app deployada** (sin tocar código):
+1. Acceso al deploy: https://stockapp-tesis.vercel.app
+2. Cuenta de prueba: `admin@probando.com` (Trinidad pasa la pass por canal seguro)
+3. Hacer hard refresh del browser después de cualquier deploy reciente (Ctrl+Shift+R en Win, Cmd+Shift+R en Mac).
+
+**Para desarrollar localmente**:
+1. Ser invitado al repo en GitHub Settings → Collaborators
+2. `git clone https://github.com/tsilvafelgueras/stockapp-tesis`
+3. Path local fuera de OneDrive (idealmente `C:\dev\` o equivalente Mac/Linux). Ver Sección 1 y 13 punto 2.
+4. Pedirle a Trinidad el `.env.local` (canal seguro) — contiene `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`. Cada dev puede generar SU propia `GEMINI_API_KEY` gratis en https://aistudio.google.com (es preferible para tracking de quotas).
+5. `npm install` (Node 24 LTS, npm 11)
+6. `npm run dev` → http://localhost:3000
+7. Para cambios en DB schema: las migraciones en `supabase/migrations/` se aplican manualmente en Supabase SQL Editor (ya están aplicadas las 001-008 en el proyecto compartido — solo aplicar nuevas que se agreguen).
+
+**Para retomar contexto en chat con asistente**:
+1. Pegá este documento (`docs/CONTEXTO.md`) entero al inicio del chat.
+2. Mencioná qué etapa o feature querés encarar.
+
 ### Lo que viene
 
-El detalle técnico de cada etapa está en la **Sección 10** de este mismo documento. La próxima en la cola es **Etapa 3 (extracción IA de planilla)**, después de cerrar el último test del flow de invitación multi-tenant.
+El detalle técnico de cada etapa está en la **Sección 10**. Etapas completadas: 0, 1, 2, multi-tenant, 3. **Próxima: Etapa 4** (confirmación física por scanner QR/barcode — el operario va al depósito con el celu y escanea cada rollo `pendiente` para pasarlo a `en_stock`).
