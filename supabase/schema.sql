@@ -1,64 +1,142 @@
 -- ============================================================
--- StockApp — Schema (Etapa 2 base, NO actualizado a 005/006/007)
+-- StockApp — Schema canónico (post Etapa 7D, 2026-05)
 --
--- ⚠ ESTE ARCHIVO ESTÁ DESACTUALIZADO. No incluye:
---   - Multi-tenant (migración 005)
---   - Super-admin como rol (migración 006)
---   - Cleanup pre-IA: color en despachos, drop codigo_externo,
---     campos de trazabilidad de planilla (migración 007)
+-- Este archivo refleja el estado completo del schema después
+-- de aplicar las migraciones 001..011 en orden.
 --
--- Para una DB nueva: NO usar este archivo. Correr en orden:
---   schema.sql (este, base de Etapa 2) +
---   001_etapa2_refactor.sql + 002 + 003 + 004 + 005 + 006 + 007
+-- Para una DB nueva, podés correr:
+--   1) este archivo (schema.sql), o
+--   2) las migraciones en orden numérico (001..011).
 --
--- TODO: actualizar este archivo a estado canónico post-007
--- (agendado en CONTEXTO.md sección Etapa 7D).
+-- Las dos opciones dejan la DB en el mismo estado funcional.
+-- Las migraciones siguen siendo la fuente histórica autoritativa
+-- (cada una explica el "por qué" del cambio); este archivo es
+-- el "cómo está hoy" para arrancar fresh.
+--
+-- Las RPCs (crear_pedido, cancelar_pedido, entregar_pedido,
+-- pickear_rollo, registrar_muestra) NO están duplicadas acá:
+-- aplicar las migraciones 009-011 después de este archivo.
 -- ============================================================
 
 
--- ── PROFILES ────────────────────────────────────────────────
--- Extiende auth.users con nombre y rol
+-- ── HELPERS (orden importante: las usan triggers + RLS) ─────
 
-CREATE TABLE profiles (
-  id         UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+CREATE OR REPLACE FUNCTION public.current_empresa_id()
+RETURNS UUID
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT empresa_id FROM profiles WHERE id = auth.uid()
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE((SELECT role = 'super' FROM profiles WHERE id = auth.uid()), FALSE)
+$$;
+
+CREATE OR REPLACE FUNCTION public.set_empresa_id()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.empresa_id IS NULL THEN
+    NEW.empresa_id := public.current_empresa_id();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+-- ── EMPRESAS (multi-tenant root) ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS empresas (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   nombre     TEXT NOT NULL,
-  role       TEXT NOT NULL DEFAULT 'admin'
-               CHECK (role IN ('operario', 'ventas', 'admin')),
+  activo     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE empresas ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Super-admin gestiona empresas" ON empresas;
+CREATE POLICY "Super-admin gestiona empresas"
+  ON empresas FOR ALL TO authenticated
+  USING (public.is_super_admin())
+  WITH CHECK (public.is_super_admin());
+
+DROP POLICY IF EXISTS "Autenticados leen su empresa" ON empresas;
+CREATE POLICY "Autenticados leen su empresa"
+  ON empresas FOR SELECT TO authenticated
+  USING (id = public.current_empresa_id() OR public.is_super_admin());
+
+
+-- ── PROFILES ────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  nombre      TEXT NOT NULL,
+  role        TEXT NOT NULL CHECK (role IN ('operario', 'ventas', 'admin', 'super')),
+  empresa_id  UUID REFERENCES empresas(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT profiles_super_admin_empresa_check CHECK (
+    (role = 'super' AND empresa_id IS NULL)
+    OR (role IN ('admin', 'ventas', 'operario') AND empresa_id IS NOT NULL)
+  )
 );
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Autenticados pueden leer perfiles"
-  ON profiles FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Autenticados leen perfiles de su empresa" ON profiles;
+CREATE POLICY "Autenticados leen perfiles de su empresa"
+  ON profiles FOR SELECT TO authenticated
+  USING (
+    empresa_id = public.current_empresa_id()
+    OR public.is_super_admin()
+    OR id = auth.uid()
+  );
 
-CREATE POLICY "Usuarios actualizan su propio perfil"
-  ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Admin gestiona perfiles de su empresa" ON profiles;
+CREATE POLICY "Admin gestiona perfiles de su empresa"
+  ON profiles FOR ALL TO authenticated
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+  );
 
--- Trigger: al crear usuario en Auth → crear perfil automáticamente
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  empresa_uuid UUID;
+  user_role TEXT;
 BEGIN
-  INSERT INTO public.profiles (id, nombre, role)
+  user_role := COALESCE(NEW.raw_user_meta_data->>'role', 'admin');
+  IF user_role = 'super' THEN
+    empresa_uuid := NULL;
+  ELSE
+    empresa_uuid := COALESCE(
+      NULLIF(NEW.raw_user_meta_data->>'empresa_id', '')::UUID,
+      (SELECT id FROM public.empresas WHERE nombre = 'Muter Textil' LIMIT 1)
+    );
+  END IF;
+  INSERT INTO public.profiles (id, nombre, role, empresa_id)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'nombre', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'admin')
+    user_role,
+    empresa_uuid
   );
   RETURN NEW;
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
--- ── ARTÍCULOS ───────────────────────────────────────────────
--- Catálogo de tipos de tela. Lo gestiona admin/dueño.
+-- ── ARTICULOS ───────────────────────────────────────────────
 
-CREATE TABLE articulos (
+CREATE TABLE IF NOT EXISTS articulos (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id  UUID NOT NULL REFERENCES empresas(id),
   nombre      TEXT NOT NULL,
   descripcion TEXT,
   activo      BOOLEAN NOT NULL DEFAULT TRUE,
@@ -67,150 +145,265 @@ CREATE TABLE articulos (
 
 ALTER TABLE articulos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Autenticados leen artículos"
-  ON articulos FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Autenticados leen articulos de su empresa" ON articulos;
+CREATE POLICY "Autenticados leen articulos de su empresa"
+  ON articulos FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
 
-CREATE POLICY "Admin y operario gestionan artículos"
+DROP POLICY IF EXISTS "Operario y admin gestionan articulos" ON articulos;
+CREATE POLICY "Operario y admin gestionan articulos"
   ON articulos FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('admin', 'operario'));
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_articulos ON articulos;
+CREATE TRIGGER set_empresa_articulos BEFORE INSERT ON articulos
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
 
 
--- ── TINTORERÍAS ─────────────────────────────────────────────
+-- ── TINTORERIAS ─────────────────────────────────────────────
 
-CREATE TABLE tintorerias (
-  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  nombre     TEXT NOT NULL,
-  activo     BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE tintorerias ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Autenticados leen tintorerías"
-  ON tintorerias FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Admin y operario gestionan tintorerías"
-  ON tintorerias FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('admin', 'operario'));
-
-
--- ── DESPACHOS ───────────────────────────────────────────────
--- Cada llegada de tintorería con su planilla.
-
-CREATE TABLE despachos (
+CREATE TABLE IF NOT EXISTS tintorerias (
   id                     UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tintoreria_id          UUID NOT NULL REFERENCES tintorerias(id),
-  articulo_id            UUID NOT NULL REFERENCES articulos(id),
-  fecha_despacho         DATE NOT NULL DEFAULT CURRENT_DATE,
-  numero_remito          TEXT,
-  total_rollos_declarado INTEGER,
-  total_kilos_declarado  NUMERIC(10, 2),
-  estado                 TEXT NOT NULL DEFAULT 'borrador'
-                           CHECK (estado IN ('borrador', 'auditado', 'confirmado')),
-  origen                 TEXT NOT NULL DEFAULT 'manual'
-                           CHECK (origen IN ('manual', 'planilla_ia')),
-  imagen_url             TEXT,
-  created_by             UUID REFERENCES profiles(id),
+  empresa_id             UUID NOT NULL REFERENCES empresas(id),
+  nombre                 TEXT NOT NULL,
+  activo                 BOOLEAN NOT NULL DEFAULT TRUE,
+  extraction_config_key  TEXT,
   created_at             TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE despachos ENABLE ROW LEVEL SECURITY;
+COMMENT ON COLUMN tintorerias.extraction_config_key IS
+  'Clave que matchea con un archivo en src/lib/extraccion/tintorerias/{key}.ts. Si NULL, se usa el prompt default.';
 
-CREATE POLICY "Autenticados leen despachos"
-  ON despachos FOR SELECT TO authenticated USING (true);
+ALTER TABLE tintorerias ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admin y operario gestionan despachos"
-  ON despachos FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('admin', 'operario'));
+DROP POLICY IF EXISTS "Autenticados leen tintorerias de su empresa" ON tintorerias;
+CREATE POLICY "Autenticados leen tintorerias de su empresa"
+  ON tintorerias FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "Operario y admin gestionan tintorerias" ON tintorerias;
+CREATE POLICY "Operario y admin gestionan tintorerias"
+  ON tintorerias FOR ALL TO authenticated
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_tintorerias ON tintorerias;
+CREATE TRIGGER set_empresa_tintorerias BEFORE INSERT ON tintorerias
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
+
+
+-- ── INGRESOS (antes "despachos") ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS ingresos (
+  id                       UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id               UUID NOT NULL REFERENCES empresas(id),
+  tintoreria_id            UUID REFERENCES tintorerias(id),
+  articulo_id              UUID REFERENCES articulos(id),
+  fecha_despacho           DATE,
+  numero_remito            TEXT,
+  total_rollos_declarado   INTEGER,
+  total_kilos_declarado    NUMERIC(10, 2),
+  estado                   TEXT NOT NULL DEFAULT 'borrador'
+                            CHECK (estado IN ('borrador', 'auditado', 'confirmado')),
+  origen                   TEXT NOT NULL DEFAULT 'manual'
+                            CHECK (origen IN ('manual', 'planilla_ia')),
+  imagen_url               TEXT,
+  color                    TEXT,
+  ot                       TEXT,
+  rem_tejeduria            TEXT,
+  referencia               TEXT,
+  created_by               UUID REFERENCES profiles(id),
+  created_at               TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE ingresos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Autenticados leen ingresos de su empresa" ON ingresos;
+CREATE POLICY "Autenticados leen ingresos de su empresa"
+  ON ingresos FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "Operario y admin gestionan ingresos" ON ingresos;
+CREATE POLICY "Operario y admin gestionan ingresos"
+  ON ingresos FOR ALL TO authenticated
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_ingresos ON ingresos;
+CREATE TRIGGER set_empresa_ingresos BEFORE INSERT ON ingresos
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
 
 
 -- ── ROLLOS ──────────────────────────────────────────────────
--- El item central. Cada rollo físico de tela.
 
-CREATE TABLE rollos (
-  id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  despacho_id       UUID NOT NULL REFERENCES despachos(id),
-  articulo_id       UUID NOT NULL REFERENCES articulos(id),
-  numero_pieza      TEXT NOT NULL,
-  codigo_externo    TEXT,                   -- QR/barcode de la tintorería
-  color             TEXT,
-  ubicacion         TEXT,                   -- slot físico (ej: "A42")
-  pantone           TEXT,                   -- código pantone para colores lisos
-  foto_url          TEXT,                   -- foto del rollo
-
-  -- Datos del proveedor (de la planilla)
-  kilos             NUMERIC(10, 2),
-  metros            NUMERIC(10, 2),
-  ratio_rendimiento NUMERIC(10, 4),
-
-  -- Datos propios (después del control de calidad en recepción)
-  kilos_propios     NUMERIC(10, 2),
-  metros_propios    NUMERIC(10, 2),
-  ancho_propio      NUMERIC(10, 2),
-  gramaje_propio    NUMERIC(10, 2),         -- g/m² (pesar 10x10cm)
-
-  estado            TEXT NOT NULL DEFAULT 'pendiente'
-                      CHECK (estado IN ('pendiente', 'en_stock', 'reservado', 'entregado', 'baja')),
-  confianza_ia      NUMERIC(4, 3),
-  created_at        TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (despacho_id, numero_pieza)
+CREATE TABLE IF NOT EXISTS rollos (
+  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id          UUID NOT NULL REFERENCES empresas(id),
+  ingreso_id          UUID NOT NULL REFERENCES ingresos(id),
+  articulo_id         UUID REFERENCES articulos(id),
+  numero_pieza        TEXT NOT NULL,
+  ubicacion           TEXT,
+  pantone             TEXT,
+  foto_url            TEXT,
+  kilos               NUMERIC(10, 2),
+  metros              NUMERIC(10, 2),
+  ratio_rendimiento   NUMERIC(10, 4),
+  kilos_propios       NUMERIC(10, 2),
+  metros_propios      NUMERIC(10, 2),
+  ancho_propio        NUMERIC(10, 2),
+  gramaje_propio      NUMERIC(10, 2),
+  estado              TEXT NOT NULL DEFAULT 'pendiente'
+                       CHECK (estado IN ('pendiente', 'en_stock', 'reservado', 'entregado', 'baja')),
+  confianza_ia        NUMERIC(4, 3),
+  gramaje_planilla    NUMERIC(5, 2),
+  created_at          TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT rollos_ingreso_id_numero_pieza_key UNIQUE (ingreso_id, numero_pieza)
 );
 
 ALTER TABLE rollos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Autenticados leen rollos"
-  ON rollos FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Autenticados leen rollos de su empresa" ON rollos;
+CREATE POLICY "Autenticados leen rollos de su empresa"
+  ON rollos FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
 
-CREATE POLICY "Admin y operario gestionan rollos"
+DROP POLICY IF EXISTS "Admin y operario gestionan rollos de su empresa" ON rollos;
+CREATE POLICY "Admin y operario gestionan rollos de su empresa"
   ON rollos FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('admin', 'operario'));
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_rollos ON rollos;
+CREATE TRIGGER set_empresa_rollos BEFORE INSERT ON rollos
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
 
 
--- ── PEDIDOS (antes "ordenes") ───────────────────────────────
--- Lo que ventas/dueño reservan para un cliente.
+-- ── PEDIDOS ─────────────────────────────────────────────────
 
-CREATE TABLE pedidos (
+CREATE TABLE IF NOT EXISTS pedidos (
   id                    UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id            UUID NOT NULL REFERENCES empresas(id),
   numero_pedido         TEXT UNIQUE,
   cliente               TEXT NOT NULL,
-  numero_remito_externo TEXT,                 -- link al sistema de facturación (Softland u otro)
+  numero_remito_externo TEXT,
   estado                TEXT NOT NULL DEFAULT 'pendiente'
-                          CHECK (estado IN ('pendiente', 'en_preparacion', 'lista', 'entregada', 'cancelada')),
+                         CHECK (estado IN ('pendiente', 'en_preparacion', 'lista', 'entregada', 'cancelada')),
   created_by            UUID REFERENCES profiles(id),
   created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Autenticados leen pedidos"
-  ON pedidos FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Autenticados leen pedidos de su empresa" ON pedidos;
+CREATE POLICY "Autenticados leen pedidos de su empresa"
+  ON pedidos FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
 
+DROP POLICY IF EXISTS "Ventas y admin gestionan pedidos" ON pedidos;
 CREATE POLICY "Ventas y admin gestionan pedidos"
   ON pedidos FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin'));
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+  );
 
-CREATE POLICY "Operario actualiza estado de pedidos"
+DROP POLICY IF EXISTS "Operario actualiza pedidos de su empresa" ON pedidos;
+CREATE POLICY "Operario actualiza pedidos de su empresa"
   ON pedidos FOR UPDATE TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'operario');
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'operario'
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_pedidos ON pedidos;
+CREATE TRIGGER set_empresa_pedidos BEFORE INSERT ON pedidos
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
 
 
--- ── PEDIDO_ROLLOS ───────────────────────────────────────────
--- Many-to-many: qué rollos cubren qué pedido.
--- Reemplaza al modelo orden_items + asignaciones.
+-- ── PEDIDO_ROLLOS (m2m) ─────────────────────────────────────
 
-CREATE TABLE pedido_rollos (
-  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  pedido_id  UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-  rollo_id   UUID NOT NULL REFERENCES rollos(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (rollo_id) -- un rollo solo puede estar reservado en un pedido
+CREATE TABLE IF NOT EXISTS pedido_rollos (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id   UUID NOT NULL REFERENCES empresas(id),
+  pedido_id    UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+  rollo_id     UUID NOT NULL REFERENCES rollos(id),
+  pickeado_at  TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (rollo_id)
 );
 
 ALTER TABLE pedido_rollos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Autenticados leen pedido_rollos"
-  ON pedido_rollos FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Autenticados leen pedido_rollos de su empresa" ON pedido_rollos;
+CREATE POLICY "Autenticados leen pedido_rollos de su empresa"
+  ON pedido_rollos FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
 
+DROP POLICY IF EXISTS "Ventas y admin gestionan pedido_rollos" ON pedido_rollos;
 CREATE POLICY "Ventas y admin gestionan pedido_rollos"
   ON pedido_rollos FOR ALL TO authenticated
-  USING ((SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin'));
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_pedido_rollos ON pedido_rollos;
+CREATE TRIGGER set_empresa_pedido_rollos BEFORE INSERT ON pedido_rollos
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
+
+
+-- ── MUESTRAS ────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS muestras (
+  id                     UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id             UUID NOT NULL REFERENCES empresas(id),
+  rollo_id               UUID NOT NULL REFERENCES rollos(id),
+  cliente                TEXT NOT NULL,
+  kilos_descontados      NUMERIC(10, 2) NOT NULL CHECK (kilos_descontados > 0),
+  motivo                 TEXT,
+  vinculado_a_pedido_id  UUID REFERENCES pedidos(id),
+  created_by             UUID REFERENCES profiles(id),
+  created_at             TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE muestras ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Autenticados leen muestras de su empresa" ON muestras;
+CREATE POLICY "Autenticados leen muestras de su empresa"
+  ON muestras FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "Operario y admin gestionan muestras" ON muestras;
+CREATE POLICY "Operario y admin gestionan muestras"
+  ON muestras FOR ALL TO authenticated
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_muestras ON muestras;
+CREATE TRIGGER set_empresa_muestras BEFORE INSERT ON muestras
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
+
+
+-- ── RPCs ────────────────────────────────────────────────────
+-- Para una DB nueva, después de este archivo correr en orden:
+--   - supabase/migrations/009_rpc_pedidos.sql
+--   - supabase/migrations/010_rpc_picking.sql
+--   - supabase/migrations/011_muestras.sql
+--
+-- Funciones disponibles:
+--   crear_pedido(cliente, remito_externo, rollo_ids[])      → UUID
+--   cancelar_pedido(pedido_id)                              → VOID
+--   entregar_pedido(pedido_id)                              → VOID
+--   pickear_rollo(pedido_id, numero_pieza)                  → JSON
+--   registrar_muestra(rollo_id, kilos, cliente, motivo, pedido_id) → UUID

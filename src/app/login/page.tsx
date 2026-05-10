@@ -1,15 +1,39 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+// Wrapper requerido por Next 16: useSearchParams() en componentes client que
+// se prerenderizan necesita estar dentro de un boundary de Suspense.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [empresaPausada, setEmpresaPausada] = useState(false)
   const router = useRouter()
+  const sp = useSearchParams()
+
+  // Si llegamos acá vía middleware con la empresa pausada, hacemos signOut
+  // para limpiar la sesión: si no, el cookie autenticado sigue activo y el
+  // middleware sigue rebotando al usuario.
+  useEffect(() => {
+    if (sp.get('empresa_pausada') === '1') {
+      setEmpresaPausada(true)
+      const supabase = createClient()
+      supabase.auth.signOut()
+    }
+  }, [sp])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -51,6 +75,17 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold tracking-tight">StockApp</h1>
           <p className="text-sm text-muted-foreground">Ingresá con tu cuenta</p>
         </div>
+
+        {empresaPausada && (
+          <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-foreground">
+            <p className="font-medium text-warning">
+              Tu empresa está pausada
+            </p>
+            <p className="mt-0.5 text-muted-foreground">
+              Contactá al administrador de la plataforma para reactivarla.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
@@ -95,6 +130,15 @@ export default function LoginPage() {
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
+
+        <div className="text-center pt-2">
+          <Link
+            href="/auth/recover"
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
       </div>
     </main>
   )

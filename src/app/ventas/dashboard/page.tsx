@@ -32,48 +32,34 @@ export default async function VentasDashboard() {
         </p>
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 mb-6">
-        <p className="font-medium">Módulo en desarrollo — Etapa 6</p>
-        <p className="mt-0.5">
-          La gestión de pedidos y picking estará disponible en la próxima etapa
-          del proyecto.
-        </p>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border bg-white p-5 shadow-sm opacity-50 cursor-not-allowed">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold">Stock disponible</h2>
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Etapa 5
-            </span>
-          </div>
+        <Link
+          href="/stock"
+          className="rounded-lg border bg-white p-5 shadow-sm hover:bg-zinc-50 transition-colors"
+        >
+          <h2 className="font-semibold mb-1">Stock disponible</h2>
           <p className="text-sm text-muted-foreground">
             Buscar rollos por artículo y color
           </p>
-        </div>
-        <div className="rounded-lg border bg-white p-5 shadow-sm opacity-50 cursor-not-allowed">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold">Nuevo pedido</h2>
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Etapa 6
-            </span>
-          </div>
+        </Link>
+        <Link
+          href="/ventas/pedidos/nuevo"
+          className="rounded-lg border bg-white p-5 shadow-sm hover:bg-zinc-50 transition-colors"
+        >
+          <h2 className="font-semibold mb-1">Nuevo pedido</h2>
           <p className="text-sm text-muted-foreground">
             Reservar rollos para un cliente
           </p>
-        </div>
-        <div className="rounded-lg border bg-white p-5 shadow-sm opacity-50 cursor-not-allowed">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold">Pedidos abiertos</h2>
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Etapa 6
-            </span>
-          </div>
+        </Link>
+        <Link
+          href="/ventas/pedidos"
+          className="rounded-lg border bg-white p-5 shadow-sm hover:bg-zinc-50 transition-colors sm:col-span-2"
+        >
+          <h2 className="font-semibold mb-1">Pedidos abiertos</h2>
           <p className="text-sm text-muted-foreground">
-            Estado de pedidos pendientes y en preparación
+            Estado de pedidos pendientes, en preparación y listos
           </p>
-        </div>
+        </Link>
       </div>
     </div>
   )

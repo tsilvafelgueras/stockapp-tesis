@@ -1,0 +1,297 @@
+'use client'
+
+import { useEffect, useState, useTransition } from 'react'
+import { toast } from 'sonner'
+import type { StockRollo, StockRole } from './StockList'
+import { darDeBajaRollo, moverUbicacion } from './actions'
+
+const ESTADO_TEXT: Record<string, string> = {
+  pendiente: 'Pendiente',
+  en_stock: 'En stock',
+  reservado: 'Reservado',
+  entregado: 'Entregado',
+  baja: 'Baja',
+}
+
+// El padre remonta este componente con `key={rollo.id}` cuando cambia el rollo
+// seleccionado, así el estado interno (mode/ubicacion) arranca limpio sin
+// necesidad de resetearlo en un useEffect.
+export default function RolloDetailDialog({
+  rollo,
+  role,
+  onClose,
+}: {
+  rollo: StockRollo
+  role: StockRole
+  onClose: () => void
+}) {
+  const [mode, setMode] = useState<'view' | 'mover' | 'baja'>('view')
+  const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
+  const [pending, startTransition] = useTransition()
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const puedeMover =
+    (role === 'operario' || role === 'admin') &&
+    (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
+  const puedeBaja = role === 'admin' && rollo.estado !== 'baja'
+
+  function handleMover() {
+    startTransition(async () => {
+      const res = await moverUbicacion(rollo.id, ubicacion)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(`Pieza ${rollo.numero_pieza} movida a ${ubicacion.trim()}.`)
+      onClose()
+    })
+  }
+
+  function handleBaja() {
+    startTransition(async () => {
+      const res = await darDeBajaRollo(rollo.id)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(`Pieza ${rollo.numero_pieza} dada de baja.`)
+      onClose()
+    })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-2xl rounded-t-2xl sm:rounded-lg shadow-xl max-h-[92vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b px-4 py-3 sticky top-0 bg-white z-10">
+          <div className="min-w-0">
+            <h2 className="font-semibold">Pieza {rollo.numero_pieza}</h2>
+            <p className="text-xs text-muted-foreground truncate">
+              {rollo.articulos?.nombre ?? '—'}
+              {rollo.ingresos?.color ? ` · ${rollo.ingresos.color}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="rounded-md p-1.5 hover:bg-zinc-100 shrink-0"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Foto / placeholder */}
+          <div className="aspect-video w-full overflow-hidden rounded-lg bg-zinc-100 flex items-center justify-center">
+            {rollo.foto_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={rollo.foto_url}
+                alt={`Rollo ${rollo.numero_pieza}`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="text-center text-muted-foreground">
+                <p className="text-3xl font-bold tracking-wider">
+                  {(rollo.ingresos?.color ?? '—').slice(0, 3).toUpperCase()}
+                </p>
+                <p className="text-xs mt-1">Sin foto</p>
+              </div>
+            )}
+          </div>
+
+          {/* Metadata */}
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
+            <Field
+              label="Estado"
+              value={ESTADO_TEXT[rollo.estado] ?? rollo.estado}
+            />
+            <Field label="Ubicación" value={rollo.ubicacion ?? '—'} />
+            <Field label="Pantone" value={rollo.pantone ?? '—'} />
+            <Field label="Kilos" value={fmt(rollo.kilos, 'kg')} />
+            <Field label="Metros" value={fmt(rollo.metros, 'm')} />
+            <Field
+              label="Gramaje (planilla)"
+              value={fmt(rollo.gramaje_planilla)}
+            />
+            <Field label="Kilos propios" value={fmt(rollo.kilos_propios, 'kg')} />
+            <Field
+              label="Metros propios"
+              value={fmt(rollo.metros_propios, 'm')}
+            />
+            <Field
+              label="Ancho propio"
+              value={fmt(rollo.ancho_propio, 'cm')}
+            />
+            <Field label="Gramaje propio" value={fmt(rollo.gramaje_propio)} />
+          </dl>
+
+          <div className="rounded-md bg-zinc-50 border p-3 text-xs space-y-1">
+            <p className="font-medium text-foreground">Origen</p>
+            <p>
+              <span className="text-muted-foreground">Tintorería: </span>
+              {rollo.ingresos?.tintorerias?.nombre ?? '—'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Fecha despacho: </span>
+              {rollo.ingresos?.fecha_despacho ?? '—'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Remito: </span>
+              {rollo.ingresos?.numero_remito ?? '—'}
+            </p>
+            {rollo.ingresos?.ot && (
+              <p>
+                <span className="text-muted-foreground">OT: </span>
+                {rollo.ingresos.ot}
+              </p>
+            )}
+            {rollo.ingresos?.referencia && (
+              <p>
+                <span className="text-muted-foreground">Referencia: </span>
+                {rollo.ingresos.referencia}
+              </p>
+            )}
+            {rollo.ingresos?.rem_tejeduria && (
+              <p>
+                <span className="text-muted-foreground">Rem. tejeduría: </span>
+                {rollo.ingresos.rem_tejeduria}
+              </p>
+            )}
+          </div>
+
+          {/* Acciones */}
+          {mode === 'view' && (puedeMover || puedeBaja) && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t">
+              {puedeMover && (
+                <button
+                  type="button"
+                  onClick={() => setMode('mover')}
+                  className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Mover ubicación
+                </button>
+              )}
+              {puedeBaja && (
+                <button
+                  type="button"
+                  onClick={() => setMode('baja')}
+                  className="rounded-md border border-destructive/40 text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/5 transition-colors"
+                >
+                  Dar de baja
+                </button>
+              )}
+            </div>
+          )}
+
+          {mode === 'mover' && (
+            <div className="space-y-2 pt-2 border-t">
+              <label className="text-sm font-medium">Nueva ubicación</label>
+              <input
+                type="text"
+                value={ubicacion}
+                onChange={(e) => setUbicacion(e.target.value)}
+                placeholder="Ej. A42"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMover}
+                  disabled={pending}
+                  className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {pending ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'baja' && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-sm">
+                ¿Confirmás dar de baja la pieza{' '}
+                <strong>{rollo.numero_pieza}</strong>?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                El rollo va a quedar en estado &ldquo;Baja&rdquo; y deja de
+                figurar como disponible. Esta acción no se puede deshacer desde
+                la app.
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBaja}
+                  disabled={pending}
+                  className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {pending ? 'Dando de baja…' : 'Confirmar baja'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium truncate">{value}</dd>
+    </div>
+  )
+}
+
+function fmt(v: number | null, suffix?: string): string {
+  if (v == null) return '—'
+  const num = Number(v)
+  if (Number.isNaN(num)) return '—'
+  return `${num.toLocaleString('es-AR', {
+    maximumFractionDigits: 2,
+  })}${suffix ? ' ' + suffix : ''}`
+}

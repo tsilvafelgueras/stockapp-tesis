@@ -1,16 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
 import InviteForm from './InviteForm'
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: 'Admin',
-  operario: 'Operario',
-  ventas: 'Ventas',
-  super: 'Super-admin',
-}
+import UsuarioRow from './UsuarioRow'
 
 export default async function EquipoPage() {
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const { data: usuarios } = await supabase
     .from('profiles')
@@ -36,27 +33,22 @@ export default async function EquipoPage() {
               <th className="px-4 py-3 font-medium">Nombre</th>
               <th className="px-4 py-3 font-medium">Rol</th>
               <th className="px-4 py-3 font-medium">Alta</th>
+              <th className="px-4 py-3 font-medium w-44"></th>
             </tr>
           </thead>
           <tbody>
             {usuarios && usuarios.length > 0 ? (
               usuarios.map((u) => (
-                <tr key={u.id} className="border-b last:border-0">
-                  <td className="px-4 py-3 font-medium">{u.nombre}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs rounded-full px-2 py-0.5 bg-secondary text-secondary-foreground">
-                      {ROLE_LABEL[u.role] ?? u.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(u.created_at).toLocaleDateString('es-AR')}
-                  </td>
-                </tr>
+                <UsuarioRow
+                  key={u.id}
+                  usuario={u}
+                  esYo={u.id === user?.id}
+                />
               ))
             ) : (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   className="px-4 py-8 text-center text-sm text-muted-foreground"
                 >
                   Sin usuarios todavía.

@@ -28,6 +28,25 @@ async function requireSuperAdmin() {
   return profile?.role === 'super' ? user : null
 }
 
+export async function setEmpresaActivo(
+  empresaId: string,
+  activo: boolean
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireSuperAdmin()
+  if (!me) return { ok: false, error: 'No autorizado.' }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('empresas')
+    .update({ activo })
+    .eq('id', empresaId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/super')
+  return { ok: true }
+}
+
 export async function createEmpresaConAdmin(input: {
   empresa_nombre: string
   admin_nombre: string

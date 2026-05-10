@@ -61,13 +61,9 @@ function navForRole(role: Role): NavSection[] {
           { href: '/operario/dashboard', label: 'Inicio', icon: '🏠' },
           { href: '/operario/ingresos', label: 'Ingresos', icon: '📦' },
           { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: '🔍' },
-          {
-            href: '/operario/picking',
-            label: 'Picking',
-            icon: '📋',
-            disabled: true,
-            comingSoon: 'Etapa 6',
-          },
+          { href: '/stock', label: 'Stock', icon: '🔎' },
+          { href: '/operario/picking', label: 'Picking', icon: '📋' },
+          { href: '/operario/muestras', label: 'Muestras', icon: '✂️' },
         ],
       },
     ]
@@ -78,20 +74,8 @@ function navForRole(role: Role): NavSection[] {
       {
         items: [
           { href: '/ventas/dashboard', label: 'Inicio', icon: '🏠' },
-          {
-            href: '/stock',
-            label: 'Stock',
-            icon: '📦',
-            disabled: true,
-            comingSoon: 'Etapa 5',
-          },
-          {
-            href: '/ventas/pedidos',
-            label: 'Pedidos',
-            icon: '🛒',
-            disabled: true,
-            comingSoon: 'Etapa 6',
-          },
+          { href: '/stock', label: 'Stock', icon: '🔎' },
+          { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
         ],
       },
     ]
@@ -107,32 +91,15 @@ function navForRole(role: Role): NavSection[] {
       items: [
         { href: '/operario/ingresos', label: 'Ingresos', icon: '📦' },
         { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: '🔍' },
-        {
-          href: '/operario/picking',
-          label: 'Picking',
-          icon: '📋',
-          disabled: true,
-          comingSoon: 'Etapa 6',
-        },
+        { href: '/operario/picking', label: 'Picking', icon: '📋' },
+        { href: '/operario/muestras', label: 'Muestras', icon: '✂️' },
       ],
     },
     {
       title: 'Ventas',
       items: [
-        {
-          href: '/stock',
-          label: 'Stock',
-          icon: '🔎',
-          disabled: true,
-          comingSoon: 'Etapa 5',
-        },
-        {
-          href: '/ventas/pedidos',
-          label: 'Pedidos',
-          icon: '🛒',
-          disabled: true,
-          comingSoon: 'Etapa 6',
-        },
+        { href: '/stock', label: 'Stock', icon: '🔎' },
+        { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
       ],
     },
     {
@@ -141,6 +108,7 @@ function navForRole(role: Role): NavSection[] {
         { href: '/admin/articulos', label: 'Artículos', icon: '📋' },
         { href: '/admin/tintorerias', label: 'Tintorerías', icon: '🏭' },
         { href: '/admin/equipo', label: 'Equipo', icon: '👥' },
+        { href: '/admin/reportes', label: 'Reportes', icon: '📊' },
       ],
     },
   ]

@@ -222,8 +222,14 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 006 | Super-admin como rol propio (`role='super'`), empresa_id NULLABLE solo para super, CHECK constraint |
 | 007 | **Cleanup pre-IA** (Etapa 3): `color` movido de `rollos` a `despachos` (1 lote = 1 color), `codigo_externo` eliminado de `rollos` (redundante con `numero_pieza`), agrega `ot/rem_tejeduria/referencia` en `despachos` y `gramaje_planilla` en `rollos` para trazabilidad de planilla |
 | 008 | **Rename + config por tintorería** (post-test E2E): `despachos` renombrada a `ingresos` (+ `rollos.despacho_id` → `ingreso_id`). Agrega `tintorerias.extraction_config_key` para sistema de prompts IA específicos por tintorería. |
+| 009 | **RPC de pedidos** (Etapa 6A). Funciones `crear_pedido`, `cancelar_pedido`, `entregar_pedido` con `SECURITY DEFINER`, locks `FOR UPDATE`, advisory lock por empresa para `numero_pedido`. Agrega columna `pedido_rollos.pickeado_at`. |
+| 010 | **RPC de picking** (Etapa 6B). Función `pickear_rollo` que valida match rollo↔pedido, transiciona pedido a `en_preparacion` al primer pickeo y a `lista` al último. |
+| 011 | **Muestras** (Etapa 7A). Tabla `muestras` con RLS por empresa + RPC `registrar_muestra` que descuenta kilos del rollo atómicamente. |
 
-**Schema canónico**: ⚠ `supabase/schema.sql` está **DESACTUALIZADO** — refleja solo Etapa 2 base, sin migraciones 005/006/007/008. Para DB nueva: correr `schema.sql` + todas las migraciones en orden. Actualización pendiente agendada en Etapa 7D.
+**Schema canónico**: ✅ `supabase/schema.sql` regenerado en Etapa 7D — refleja
+todas las migraciones 001..011. Para DB nueva: correr `schema.sql` y después
+las migraciones `009`, `010`, `011` (que sólo definen RPCs, no se duplican
+en `schema.sql`).
 
 ---
 
@@ -277,12 +283,18 @@ Por default Supabase usa el flow **legacy** que no funciona con SSR. Hay que cus
 | 0 | Bootstrap (Next + Tailwind + shadcn + deploy) | ✅ |
 | 1 | Modelo de datos + auth con roles | ✅ |
 | 2 | Ingreso manual de despacho con sus rollos | ✅ |
-| Multi-tenant | (no era etapa, se metió entre 2 y 3) | ✅ pendiente último test de invitación con email template fixeado |
-| 3 | Extracción IA con configs por tintorería + sidebar/nav + mobile-first | ✅ completa post-correcciones |
-| **4** | **Confirmación física en mobile (scanner QR)** | ✅ completa |
-| 5 | Vista de stock con filtros | ⏳ próxima |
-| 6 | Pedidos + picking | ⏳ |
-| 7 | Muestras + reportes + rediseño UI/UX | ⏳ |
+| Multi-tenant | (no era etapa, se metió entre 2 y 3) | ✅ |
+| 3 | Extracción IA con configs por tintorería + sidebar/nav + mobile-first | ✅ |
+| 4 | Confirmación física en mobile (scanner QR) | ✅ |
+| 5 | Vista de stock con filtros | ✅ |
+| 6A | Pedidos: creación por ventas | ✅ |
+| 6B | Pedidos: picking por operario (scanner QR) | ✅ |
+| 6C | Pedidos: cancelación + entrega por admin | ✅ |
+| 7A | Muestras (descuentan kilos del rollo) | ✅ |
+| 7B | Reportes admin (stock, movimientos, diferencias, antigüedad) + CSV | ✅ |
+| 7C | UI/UX: toasts globales con sonner | ✅ pragmático |
+| 7D | Polish: forgot password, pausar empresas, editar equipo, schema.sql | ✅ código |
+| 7D-launch | Resend SMTP setup | ⏳ requiere acción manual del user (ver `docs/RESEND_SETUP.md`) |
 
 ### Polish acordado
 
@@ -607,6 +619,81 @@ Es la más larga. Se divide en 4 sub-bloques.
 **Tiempo estimado**: 6-8 horas (es la más larga porque el rediseño UI toca todas las pantallas).
 
 ---
+
+---
+
+## 10.5. Estado post-MVP (mayo 2026)
+
+El MVP de tesis está cerrado. Etapas 5, 6 y 7 completas. Lo que sigue son
+los puntos identificados durante el desarrollo que **no entraron** y que
+quedan listos para retomar cuando haga falta.
+
+### Acciones manuales pendientes (no requieren código)
+
+1. **Aplicar migraciones 010 y 011 en Supabase** (si no se hicieron):
+   - `supabase/migrations/010_rpc_picking.sql` — RPC del picking
+   - `supabase/migrations/011_muestras.sql` — tabla muestras + RPC
+   - La 009 ya está aplicada (RPCs de pedidos).
+2. **Setup Resend SMTP** — bloqueante para launch real. Guía paso a paso en
+   [`docs/RESEND_SETUP.md`](RESEND_SETUP.md). ~20 min, $15-30 USD/año por
+   dominio.
+
+### Decisiones operativas tomadas en Etapa 7D
+
+- **Eliminación de empresas**: NO implementada en `/super` por riesgo de
+  borrado en cascada de datos cliente. Lo único expuesto es **pausar/activar**.
+  Para hard-delete: dashboard de Supabase manualmente.
+- **Empresa pausada → bloqueo de login**: middleware redirige a
+  `/login?empresa_pausada=1`, el cliente hace `signOut()` automático y muestra
+  banner. El super-admin puede reactivar desde `/super`.
+- **Equipo (`/admin/equipo`)**: editar rol y eliminar usuario funcionan, con
+  validación de "no dejar la empresa sin ningún admin" y "no podés eliminarte
+  a vos mismo".
+- **Forgot password**: `/auth/recover` usa el flow estándar de Supabase
+  (`resetPasswordForEmail`). Funciona contra el SMTP built-in pero pega contra
+  el rate limit de 2/h hasta que se haga el setup de Resend.
+
+### Reportes (Etapa 7B) — limitaciones reconocidas
+
+El reporte de "movimientos del mes" usa `rollos.created_at` para ingresos y
+`pedidos.created_at` (con estado `entregada`) para egresos. Esto es **proxy**,
+no la métrica exacta — sin un campo `updated_at` o tabla de eventos no
+podemos saber el momento real en que un rollo cambió de estado.
+
+Si en uso real esa métrica resulta engañosa, hay dos caminos para fixearlo:
+- Agregar `rollos.last_state_change_at` actualizado por trigger.
+- O crear tabla `rollo_eventos` (audit log de cambios de estado).
+
+Ambas son post-MVP.
+
+### Etapa 7C UI/UX — qué quedó pragmático
+
+Lo que SÍ se hizo:
+- Instalación de `sonner`, `<Toaster />` global en root layout.
+- Reemplazo de banners inline de error/success por toasts en todos los
+  componentes nuevos de las Etapas 5/6/7A.
+
+Lo que NO se hizo (queda como deuda técnica para post-MVP):
+- **Migración a shadcn Card / Dialog / Sheet / Tabs / Tooltip / Avatar /
+  Skeleton / Badge**. Requiere reescribir todos los componentes existentes
+  ya en producción. Costo alto, valor estético marginal para defensa de
+  tesis. Si en algún momento se quiere subir el bar visual, se hace como
+  pase aparte.
+- **Sidebar con `lucide-react` icons en vez de emojis**. La lib está
+  instalada (en `package.json`) pero no se usa todavía. Cambio cosmético.
+- **Skeletons de carga**. Las pantallas se cargan rápido en uso real;
+  agregamos cuando un cliente reporte tiempos de carga molestos.
+- **Empty states ilustrados**. Hoy son texto. Suficiente para MVP.
+
+### Login con username + alta sin email (postergado fuera de Etapa 7)
+
+El **punto 26 del plan original** (login por username con email fake interno
+para operario/ventas, alta manual con password default por el admin) quedó
+**fuera** del MVP por decisión explícita: el flow actual de invitación por
+email funciona para Muter (los operarios sí tienen email), y meterlo agrega
+3-4 horas de refactor de auth + migración de schema (`profiles.username`,
+`empresas.slug`). Si una empresa-cliente futura no puede dar emails a
+operarios, se prioriza ahí. Tiempo estimado original: 3-4 horas.
 
 ### Lo que NO está en el MVP (cosas mencionadas pero pospuestas)
 

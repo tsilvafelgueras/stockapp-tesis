@@ -53,12 +53,29 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, empresas(activo)')
       .eq('id', user.id)
       .single()
 
     const role = profile?.role as Role | undefined
     const dest = dashboardForRole(role)
+
+    // Bloqueo por empresa pausada (excepto super, que no tiene empresa)
+    const empresaActiva =
+      role === 'super' ||
+      (
+        profile?.empresas as unknown as { activo: boolean } | null
+      )?.activo !== false
+
+    if (!empresaActiva) {
+      // Permitir solo /login (con flag) para que el cliente haga signOut.
+      if (pathname !== '/login') {
+        return NextResponse.redirect(
+          new URL('/login?empresa_pausada=1', request.url)
+        )
+      }
+      return supabaseResponse
+    }
 
     // /auth/setup requiere sesión pero no debe rebotar al dashboard
     if (pathname === '/auth/setup') {
@@ -81,7 +98,8 @@ export async function updateSession(request: NextRequest) {
       role === 'super' &&
       (pathname.startsWith('/admin') ||
         pathname.startsWith('/ventas') ||
-        pathname.startsWith('/operario'))
+        pathname.startsWith('/operario') ||
+        pathname.startsWith('/stock'))
     ) {
       return NextResponse.redirect(new URL('/super', request.url))
     }

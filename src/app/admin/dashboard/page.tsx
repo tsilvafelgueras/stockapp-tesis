@@ -33,9 +33,9 @@ export default async function AdminDashboard() {
             description="Llegadas de mercadería desde tintorerías"
           />
           <Card
-            disabled
+            href="/stock"
             title="Stock"
-            description="Ver rollos disponibles (Etapa 5)"
+            description="Ver rollos disponibles, filtrar y dar de baja"
           />
           <Card
             href="/ventas/dashboard"
@@ -72,6 +72,19 @@ export default async function AdminDashboard() {
             href="/admin/equipo"
             title="Usuarios"
             description="Invitar y listar usuarios de la empresa"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Análisis
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card
+            href="/admin/reportes"
+            title="Reportes"
+            description="Stock, movimientos del mes, diferencias y antigüedad"
           />
         </div>
       </section>

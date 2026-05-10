@@ -1,0 +1,411 @@
+'use client'
+
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
+import { crearPedido } from '../actions'
+
+export type Catalogo = { id: string; nombre: string }
+
+export type RolloDisponible = {
+  id: string
+  numero_pieza: string
+  ubicacion: string | null
+  kilos: number | null
+  metros: number | null
+  articulos: { id: string; nombre: string } | null
+  ingresos: {
+    id: string
+    color: string | null
+    tintorerias: { id: string; nombre: string } | null
+  } | null
+}
+
+type Filters = {
+  q: string
+  articulo: string
+  color: string
+  tintoreria: string
+}
+
+export default function NuevoPedidoForm({
+  rollosDisponibles,
+  articulos,
+  tintorerias,
+  currentFilters,
+}: {
+  rollosDisponibles: RolloDisponible[]
+  articulos: Catalogo[]
+  tintorerias: Catalogo[]
+  currentFilters: Filters
+}) {
+  const router = useRouter()
+  const sp = useSearchParams()
+
+  const [cliente, setCliente] = useState('')
+  const [remito, setRemito] = useState('')
+  const [carrito, setCarrito] = useState<RolloDisponible[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [filtroPending, startFiltroTransition] = useTransition()
+  const [submitPending, startSubmitTransition] = useTransition()
+
+  const carritoIds = new Set(carrito.map((r) => r.id))
+  const rollosNoEnCarrito = rollosDisponibles.filter(
+    (r) => !carritoIds.has(r.id)
+  )
+  const totalKilos = carrito.reduce(
+    (acc, r) => acc + Number(r.kilos ?? 0),
+    0
+  )
+
+  function updateFilter(field: keyof Filters, value: string) {
+    const params = new URLSearchParams(sp.toString())
+    if (value) params.set(field, value)
+    else params.delete(field)
+    const qs = params.toString()
+    startFiltroTransition(() => {
+      router.replace(qs ? `/ventas/pedidos/nuevo?${qs}` : '/ventas/pedidos/nuevo')
+    })
+  }
+
+  function resetFilters() {
+    startFiltroTransition(() => {
+      router.replace('/ventas/pedidos/nuevo')
+    })
+  }
+
+  function agregar(r: RolloDisponible) {
+    if (carritoIds.has(r.id)) return
+    setCarrito((prev) => [...prev, r])
+  }
+
+  function quitar(id: string) {
+    setCarrito((prev) => prev.filter((r) => r.id !== id))
+  }
+
+  function handleSubmit() {
+    setError(null)
+    if (!cliente.trim()) {
+      setError('Ingresá el nombre del cliente.')
+      return
+    }
+    if (carrito.length === 0) {
+      setError('Agregá al menos un rollo al pedido.')
+      return
+    }
+    startSubmitTransition(async () => {
+      const res = await crearPedido(
+        cliente,
+        remito,
+        carrito.map((r) => r.id)
+      )
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(`Pedido creado con ${carrito.length} rollos reservados.`)
+      router.push(`/ventas/pedidos/${res.pedidoId}?creado=1`)
+    })
+  }
+
+  const hasFilters =
+    !!currentFilters.q ||
+    !!currentFilters.articulo ||
+    !!currentFilters.color ||
+    !!currentFilters.tintoreria
+
+  return (
+    <div className="space-y-4">
+      {/* Header del pedido */}
+      <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+        <h2 className="font-semibold text-sm">Datos del pedido</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Cliente <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="text"
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              placeholder="Nombre del cliente"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              N° Remito externo (Softland u otro)
+            </label>
+            <input
+              type="text"
+              value={remito}
+              onChange={(e) => setRemito(e.target.value)}
+              placeholder="Opcional"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Carrito */}
+      <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="font-semibold text-sm">
+            Rollos seleccionados ({carrito.length})
+          </h2>
+          {carrito.length > 0 && (
+            <span className="text-sm tabular-nums text-muted-foreground">
+              Total: <strong className="text-foreground">{totalKilos.toFixed(2)} kg</strong>
+            </span>
+          )}
+        </div>
+
+        {carrito.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Todavía no agregaste rollos. Buscalos abajo y tocá &ldquo;Agregar&rdquo;.
+          </p>
+        ) : (
+          <ul className="divide-y border rounded-md">
+            {carrito.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center justify-between gap-3 px-3 py-2"
+              >
+                <div className="min-w-0 text-sm">
+                  <p className="font-medium truncate">
+                    Pieza {r.numero_pieza}
+                    <span className="text-muted-foreground font-normal">
+                      {' · '}
+                      {r.articulos?.nombre ?? '—'}
+                      {r.ingresos?.color ? ` · ${r.ingresos.color}` : ''}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
+                    {r.ubicacion ? ` · Ubic ${r.ubicacion}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => quitar(r.id)}
+                  className="text-xs rounded-md border px-2 py-1 hover:bg-zinc-50 text-destructive shrink-0"
+                  disabled={submitPending}
+                >
+                  Quitar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {error && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitPending || carrito.length === 0 || !cliente.trim()}
+            className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {submitPending ? 'Creando pedido…' : 'Crear pedido'}
+          </button>
+        </div>
+      </section>
+
+      {/* Filtros + lista de disponibles */}
+      <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+        <h2 className="font-semibold text-sm">Buscar rollos disponibles</h2>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              N° Pieza
+            </label>
+            <input
+              type="text"
+              defaultValue={currentFilters.q}
+              onBlur={(e) => {
+                if (e.target.value !== currentFilters.q)
+                  updateFilter('q', e.target.value)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  updateFilter('q', (e.target as HTMLInputElement).value)
+                }
+              }}
+              placeholder="Ej. 12345"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Artículo
+            </label>
+            <select
+              value={currentFilters.articulo}
+              onChange={(e) => updateFilter('articulo', e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Todos</option>
+              {articulos.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Color
+            </label>
+            <input
+              type="text"
+              defaultValue={currentFilters.color}
+              onBlur={(e) => {
+                if (e.target.value !== currentFilters.color)
+                  updateFilter('color', e.target.value)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  updateFilter('color', (e.target as HTMLInputElement).value)
+                }
+              }}
+              placeholder="Ej. Negro"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Tintorería
+            </label>
+            <select
+              value={currentFilters.tintoreria}
+              onChange={(e) => updateFilter('tintoreria', e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Todas</option>
+              {tintorerias.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <p className="text-muted-foreground">
+            {filtroPending
+              ? 'Aplicando filtros…'
+              : `${rollosNoEnCarrito.length} rollos disponibles`}
+          </p>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+
+        {rollosNoEnCarrito.length === 0 ? (
+          <div className="rounded-md border bg-zinc-50 p-6 text-center text-sm text-muted-foreground">
+            {rollosDisponibles.length === 0
+              ? 'No hay rollos en stock que coincidan con los filtros.'
+              : 'Todos los rollos del filtro ya están en el carrito.'}
+          </div>
+        ) : (
+          <>
+            {/* Mobile: cards */}
+            <ul className="sm:hidden divide-y border rounded-md">
+              {rollosNoEnCarrito.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2"
+                >
+                  <div className="min-w-0 text-sm">
+                    <p className="font-medium truncate">
+                      Pieza {r.numero_pieza}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {r.articulos?.nombre ?? '—'}
+                      {r.ingresos?.color ? ` · ${r.ingresos.color}` : ''}
+                    </p>
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
+                      {r.ubicacion ? ` · ${r.ubicacion}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => agregar(r)}
+                    className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 shrink-0"
+                  >
+                    Agregar
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {/* Desktop: tabla */}
+            <div className="hidden sm:block overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-50 border-b">
+                  <tr className="text-left">
+                    <th className="px-3 py-2 font-medium">Pieza</th>
+                    <th className="px-3 py-2 font-medium">Artículo</th>
+                    <th className="px-3 py-2 font-medium">Color</th>
+                    <th className="px-3 py-2 font-medium">Kilos</th>
+                    <th className="px-3 py-2 font-medium">Ubicación</th>
+                    <th className="px-3 py-2 font-medium">Tintorería</th>
+                    <th className="px-3 py-2 font-medium w-20"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rollosNoEnCarrito.map((r) => (
+                    <tr key={r.id} className="border-b last:border-0">
+                      <td className="px-3 py-2 font-medium">
+                        {r.numero_pieza}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.articulos?.nombre ?? '—'}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.ingresos?.color ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {r.kilos != null ? Number(r.kilos).toFixed(2) : '—'}
+                      </td>
+                      <td className="px-3 py-2">{r.ubicacion ?? '—'}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {r.ingresos?.tintorerias?.nombre ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => agregar(r)}
+                          className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+                        >
+                          Agregar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}

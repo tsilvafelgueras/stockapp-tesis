@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import NuevaEmpresaForm from './NuevaEmpresaForm'
+import EmpresaActions from './EmpresaActions'
 
 export default async function SuperPage() {
   // Usamos admin client (bypassa RLS) para listar todas las empresas
@@ -45,6 +46,7 @@ export default async function SuperPage() {
               <th className="px-4 py-3 font-medium">Usuarios</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium">Alta</th>
+              <th className="px-4 py-3 font-medium w-32"></th>
             </tr>
           </thead>
           <tbody>
@@ -60,19 +62,26 @@ export default async function SuperPage() {
                       <span className="text-xs text-success">Activa</span>
                     ) : (
                       <span className="text-xs text-muted-foreground">
-                        Inactiva
+                        Pausada
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {new Date(e.created_at).toLocaleDateString('es-AR')}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <EmpresaActions
+                      empresaId={e.id}
+                      activo={e.activo}
+                      nombre={e.nombre}
+                    />
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   className="px-4 py-8 text-center text-sm text-muted-foreground"
                 >
                   Sin empresas todavía.
@@ -82,6 +91,12 @@ export default async function SuperPage() {
           </tbody>
         </table>
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Pausar una empresa bloquea el login de todos sus usuarios. Para
+        eliminar permanentemente una empresa y sus datos, usá el dashboard de
+        Supabase.
+      </p>
     </div>
   )
 }

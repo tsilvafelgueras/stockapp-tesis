@@ -31,29 +31,49 @@ export default function OperarioDashboard() {
           </span>
         </Link>
 
-        <button
-          disabled
-          className="w-full rounded-2xl border-2 p-6 text-left opacity-50 cursor-not-allowed"
+        <Link
+          href="/stock"
+          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
+        >
+          <span className="block text-lg font-semibold">Ver stock</span>
+          <span className="block text-sm text-muted-foreground mt-1">
+            Buscar rollos disponibles y mover ubicaciones
+          </span>
+        </Link>
+
+        <Link
+          href="/operario/confirmar"
+          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
         >
           <span className="block text-lg font-semibold">
             Confirmar llegada de rollos
           </span>
           <span className="block text-sm text-muted-foreground mt-1">
-            Escanear o tocar los rollos pendientes (Etapa 4)
+            Escanear los rollos pendientes y asignarles ubicación
           </span>
-        </button>
+        </Link>
 
-        <button
-          disabled
-          className="w-full rounded-2xl border-2 p-6 text-left opacity-50 cursor-not-allowed"
+        <Link
+          href="/operario/picking"
+          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
         >
           <span className="block text-lg font-semibold">
             Picking de pedidos
           </span>
           <span className="block text-sm text-muted-foreground mt-1">
-            Preparar pedidos pendientes (Etapa 6)
+            Preparar pedidos pendientes escaneando los rollos
           </span>
-        </button>
+        </Link>
+
+        <Link
+          href="/operario/muestras"
+          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
+        >
+          <span className="block text-lg font-semibold">Muestras</span>
+          <span className="block text-sm text-muted-foreground mt-1">
+            Registrar entregas chicas que se descuentan del rollo
+          </span>
+        </Link>
       </div>
     </div>
   )
