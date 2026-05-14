@@ -42,7 +42,7 @@
       position: absolute;
       inset: 0;
       background: var(--bg);
-      padding: 3.5rem 5.5rem 4rem;
+      padding: 3rem 5rem 3.5rem;
       flex-direction: column;
       justify-content: flex-start;
       gap: 0;
@@ -50,17 +50,15 @@
     }
     .slide.active { display: flex; }
 
-    /* ─────────────────────────────────────────────
-       HEADER / COUNTER
-    ───────────────────────────────────────────── */
+    /* HEADER / COUNTER */
     .slide-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 2.2rem;
+      margin-bottom: 1.8rem;
     }
     .slide-tag {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       font-weight: 700;
       letter-spacing: 0.12em;
       text-transform: uppercase;
@@ -71,14 +69,12 @@
     }
     .slide-counter {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--text-muted);
       letter-spacing: 0.05em;
     }
 
-    /* ─────────────────────────────────────────────
-       TIPOGRAFÍA
-    ───────────────────────────────────────────── */
+    /* TIPOGRAFÍA */
     h1 {
       font-size: 2.6rem;
       font-weight: 800;
@@ -87,11 +83,11 @@
       margin-bottom: 0.5rem;
     }
     h2 {
-      font-size: 1.9rem;
+      font-size: 1.8rem;
       font-weight: 700;
       color: var(--navy);
       line-height: 1.2;
-      margin-bottom: 1.2rem;
+      margin-bottom: 1rem;
     }
     h3 {
       font-size: 1rem;
@@ -100,26 +96,17 @@
       margin-bottom: 0.4rem;
     }
     .subtitle {
-      font-size: 1.05rem;
+      font-size: 1rem;
       color: var(--text-muted);
       font-weight: 400;
-      margin-bottom: 2rem;
+      margin-bottom: 1.5rem;
     }
-    p { font-size: 0.95rem; line-height: 1.65; color: var(--text); }
+    p { font-size: 0.92rem; line-height: 1.6; color: var(--text); }
 
-    /* ─────────────────────────────────────────────
-       COMPONENTES REUTILIZABLES
-    ───────────────────────────────────────────── */
-
-    /* Badges en fila */
-    .badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 2rem;
-    }
+    /* BADGES */
+    .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2rem; }
     .badge {
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       font-weight: 600;
       padding: 0.3rem 0.8rem;
       border-radius: 99px;
@@ -128,12 +115,10 @@
       background: var(--bg-alt);
     }
     .badge.orange { border-color: var(--orange); color: var(--orange); background: var(--orange-light); }
+    .badge.navy { border-color: var(--navy); color: var(--navy); background: #eff6ff; }
 
-    /* Grid de cards */
-    .cards {
-      display: grid;
-      gap: 1rem;
-    }
+    /* CARDS */
+    .cards { display: grid; gap: 0.85rem; }
     .cards-2 { grid-template-columns: 1fr 1fr; }
     .cards-3 { grid-template-columns: 1fr 1fr 1fr; }
     .cards-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
@@ -142,19 +127,19 @@
       background: var(--bg-alt);
       border: 1.5px solid var(--border);
       border-radius: 10px;
-      padding: 1.1rem 1.2rem;
+      padding: 0.95rem 1.1rem;
     }
-    .card-icon { font-size: 1.4rem; margin-bottom: 0.4rem; }
-    .card h3 { font-size: 0.9rem; margin-bottom: 0.3rem; }
-    .card p { font-size: 0.82rem; color: var(--text-muted); }
+    .card-icon { font-size: 1.3rem; margin-bottom: 0.3rem; }
+    .card h3 { font-size: 0.88rem; margin-bottom: 0.25rem; }
+    .card p { font-size: 0.8rem; color: var(--text-muted); }
     .card.accent { border-color: var(--orange); background: var(--orange-light); }
 
-    /* Lista con bullets personalizados */
-    .list { list-style: none; display: flex; flex-direction: column; gap: 0.55rem; }
+    /* LISTA CON FLECHAS */
+    .list { list-style: none; display: flex; flex-direction: column; gap: 0.45rem; }
     .list li {
-      font-size: 0.93rem;
+      font-size: 0.9rem;
       line-height: 1.5;
-      padding-left: 1.4rem;
+      padding-left: 1.3rem;
       position: relative;
     }
     .list li::before {
@@ -166,237 +151,148 @@
     }
     .list li strong { color: var(--navy); }
 
-    /* Blockquote */
+    /* BLOCKQUOTE */
     blockquote {
       border-left: 3px solid var(--orange);
       padding: 0.8rem 1.2rem;
-      margin: 1.2rem 0;
+      margin: 1rem 0;
       background: var(--orange-light);
       border-radius: 0 8px 8px 0;
     }
     blockquote p { font-size: 1.05rem; font-style: italic; color: var(--navy); font-weight: 500; }
     blockquote footer { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem; }
 
-    /* Row con dos columnas */
-    .cols { display: grid; gap: 2rem; }
+    /* COLS */
+    .cols { display: grid; gap: 1.5rem; }
     .cols-2 { grid-template-columns: 1fr 1fr; }
     .cols-3 { grid-template-columns: 1fr 1fr 1fr; }
     .cols-6040 { grid-template-columns: 6fr 4fr; }
 
-    /* Tabla */
+    /* TABLA */
     .table-wrap { overflow: auto; border-radius: 8px; border: 1.5px solid var(--border); }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
     thead { background: var(--navy); color: #fff; }
-    thead th { padding: 0.6rem 0.8rem; text-align: left; font-weight: 600; }
+    thead th { padding: 0.55rem 0.7rem; text-align: left; font-weight: 600; }
     tbody tr:nth-child(even) { background: var(--bg-alt); }
-    tbody td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+    tbody td { padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border); }
     tbody tr:last-child td { border-bottom: none; }
     .cell-yes { color: var(--green); font-weight: 700; }
     .cell-no { color: var(--red); }
     .cell-partial { color: var(--yellow); }
     .highlight-row td { background: var(--orange-light) !important; font-weight: 600; color: var(--navy); }
 
-    /* Timeline */
+    /* TIMELINE */
     .timeline {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 0.6rem;
-      margin-top: 1rem;
+      gap: 0.5rem;
+      margin-top: 0.8rem;
     }
-    .tl-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.3rem;
-    }
+    .tl-item { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
     .tl-dot {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: var(--navy);
-      color: #fff;
-      font-size: 0.65rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--navy); color: #fff;
+      font-size: 0.62rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
       position: relative;
     }
     .tl-dot.star { background: var(--orange); }
     .tl-dot::after {
-      content: "✓";
-      position: absolute;
-      bottom: -4px;
-      right: -4px;
-      background: var(--green);
-      color: #fff;
-      font-size: 0.5rem;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      content: "✓"; position: absolute; bottom: -3px; right: -3px;
+      background: var(--green); color: #fff;
+      font-size: 0.5rem; width: 13px; height: 13px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
     }
-    .tl-label {
-      font-size: 0.62rem;
-      text-align: center;
-      color: var(--text-muted);
-      font-weight: 500;
-      line-height: 1.3;
-    }
+    .tl-label { font-size: 0.6rem; text-align: center; color: var(--text-muted); font-weight: 500; line-height: 1.3; }
     .tl-label strong { display: block; color: var(--text); font-weight: 700; }
 
-    /* Divisor de sección */
-    .section-divider {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
+    /* DIVISOR */
+    .section-divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.2rem; }
     .section-divider h2 { margin: 0; }
-    .section-divider::after {
-      content: "";
-      flex: 1;
-      height: 2px;
-      background: var(--border);
-    }
+    .section-divider::after { content: ""; flex: 1; height: 2px; background: var(--border); }
 
-    /* Resultado + aprendizaje pill */
-    .result-row {
-      display: flex;
-      gap: 0.8rem;
-      margin-top: 1rem;
-      flex-wrap: wrap;
-    }
-    .result-pill {
-      border-radius: 8px;
-      padding: 0.55rem 1rem;
-      font-size: 0.82rem;
-      flex: 1;
-      min-width: 200px;
-    }
-    .result-pill .label {
-      font-size: 0.65rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 0.2rem;
-    }
+    /* RESULT/APRENDIZAJE PILL */
+    .result-row { display: flex; gap: 0.7rem; margin-top: 0.8rem; flex-wrap: wrap; }
+    .result-pill { border-radius: 8px; padding: 0.5rem 0.95rem; font-size: 0.8rem; flex: 1; min-width: 200px; }
+    .result-pill .label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.18rem; }
     .result-pill.resultado { background: #f0fdf4; border: 1.5px solid #86efac; }
     .result-pill.resultado .label { color: var(--green); }
     .result-pill.aprendizaje { background: #eff6ff; border: 1.5px solid #93c5fd; }
     .result-pill.aprendizaje .label { color: #1d4ed8; }
 
-    /* Diferenciadores */
+    /* DIFFERENTIATORS */
     .diff-item {
-      display: flex;
-      gap: 0.8rem;
-      align-items: flex-start;
-      padding: 0.8rem 1rem;
+      display: flex; gap: 0.7rem; align-items: flex-start;
+      padding: 0.6rem 0.9rem;
       border: 1.5px solid var(--border);
       border-radius: 8px;
       background: var(--bg-alt);
     }
-    .diff-item .icon { font-size: 1.3rem; flex-shrink: 0; }
-    .diff-item .text h3 { font-size: 0.9rem; margin-bottom: 0.2rem; }
-    .diff-item .text p { font-size: 0.8rem; color: var(--text-muted); }
+    .diff-item .icon { font-size: 1.2rem; flex-shrink: 0; }
+    .diff-item .text h3 { font-size: 0.85rem; margin-bottom: 0.15rem; }
+    .diff-item .text p { font-size: 0.78rem; color: var(--text-muted); }
 
-    /* Arq diagram */
-    .arch {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      margin: 1rem 0;
-    }
+    /* ARQUITECTURA */
+    .arch { display: flex; align-items: center; gap: 0; margin: 0.5rem 0; }
     .arch-box {
-      flex: 1;
-      background: var(--bg-alt);
-      border: 1.5px solid var(--border);
-      border-radius: 10px;
-      padding: 0.8rem 1rem;
-      text-align: center;
+      flex: 1; background: var(--bg-alt);
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 0.6rem 0.8rem; text-align: center;
     }
-    .arch-box .arch-icon { font-size: 1.4rem; }
-    .arch-box .arch-label { font-size: 0.75rem; font-weight: 700; color: var(--navy); }
-    .arch-box .arch-sub { font-size: 0.65rem; color: var(--text-muted); }
+    .arch-box .arch-icon { font-size: 1.3rem; }
+    .arch-box .arch-label { font-size: 0.72rem; font-weight: 700; color: var(--navy); }
+    .arch-box .arch-sub { font-size: 0.62rem; color: var(--text-muted); }
     .arch-box.highlight { border-color: var(--orange); background: var(--orange-light); }
-    .arch-arrow { padding: 0 0.5rem; color: var(--text-muted); font-size: 1.2rem; flex-shrink: 0; }
+    .arch-arrow { padding: 0 0.4rem; color: var(--text-muted); font-size: 1.1rem; flex-shrink: 0; }
 
-    /* ─────────────────────────────────────────────
-       NAVEGACIÓN
-    ───────────────────────────────────────────── */
+    /* PROCESO NUMERADO (para ventas) */
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.7rem; }
+    .step {
+      background: var(--bg-alt); border: 1.5px solid var(--border);
+      border-radius: 10px; padding: 0.8rem; position: relative;
+    }
+    .step-num {
+      position: absolute; top: -10px; left: -10px;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--orange); color: #fff;
+      font-weight: 700; font-size: 0.85rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step h3 { font-size: 0.85rem; margin-bottom: 0.25rem; margin-top: 0.3rem; }
+    .step p { font-size: 0.76rem; color: var(--text-muted); }
+
+    /* NAVEGACIÓN */
     #nav {
-      position: fixed;
-      bottom: 1.5rem;
-      right: 2rem;
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      z-index: 100;
+      position: fixed; bottom: 1.2rem; right: 2rem;
+      display: flex; align-items: center; gap: 0.6rem; z-index: 100;
     }
     #nav button {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: 1.5px solid var(--border);
-      background: #fff;
-      color: var(--navy);
-      font-size: 1rem;
-      cursor: pointer;
+      width: 38px; height: 38px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: #fff;
+      color: var(--navy); font-size: 1rem; cursor: pointer;
       transition: all 0.15s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     #nav button:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
     #nav button:disabled { opacity: 0.3; cursor: default; }
-    #nav-counter {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      min-width: 48px;
-      text-align: center;
-    }
+    #nav-counter { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-muted); min-width: 48px; text-align: center; }
 
-    /* ─────────────────────────────────────────────
-       SLIDE ESPECIAL: COVER DE BLOQUE
-    ───────────────────────────────────────────── */
-    .slide-cover {
-      justify-content: center;
-      background: var(--navy);
-    }
+    /* SLIDE COVER */
+    .slide-cover { justify-content: center; background: var(--navy); }
     .slide-cover h1 { color: #fff; font-size: 3rem; }
     .slide-cover .subtitle { color: rgba(255,255,255,0.65); }
-    .slide-cover .badge { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.08); }
+    .slide-cover .badge { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); }
     .slide-cover .slide-counter { color: rgba(255,255,255,0.4); }
     .slide-cover .slide-tag { background: var(--orange); color: #fff; }
 
-    /* placeholder para el compañero */
-    .placeholder-box {
-      flex: 1;
-      border: 2px dashed var(--border);
-      border-radius: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.8rem;
-      color: var(--text-muted);
-      background: var(--bg-alt);
-      padding: 2rem;
-    }
-    .placeholder-box .ph-icon { font-size: 2.5rem; opacity: 0.4; }
-    .placeholder-box .ph-text { font-size: 1rem; font-weight: 600; color: var(--text-muted); }
-    .placeholder-box .ph-sub { font-size: 0.85rem; text-align: center; max-width: 400px; }
+    code.inline { font-size: 0.78rem; background: #f3f4f6; padding: 0 3px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; }
   </style>
 </head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════════
-     BLOQUE 1 — MVP VERSIÓN FINAL
-     Slides 01 a 07
+     BLOQUE 1 — MVP VERSIÓN FINAL (slides 1–6)
 ════════════════════════════════════════════════════════ -->
 
 <!-- SLIDE 01: Cover bloque 1 -->
@@ -411,7 +307,6 @@
     <span class="badge">14 etapas completadas</span>
     <span class="badge">11 migraciones</span>
     <span class="badge">4 roles de usuario</span>
-    <span class="badge">$0 de infraestructura mensual</span>
     <span class="badge orange">En producción · Vercel + Supabase</span>
   </div>
 </div>
@@ -424,60 +319,25 @@
     <span class="slide-counter" id="counter-2"></span>
   </div>
   <h2>Desarrollo iterativo en 14 etapas</h2>
-  <p class="subtitle" style="margin-bottom:1.5rem">Cada etapa entregó funcionalidad completa y usable. Las marcadas en naranja se detallan a continuación.</p>
+  <p class="subtitle">Cada etapa entregó funcionalidad completa y usable. Las marcadas en naranja se detallan a continuación.</p>
 
   <div class="timeline">
-    <div class="tl-item">
-      <div class="tl-dot">0</div>
-      <div class="tl-label"><strong>Bootstrap</strong>Next.js · Supabase · Tailwind</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot">1</div>
-      <div class="tl-label"><strong>Auth + DB</strong>Roles · RLS · Multi-tenant</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot">2</div>
-      <div class="tl-label"><strong>Ingresos</strong>Carga manual de rollos</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot star">3</div>
-      <div class="tl-label"><strong>IA ⭐</strong>Extracción de planillas</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot star">4</div>
-      <div class="tl-label"><strong>QR ⭐</strong>Scanner + confirmación</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot">5</div>
-      <div class="tl-label"><strong>Stock</strong>Filtros · Ubicaciones</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot star">6</div>
-      <div class="tl-label"><strong>Pedidos ⭐</strong>Ventas · Picking · Entrega</div>
-    </div>
+    <div class="tl-item"><div class="tl-dot">0</div><div class="tl-label"><strong>Bootstrap</strong>Next.js · Supabase · Tailwind</div></div>
+    <div class="tl-item"><div class="tl-dot">1</div><div class="tl-label"><strong>Auth + DB</strong>Roles · RLS · Multi-tenant</div></div>
+    <div class="tl-item"><div class="tl-dot">2</div><div class="tl-label"><strong>Ingresos</strong>Carga manual de rollos</div></div>
+    <div class="tl-item"><div class="tl-dot star">3</div><div class="tl-label"><strong>IA ⭐</strong>Extracción de planillas</div></div>
+    <div class="tl-item"><div class="tl-dot star">4</div><div class="tl-label"><strong>QR ⭐</strong>Scanner + confirmación</div></div>
+    <div class="tl-item"><div class="tl-dot">5</div><div class="tl-label"><strong>Stock</strong>Filtros · Ubicaciones</div></div>
+    <div class="tl-item"><div class="tl-dot star">6</div><div class="tl-label"><strong>Pedidos ⭐</strong>Ventas · Picking · Entrega</div></div>
   </div>
 
-  <div class="timeline" style="margin-top:1.5rem">
-    <div class="tl-item">
-      <div class="tl-dot">7A</div>
-      <div class="tl-label"><strong>Muestras</strong>Descuento de kilos</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot">7B</div>
-      <div class="tl-label"><strong>Reportes</strong>Análisis + CSV export</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot">7C</div>
-      <div class="tl-label"><strong>UX</strong>Mobile-first · Toasts</div>
-    </div>
-    <div class="tl-item">
-      <div class="tl-dot">7D</div>
-      <div class="tl-label"><strong>Polish</strong>Seguridad · Contraseña</div>
-    </div>
+  <div class="timeline" style="margin-top:1.2rem">
+    <div class="tl-item"><div class="tl-dot">7A</div><div class="tl-label"><strong>Muestras</strong>Descuento de kilos</div></div>
+    <div class="tl-item"><div class="tl-dot">7B</div><div class="tl-label"><strong>Reportes</strong>Análisis + CSV export</div></div>
+    <div class="tl-item"><div class="tl-dot">7C</div><div class="tl-label"><strong>UX</strong>Mobile-first · Toasts</div></div>
+    <div class="tl-item"><div class="tl-dot">7D</div><div class="tl-label"><strong>Polish</strong>Seguridad · Contraseña</div></div>
     <div class="tl-item" style="grid-column: span 3;">
-      <div class="tl-dot star" style="width:auto;border-radius:99px;padding:0 1rem;font-size:0.7rem">
-        Iteración final ⭐
-      </div>
+      <div class="tl-dot star" style="width:auto;border-radius:99px;padding:0 1rem;font-size:0.68rem">Iteración final ⭐</div>
       <div class="tl-label" style="text-align:center"><strong>9 bugs · 9 features</strong>Feedback real del cliente</div>
     </div>
   </div>
@@ -490,41 +350,38 @@
     <span class="slide-tag">Punto 1 — Etapa 3</span>
     <span class="slide-counter" id="counter-3"></span>
   </div>
-  <div class="section-divider">
-    <h2>🧠 Extracción con IA</h2>
-  </div>
+  <div class="section-divider"><h2>🧠 Extracción con IA</h2></div>
 
-  <div class="cols cols-2" style="flex:1;gap:1.5rem">
+  <div class="cols cols-2" style="flex:1">
     <div>
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">OBJETIVO</p>
-      <p style="margin-bottom:1rem">Eliminar la carga manual de planillas de tintorería. El operario saca una foto o sube el PDF y el sistema extrae los rollos automáticamente.</p>
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">OBJETIVO</p>
+      <p style="margin-bottom:0.9rem">Eliminar la carga manual de planillas de tintorería. El operario saca una foto o sube el PDF y el sistema extrae los rollos automáticamente.</p>
 
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">HERRAMIENTAS</p>
-      <div class="badges" style="margin-bottom:1rem">
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">HERRAMIENTAS</p>
+      <div class="badges" style="margin-bottom:0.9rem">
         <span class="badge orange">Google Gemini 2.5 Flash</span>
-        <span class="badge">@google/genai SDK</span>
-        <span class="badge">Next.js Server Actions</span>
+        <span class="badge">@google/genai</span>
+        <span class="badge">Server Actions</span>
       </div>
 
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">FUNCIONALIDADES</p>
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">FUNCIONALIDADES</p>
       <ul class="list">
-        <li>Foto o PDF de planilla → extracción automática de rollos, metros y kilos</li>
-        <li><strong>Configuración por tintorería</strong> — prompt customizado para Muter (diferente al genérico)</li>
+        <li>Foto o PDF → extracción automática de rollos, metros y kilos</li>
+        <li><strong>Configuración por tintorería</strong> — prompt customizado por proveedor</li>
         <li>Revisión y edición antes de confirmar el lote</li>
-        <li>Manejo de error con timeout de 30s y mensaje claro al usuario</li>
+        <li>Timeout de 30s + mensaje claro si la IA no puede interpretar</li>
       </ul>
     </div>
 
-    <div style="display:flex;flex-direction:column;gap:0.8rem">
+    <div style="display:flex;flex-direction:column;gap:0.7rem">
       <div class="result-pill resultado">
         <div class="label">Resultado</div>
         Precisión &gt;90% en planillas reales de Muter Textil. El operario corrige excepciones, no transcribe manualmente.
       </div>
       <div class="result-pill aprendizaje">
         <div class="label">Aprendizaje</div>
-        Un prompt específico por tintorería supera ampliamente al prompt genérico. La IA necesita contexto del formato del proveedor.
+        Un prompt específico por tintorería supera ampliamente al genérico. La IA necesita contexto del formato del proveedor.
       </div>
-
       <div class="card" style="flex:1">
         <div class="card-icon">📋</div>
         <h3>Flujo completo</h3>
@@ -541,172 +398,131 @@
     <span class="slide-tag">Punto 1 — Etapa 4</span>
     <span class="slide-counter" id="counter-4"></span>
   </div>
-  <div class="section-divider">
-    <h2>📱 Scanner QR/Barcode</h2>
-  </div>
+  <div class="section-divider"><h2>📱 Scanner QR/Barcode</h2></div>
 
-  <div class="cols cols-2" style="flex:1;gap:1.5rem">
+  <div class="cols cols-2" style="flex:1">
     <div>
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">OBJETIVO</p>
-      <p style="margin-bottom:1rem">Cerrar la brecha entre el mundo físico y el sistema digital. Cada rollo físico tiene un código QR; el sistema no da por ingresado ningún rollo que no fue escaneado.</p>
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">OBJETIVO</p>
+      <p style="margin-bottom:0.9rem">Cerrar la brecha entre lo físico y lo digital. Cada rollo tiene QR; el sistema no da por ingresado ningún rollo que no fue escaneado.</p>
 
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">HERRAMIENTAS</p>
-      <div class="badges" style="margin-bottom:1rem">
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">HERRAMIENTAS</p>
+      <div class="badges" style="margin-bottom:0.9rem">
         <span class="badge orange">@zxing/browser</span>
         <span class="badge">Web Camera API</span>
-        <span class="badge">Next.js PWA</span>
+        <span class="badge">PWA mobile</span>
       </div>
 
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">FUNCIONALIDADES</p>
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">FUNCIONALIDADES</p>
       <ul class="list">
-        <li>Flujo <strong>"Aduana"</strong> — confirmación obligatoria rollo por rollo desde el celular</li>
-        <li>Asignación de <strong>ubicación física</strong> al confirmar (A-1, B-3, hasta F-6)</li>
+        <li>Flujo <strong>"Aduana"</strong> — confirmación obligatoria rollo por rollo</li>
+        <li>Asignación de <strong>ubicación física</strong> al confirmar (A-1 a F-6)</li>
         <li>Fallback de ingreso manual si la cámara no está disponible</li>
-        <li>Scanner también en picking — el mismo flujo para despachar</li>
+        <li>Scanner reutilizado en picking — mismo flujo para despachar</li>
       </ul>
     </div>
 
-    <div style="display:flex;flex-direction:column;gap:0.8rem">
+    <div style="display:flex;flex-direction:column;gap:0.7rem">
       <div class="result-pill resultado">
         <div class="label">Resultado</div>
-        0 rollos en estado "fantasma" post-confirmación. Si no está escaneado, no está en stock.
+        0 rollos "fantasma" post-confirmación. Si no se escaneó, no está en stock.
       </div>
       <div class="result-pill aprendizaje">
         <div class="label">Aprendizaje</div>
-        Hacer el paso obligatorio (no salteable) cambió el comportamiento del operario. La UX de "no hay atajos" es una feature.
+        Hacer el paso obligatorio (no salteable) cambió el comportamiento del operario. La UX de "sin atajos" es una feature.
       </div>
-
       <div class="card" style="flex:1">
         <div class="card-icon">🔄</div>
         <h3>Estado del rollo</h3>
-        <p style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--navy)">
-          pendiente → en_stock → reservado → entregado
-        </p>
-        <p style="margin-top:0.4rem">Cada transición requiere acción explícita del usuario con el scanner.</p>
+        <p style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--navy)">pendiente → en_stock → reservado → entregado</p>
+        <p style="margin-top:0.35rem">Cada transición requiere acción explícita con el scanner.</p>
       </div>
     </div>
   </div>
 </div>
 
 
-<!-- SLIDE 05: Etapas 5 + 6 — Stock y Pedidos -->
+<!-- SLIDE 05: Etapas 5+6+7 combinadas — Stock, Pedidos, UX -->
 <div class="slide" id="slide-5">
   <div class="slide-header">
-    <span class="slide-tag">Punto 1 — Etapas 5 y 6</span>
+    <span class="slide-tag">Punto 1 — Etapas 5, 6 y 7</span>
     <span class="slide-counter" id="counter-5"></span>
   </div>
-  <div class="section-divider">
-    <h2>📦 Stock y Pedidos — ciclo end-to-end</h2>
-  </div>
+  <div class="section-divider"><h2>📦 Stock, Pedidos y Polish</h2></div>
 
-  <div class="cols cols-2" style="flex:1;gap:2rem">
-    <div>
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">VISTA DE STOCK (ETAPA 5)</p>
-      <ul class="list" style="margin-bottom:1rem">
-        <li>Filtros multicriteria: artículo, color, tintorería, ubicación, estado</li>
-        <li>Vista rollo por rollo con peso, metros, tintorería de origen</li>
-        <li>Accesible para todos los roles (operario, ventas, admin)</li>
-      </ul>
-
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">MÓDULO DE PEDIDOS (ETAPA 6)</p>
-      <ul class="list">
-        <li><strong>Ventas</strong> crea el pedido y selecciona rollos disponibles</li>
-        <li>Rollos quedan en estado <em>reservado</em> — no se pueden asignar a otro pedido</li>
-        <li><strong>Operario</strong> hace el picking escaneando rollo por rollo</li>
-        <li><strong>Admin</strong> confirma la entrega o cancela con devolución de stock</li>
-      </ul>
+  <div class="cards cards-3" style="margin-bottom:0.9rem">
+    <div class="card">
+      <div class="card-icon">🔍</div>
+      <h3>Vista de Stock</h3>
+      <p>Filtros por artículo · color · tintorería · ubicación. Vista rollo por rollo con peso y metros. Accesible para los 4 roles.</p>
     </div>
-
-    <div style="display:flex;flex-direction:column;gap:0.8rem">
-      <div class="result-pill resultado">
-        <div class="label">Resultado</div>
-        Ciclo completo sin papel, sin WhatsApp, sin Excel. Del ingreso a la entrega, todo trazado en el sistema.
-      </div>
-      <div class="result-pill aprendizaje">
-        <div class="label">Aprendizaje</div>
-        Las RPCs en Supabase para lógica transaccional del picking son más seguras que lógica en cliente — los estados no se pueden saltar.
-      </div>
-      <div class="card accent" style="flex:1">
-        <div class="card-icon">👥</div>
-        <h3>4 roles con permisos diferenciados</h3>
-        <p>operario · ventas · admin · super — enforceados a nivel de base de datos con Row Level Security</p>
-      </div>
+    <div class="card">
+      <div class="card-icon">🛒</div>
+      <h3>Ciclo de Pedidos</h3>
+      <p>Ventas crea y reserva rollos · operario hace picking con scanner · admin confirma entrega o cancela con devolución de stock.</p>
     </div>
-  </div>
-</div>
-
-
-<!-- SLIDE 06: Etapa 7 — Muestras, Reportes, UX -->
-<div class="slide" id="slide-6">
-  <div class="slide-header">
-    <span class="slide-tag">Punto 1 — Etapa 7</span>
-    <span class="slide-counter" id="counter-6"></span>
-  </div>
-  <div class="section-divider">
-    <h2>📊 Muestras, Reportes y UX</h2>
-  </div>
-
-  <div class="cards cards-3" style="margin-bottom:1rem">
     <div class="card">
       <div class="card-icon">🧵</div>
-      <h3>Módulo Muestras</h3>
-      <p>Registro de muestras enviadas con descuento automático de kilos del rollo. Trazabilidad: qué se mandó como muestra y cuándo.</p>
+      <h3>Muestras</h3>
+      <p>Registro con descuento automático de kilos del rollo. Trazabilidad: qué se mandó como muestra y cuándo.</p>
     </div>
     <div class="card">
       <div class="card-icon">📈</div>
-      <h3>Reportes para el Admin</h3>
-      <p>Stock por artículo y color, movimientos del mes, diferencias de inventario, antigüedad de crudo. Export a CSV.</p>
+      <h3>Reportes (admin)</h3>
+      <p>Stock por artículo, movimientos del mes, diferencias, antigüedad de crudo. Export a CSV.</p>
     </div>
     <div class="card">
       <div class="card-icon">📱</div>
       <h3>UX Mobile-First</h3>
-      <p>Touch targets de 44px, diseño optimizado para el depósito. Toasts de confirmación (Sonner). Recuperación de contraseña.</p>
+      <p>Touch targets 44px, optimizado para el depósito. Toasts (Sonner). Recuperación de contraseña.</p>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">👥</div>
+      <h3>4 roles · RLS por empresa</h3>
+      <p>operario · ventas · admin · super — permisos enforceados a nivel base de datos.</p>
     </div>
   </div>
 
   <div class="result-row">
     <div class="result-pill resultado">
       <div class="label">Resultado</div>
-      El admin tiene visibilidad real del depósito en tiempo real. No una estimación en un Excel desactualizado.
+      Ciclo completo del ingreso a la entrega sin papel, sin WhatsApp, sin Excel. Admin con visibilidad real en tiempo real.
     </div>
     <div class="result-pill aprendizaje">
       <div class="label">Aprendizaje</div>
-      El UX polish define si el producto "se usa" o solo "funciona". El operario no usa lo que le cuesta más que el método anterior.
+      Las RPCs en Supabase son más seguras que la lógica en cliente. El UX polish define si el producto "se usa" o solo "funciona".
     </div>
   </div>
 </div>
 
 
-<!-- SLIDE 07: Iteración final -->
-<div class="slide" id="slide-7">
+<!-- SLIDE 06: Iteración final -->
+<div class="slide" id="slide-6">
   <div class="slide-header">
     <span class="slide-tag">Punto 1 — Iteración final</span>
-    <span class="slide-counter" id="counter-7"></span>
+    <span class="slide-counter" id="counter-6"></span>
   </div>
-  <div class="section-divider">
-    <h2>🔧 Iteración de correcciones y features</h2>
-  </div>
-  <p class="subtitle" style="margin-bottom:1rem">Tras el primer uso real con Muter Textil: 9 bugs resueltos + 9 features nuevas solicitadas por el cliente.</p>
+  <div class="section-divider"><h2>🔧 Iteración de correcciones y features</h2></div>
+  <p class="subtitle" style="margin-bottom:0.9rem">Tras el primer uso real con Muter: 9 bugs resueltos + 9 features nuevas pedidas por el cliente.</p>
 
-  <div class="cols cols-2" style="flex:1;gap:1.5rem">
+  <div class="cols cols-2" style="flex:1">
     <div>
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">BUGS CRÍTICOS RESUELTOS</p>
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">BUGS CRÍTICOS RESUELTOS</p>
       <ul class="list">
-        <li>Timeout de 30s en IA — antes quedaba en carga infinita con archivos inválidos</li>
-        <li>Permisos: operario ya no puede agregar tintorerías (solo admin)</li>
-        <li>Reportes con etiquetas profesionales en español (antes mostraban <code style="font-size:0.78rem;background:#f3f4f6;padding:0 3px;border-radius:3px">rollos.created</code>)</li>
-        <li>Pedidos clickeables desde perfil admin (problema de overlay de z-index)</li>
+        <li>Timeout de 30s en IA — antes carga infinita con archivos inválidos</li>
+        <li>Permisos: operario ya no puede agregar tintorerías</li>
+        <li>Reportes con etiquetas en español (antes <code class="inline">rollos.created</code>)</li>
+        <li>Pedidos clickeables desde perfil admin (overlay de z-index)</li>
         <li>Responsive desktop del depósito corregido</li>
       </ul>
     </div>
     <div>
-      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">NUEVAS FEATURES (cliente)</p>
+      <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">NUEVAS FEATURES (cliente)</p>
       <ul class="list">
-        <li><strong>Ubicaciones de stock</strong> — asignación masiva A-1 a F-6 al ingresar un lote</li>
-        <li><strong>Pedidos pendientes</strong> — alertas por días (verde &lt;7 / amarillo 7-15 / rojo &gt;15)</li>
-        <li><strong>Estado "segunda"</strong> — mercadería defectuosa recuperable, diferente a baja definitiva</li>
-        <li><strong>Cálculo de merma</strong> — kg y % por rollo, panel de análisis en reportes</li>
-        <li><strong>Stock mínimo con alertas</strong> — badge en dashboard, hook <code style="font-size:0.78rem;background:#f3f4f6;padding:0 3px;border-radius:3px">notificarStockMinimo()</code> listo para email/WhatsApp</li>
+        <li><strong>Ubicaciones de stock</strong> — asignación masiva A-1 a F-6</li>
+        <li><strong>Pedidos pendientes</strong> — alertas por días (verde/amarillo/rojo)</li>
+        <li><strong>Estado "segunda"</strong> — defectuosa recuperable, distinta a baja</li>
+        <li><strong>Cálculo de merma</strong> — kg y % por rollo, panel en reportes</li>
+        <li><strong>Stock mínimo con alertas</strong> — hook listo para email/WhatsApp</li>
       </ul>
     </div>
   </div>
@@ -725,15 +541,14 @@
 
 
 <!-- ═══════════════════════════════════════════════════════
-     BLOQUE 2 — PAIN POINTS Y PROPUESTA DE VALOR
-     Slides 08 a 11
+     BLOQUE 2 — PAIN POINTS Y PROPUESTA DE VALOR (slides 7–10)
 ════════════════════════════════════════════════════════ -->
 
-<!-- SLIDE 08: Cover bloque 2 -->
-<div class="slide slide-cover" id="slide-8">
+<!-- SLIDE 07: Cover bloque 2 -->
+<div class="slide slide-cover" id="slide-7">
   <div class="slide-header">
     <span class="slide-tag">Punto 2</span>
-    <span class="slide-counter" id="counter-8"></span>
+    <span class="slide-counter" id="counter-7"></span>
   </div>
   <h1>Pain Points<br/>y Propuesta<br/>de Valor</h1>
   <p class="subtitle">Por qué StockApp resuelve algo que la competencia no cubre</p>
@@ -745,29 +560,29 @@
 </div>
 
 
-<!-- SLIDE 09: El problema hoy -->
-<div class="slide" id="slide-9">
+<!-- SLIDE 08: El problema hoy -->
+<div class="slide" id="slide-8">
   <div class="slide-header">
     <span class="slide-tag">Punto 2 — El problema</span>
-    <span class="slide-counter" id="counter-9"></span>
+    <span class="slide-counter" id="counter-8"></span>
   </div>
   <h2>El proceso hoy en una PyME textil</h2>
 
-  <blockquote style="margin-bottom:1.5rem">
+  <blockquote style="margin-bottom:1.2rem">
     <p>"Yo sé lo que compré. No sé lo que tengo."</p>
-    <footer>— Hernán, dueño de Muter Textil</footer>
+    <footer>— Hernán, dueño de PyME textil entrevistada en validación</footer>
   </blockquote>
 
   <div class="cards cards-3">
     <div class="card">
       <div class="card-icon">📦</div>
       <h3>Stock invisible</h3>
-      <p>Excel desactualizado + WhatsApp con la tintorería. "Cuántos rollos hay" depende de con quién hables y cuándo actualizaron la planilla.</p>
+      <p>Excel desactualizado + WhatsApp con la tintorería. "Cuántos rollos hay" depende de con quién hables y cuándo se actualizó la planilla.</p>
     </div>
     <div class="card">
       <div class="card-icon">⚠️</div>
       <h3>Merma sin control</h3>
-      <p>Cuánto se pierde en el proceso de teñido, nadie lo sabe con exactitud. La diferencia entre kilos enviados y kilos recibidos se anota a mano, si se anota.</p>
+      <p>Cuánto se pierde en el teñido nadie lo sabe con exactitud. La diferencia entre kilos enviados y recibidos se anota a mano, si se anota.</p>
     </div>
     <div class="card">
       <div class="card-icon">🔄</div>
@@ -778,19 +593,19 @@
 
   <div class="result-pill aprendizaje" style="margin-top:1rem">
     <div class="label">Costo oculto</div>
-    Horas-persona de carga manual · errores de despacho · pérdidas por antigüedad de crudo · imposibilidad de responder pedidos urgentes en tiempo real
+    Horas-persona de carga manual · errores de despacho · pérdidas por antigüedad de crudo · imposibilidad de responder pedidos urgentes
   </div>
 </div>
 
 
-<!-- SLIDE 10: Mapa competitivo -->
-<div class="slide" id="slide-10">
+<!-- SLIDE 09: Mapa competitivo -->
+<div class="slide" id="slide-9">
   <div class="slide-header">
     <span class="slide-tag">Punto 2 — Competidores</span>
-    <span class="slide-counter" id="counter-10"></span>
+    <span class="slide-counter" id="counter-9"></span>
   </div>
   <h2>Lo que existe — y por qué no alcanza</h2>
-  <p class="subtitle" style="margin-bottom:1rem">Análisis de 15 soluciones. Ninguna cubre el flujo completo de un productor de tela con tintorería tercerizada.</p>
+  <p class="subtitle" style="margin-bottom:0.9rem">Análisis de 15 soluciones. Ninguna cubre el flujo completo de un productor de tela con tintorería tercerizada.</p>
 
   <div class="table-wrap">
     <table>
@@ -805,258 +620,274 @@
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>Excel / planillas</td>
-          <td>Manual</td>
-          <td class="cell-no">✗ No</td>
-          <td class="cell-no">✗ No</td>
-          <td class="cell-no">✗ No</td>
-          <td>USD 0</td>
-        </tr>
-        <tr>
-          <td>ERPs genéricos (Xubio, Colppy, Alegra)</td>
-          <td>ERP cloud · Arg.</td>
-          <td class="cell-no">✗ No</td>
-          <td class="cell-no">✗ No</td>
-          <td class="cell-no">✗ No</td>
-          <td>USD 15 – 185</td>
-        </tr>
-        <tr>
-          <td>Dragonfish</td>
-          <td>ERP retail textil</td>
-          <td class="cell-partial">~ Retail/talle</td>
-          <td class="cell-partial">~ Add-on POS</td>
-          <td class="cell-no">✗ No</td>
-          <td>Desde USD 16</td>
-        </tr>
-        <tr>
-          <td>Flexxus</td>
-          <td>ERP multi-vertical</td>
-          <td class="cell-partial">~ Confección</td>
-          <td class="cell-partial">~ Add-on</td>
-          <td class="cell-no">✗ No</td>
-          <td>USD 250 – 1.000+</td>
-        </tr>
-        <tr>
-          <td>Tango Gestión (Axoft)</td>
-          <td>ERP mediana empresa</td>
-          <td class="cell-partial">~ Configurable</td>
-          <td class="cell-partial">~ Add-on</td>
-          <td class="cell-partial">~ Dev. a medida</td>
-          <td>USD 400+ (+ partner)</td>
-        </tr>
-        <tr>
-          <td>PULPO WMS</td>
-          <td>WMS cloud</td>
-          <td class="cell-no">✗ No</td>
-          <td class="cell-yes">✓ Sí</td>
-          <td class="cell-no">✗ No</td>
-          <td>USD 49 – 1.200</td>
-        </tr>
-        <tr class="highlight-row">
-          <td><strong>StockApp</strong></td>
-          <td>Vertical PyME textil</td>
-          <td class="cell-yes">✓ Rollo + tintorería</td>
-          <td class="cell-yes">✓ Nativo</td>
-          <td class="cell-yes">✓ Primera clase</td>
-          <td>Plan Pro: USD 150 – 200</td>
-        </tr>
+        <tr><td>Excel / planillas</td><td>Manual</td><td class="cell-no">✗ No</td><td class="cell-no">✗ No</td><td class="cell-no">✗ No</td><td>USD 0</td></tr>
+        <tr><td>ERPs genéricos (Xubio, Colppy)</td><td>ERP cloud · Arg.</td><td class="cell-no">✗ No</td><td class="cell-no">✗ No</td><td class="cell-no">✗ No</td><td>USD 15 – 185</td></tr>
+        <tr><td>Dragonfish</td><td>ERP retail textil</td><td class="cell-partial">~ Retail/talle</td><td class="cell-partial">~ Add-on POS</td><td class="cell-no">✗ No</td><td>Desde USD 16</td></tr>
+        <tr><td>Flexxus</td><td>ERP multi-vertical</td><td class="cell-partial">~ Confección</td><td class="cell-partial">~ Add-on</td><td class="cell-no">✗ No</td><td>USD 250 – 1.000+</td></tr>
+        <tr><td>Tango Gestión (Axoft)</td><td>ERP mediana empresa</td><td class="cell-partial">~ Configurable</td><td class="cell-partial">~ Add-on</td><td class="cell-partial">~ Dev. a medida</td><td>USD 400+ (+ partner)</td></tr>
+        <tr><td>PULPO WMS</td><td>WMS cloud</td><td class="cell-no">✗ No</td><td class="cell-yes">✓ Sí</td><td class="cell-no">✗ No</td><td>USD 49 – 1.200</td></tr>
+        <tr class="highlight-row"><td><strong>StockApp</strong></td><td>Vertical PyME textil</td><td class="cell-yes">✓ Rollo + tintorería</td><td class="cell-yes">✓ Nativo</td><td class="cell-yes">✓ Primera clase</td><td>~ USD 210</td></tr>
       </tbody>
     </table>
   </div>
-  <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem">Fuente: Análisis de competidores Nudo/StockApp, abril 2026. Precios en USD al tipo de cambio referencial.</p>
+  <p style="font-size:0.72rem;color:var(--text-muted);margin-top:0.5rem">Fuente: Análisis de competidores StockApp, abril 2026. Precios USD al tipo de cambio referencial.</p>
 </div>
 
 
-<!-- SLIDE 11: Por qué StockApp -->
-<div class="slide" id="slide-11">
+<!-- SLIDE 10: Por qué StockApp + Arquitectura combinados -->
+<div class="slide" id="slide-10">
   <div class="slide-header">
     <span class="slide-tag">Punto 2 — Propuesta de valor</span>
-    <span class="slide-counter" id="counter-11"></span>
+    <span class="slide-counter" id="counter-10"></span>
   </div>
   <h2>Por qué StockApp resuelve algo real</h2>
-  <p class="subtitle" style="margin-bottom:1.2rem">Ningún competidor cubre las cinco piezas críticas del flujo simultáneamente.</p>
+  <p class="subtitle" style="margin-bottom:0.9rem">5 piezas críticas que ningún competidor cubre simultáneamente.</p>
 
-  <div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.2rem">
-    <div class="diff-item">
-      <div class="icon">🧠</div>
-      <div class="text">
-        <h3>IA entrenada por tintorería</h3>
-        <p>No extracción genérica. Cada proveedor tiene su propio prompt optimizado para su formato de planilla. Flexxus y Tango no tienen esto; lo harían con desarrollo a medida.</p>
+  <div class="cols cols-2" style="flex:1">
+    <div style="display:flex;flex-direction:column;gap:0.45rem">
+      <div class="diff-item">
+        <div class="icon">🧠</div>
+        <div class="text"><h3>IA entrenada por tintorería</h3><p>No extracción genérica. Cada proveedor tiene su prompt optimizado.</p></div>
+      </div>
+      <div class="diff-item">
+        <div class="icon">📱</div>
+        <div class="text"><h3>Mobile-first sin fricción</h3><p>El operario usa su celular. Sin hardware extra, sin capacitación de semanas.</p></div>
+      </div>
+      <div class="diff-item">
+        <div class="icon">🔐</div>
+        <div class="text"><h3>Multi-tenant desde el diseño</h3><p>Dato de un cliente nunca visible para otro (RLS por empresa_id).</p></div>
+      </div>
+      <div class="diff-item">
+        <div class="icon">📍</div>
+        <div class="text"><h3>Ubicaciones físicas reales</h3><p>El sistema conoce el layout y guía el picking por ubicación.</p></div>
+      </div>
+      <div class="diff-item">
+        <div class="icon">⚡</div>
+        <div class="text"><h3>Implementación sin consultor</h3><p>Tango cobra USD 150–1.500 solo para instalar. Acá es semana 1.</p></div>
       </div>
     </div>
-    <div class="diff-item">
-      <div class="icon">📱</div>
-      <div class="text">
-        <h3>Mobile-first para el operario, sin fricción</h3>
-        <p>El operario usa el celular que ya tiene. Sin hardware extra, sin capacitación de semanas. El scanner funciona con la cámara nativa.</p>
+
+    <div style="display:flex;flex-direction:column;gap:0.5rem">
+      <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:0.3rem">Arquitectura</h3>
+      <div class="arch" style="flex-direction:column;gap:0.4rem">
+        <div class="arch-box" style="width:100%"><div class="arch-icon">📱</div><div class="arch-label">Browser / PWA</div><div class="arch-sub">Mobile · Desktop</div></div>
+        <div style="color:var(--text-muted);font-size:1rem">↓</div>
+        <div class="arch-box highlight" style="width:100%"><div class="arch-icon">⚡</div><div class="arch-label">Next.js 16</div><div class="arch-sub">Vercel · São Paulo</div></div>
+        <div style="color:var(--text-muted);font-size:1rem">↓</div>
+        <div class="arch-box" style="width:100%"><div class="arch-icon">🗄️</div><div class="arch-label">Supabase PostgreSQL</div><div class="arch-sub">RLS · Auth · Realtime</div></div>
+        <div style="color:var(--text-muted);font-size:1rem">↓</div>
+        <div class="arch-box" style="width:100%"><div class="arch-icon">🧠</div><div class="arch-label">Gemini 2.5 Flash</div><div class="arch-sub">Google AI Studio</div></div>
       </div>
+      <p style="font-size:0.7rem;color:var(--text-muted);text-align:center;margin-top:0.4rem">$0/mes de infraestructura en fase piloto</p>
     </div>
-    <div class="diff-item">
-      <div class="icon">🔐</div>
-      <div class="text">
-        <h3>Multi-tenant desde el diseño</h3>
-        <p>Dato de un cliente nunca es visible para otro (Row Level Security por empresa_id). Escala a N clientes sin re-arquitectura.</p>
-      </div>
-    </div>
-    <div class="diff-item">
-      <div class="icon">📍</div>
-      <div class="text">
-        <h3>Ubicaciones físicas reales (A-1 a F-6)</h3>
-        <p>No un campo de texto libre. El sistema conoce el layout del depósito y guía el picking por ubicación.</p>
-      </div>
-    </div>
-    <div class="diff-item">
-      <div class="icon">⚡</div>
-      <div class="text">
-        <h3>Implementación sin consultor · $0 de infraestructura en piloto</h3>
-        <p>Vercel + Supabase free tier. Sin fee de setup obligatorio para empezar. Tango cobra USD 150 – 1.500 solo para instalar.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<!-- SLIDE 12: Arquitectura -->
-<div class="slide" id="slide-12">
-  <div class="slide-header">
-    <span class="slide-tag">Punto 2 — Arquitectura</span>
-    <span class="slide-counter" id="counter-12"></span>
-  </div>
-  <h2>Arquitectura que soporta el crecimiento</h2>
-  <p class="subtitle" style="margin-bottom:1.5rem">SaaS cloud-native, serverless, desplegado en Latinoamérica.</p>
-
-  <div class="arch" style="margin-bottom:1.5rem">
-    <div class="arch-box">
-      <div class="arch-icon">📱</div>
-      <div class="arch-label">Browser / PWA</div>
-      <div class="arch-sub">Mobile · Desktop</div>
-    </div>
-    <div class="arch-arrow">→</div>
-    <div class="arch-box highlight">
-      <div class="arch-icon">⚡</div>
-      <div class="arch-label">Next.js 16</div>
-      <div class="arch-sub">Vercel · São Paulo</div>
-    </div>
-    <div class="arch-arrow">→</div>
-    <div class="arch-box">
-      <div class="arch-icon">🗄️</div>
-      <div class="arch-label">Supabase PostgreSQL</div>
-      <div class="arch-sub">RLS · Auth · Realtime</div>
-    </div>
-    <div class="arch-arrow">→</div>
-    <div class="arch-box">
-      <div class="arch-icon">🧠</div>
-      <div class="arch-label">Gemini 2.5 Flash</div>
-      <div class="arch-sub">Google AI Studio</div>
-    </div>
-  </div>
-
-  <div class="cards cards-4">
-    <div class="card">
-      <h3>Next.js 16</h3>
-      <p>App Router · TypeScript · Server Actions · Tailwind v4 · shadcn/ui</p>
-    </div>
-    <div class="card">
-      <h3>Supabase</h3>
-      <p>PostgreSQL · Row Level Security por empresa_id · Invitaciones por email</p>
-    </div>
-    <div class="card">
-      <h3>Gemini 2.5 Flash</h3>
-      <p>Extracción de planillas · Configs por tintorería · Timeout 30s</p>
-    </div>
-    <div class="card">
-      <h3>@zxing/browser</h3>
-      <p>Scanner QR/barcode nativo · Funciona en cualquier celular con cámara</p>
-    </div>
-  </div>
-
-  <div class="badge orange" style="display:inline-block;margin-top:1rem">
-    "El dato de un cliente nunca es visible para otro" — Multi-tenant enforceado a nivel DB
   </div>
 </div>
 
 
 <!-- ═══════════════════════════════════════════════════════
-     PUNTO 3 — COMPLETAR POR EL COMPAÑERO
-
-     Para agregar slides, copiá la estructura de cualquier
-     slide de arriba, cambiá el id="slide-N" con el número
-     siguiente, y el <span id="counter-N"> también.
-
-     Después de agregar el último slide, no hace falta
-     tocar nada más — el contador se actualiza solo.
+     BLOQUE 3 — GO TO MARKET (slides 11–15)
 ════════════════════════════════════════════════════════ -->
 
-<!-- SLIDE 13: Cover punto 3 (COMPLETAR) -->
-<div class="slide slide-cover" id="slide-13">
+<!-- SLIDE 11: Cover bloque 3 -->
+<div class="slide slide-cover" id="slide-11">
   <div class="slide-header">
     <span class="slide-tag">Punto 3</span>
+    <span class="slide-counter" id="counter-11"></span>
+  </div>
+  <h1>Go to<br/>Market</h1>
+  <p class="subtitle">Estrategia 100% orgánica con cliente piloto activo</p>
+  <div class="badges">
+    <span class="badge">Equipo de 4 fundadores</span>
+    <span class="badge">Sin presupuesto de marketing</span>
+    <span class="badge">63 empresas en pipeline</span>
+    <span class="badge orange">Muter Textil como prueba viva</span>
+  </div>
+</div>
+
+
+<!-- SLIDE 12: Cliente ideal -->
+<div class="slide" id="slide-12">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 3 — Cliente ideal</span>
+    <span class="slide-counter" id="counter-12"></span>
+  </div>
+  <h2>Foco angosto: el cliente ideal</h2>
+  <p class="subtitle" style="margin-bottom:0.9rem">Tres condiciones que tienen que darse juntas. Capturar bien este segmento antes de ampliar.</p>
+
+  <div class="cards cards-3" style="margin-bottom:1.2rem">
+    <div class="card accent">
+      <div class="card-icon">🏭</div>
+      <h3>1. Terceriza el teñido</h3>
+      <p>Envía tela cruda a tintorería externa y la recibe terminada. Es el flujo donde se pierde la trazabilidad y donde StockApp aporta valor.</p>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">📏</div>
+      <h3>2. Tamaño mediano</h3>
+      <p>De 5 a 50 empleados. Volumen de stock que justifica el sistema. Más chicas se arreglan con una planilla; más grandes ya tienen un ERP.</p>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">📋</div>
+      <h3>3. No tiene sistema</h3>
+      <p>Gestiona con Excel, libreta o memoria. No hay que desplazar a un competidor: reemplazar una solución manual que no funciona.</p>
+    </div>
+  </div>
+
+  <blockquote>
+    <p>"El producto es para gente que no produce sus telas, que terceriza todo."</p>
+    <footer>— Dalmiro, dueño de Muter Textil (cliente piloto)</footer>
+  </blockquote>
+
+  <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.6rem">
+    <strong style="color:var(--navy)">Fuera del foco:</strong> empresas grandes con ERP propio · empresas con tintorería propia · confeccionistas puras (no manejan rollos de tela).
+  </p>
+</div>
+
+
+<!-- SLIDE 13: Estrategia de visibilidad -->
+<div class="slide" id="slide-13">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 3 — Visibilidad</span>
     <span class="slide-counter" id="counter-13"></span>
   </div>
-  <h1>Go to Market</h1>
-  <p class="subtitle">Estrategia de visibilidad + implementación y ventas</p>
-  <div class="badges">
-    <!-- Agrega badges relevantes acá -->
+  <h2>Estrategia de visibilidad</h2>
+  <p class="subtitle" style="margin-bottom:0.9rem">Presupuesto cero. Construir presencia en un segmento chico para que cuando un dueño tenga el problema, StockApp sea su primera opción.</p>
+
+  <blockquote style="margin-bottom:1rem">
+    <p>"StockApp te dice qué tela tenés, en cualquier momento, sin que dependas de la memoria del jefe de depósito."</p>
+    <footer>— Mensaje de marca: lenguaje del cliente, no del producto</footer>
+  </blockquote>
+
+  <p style="font-size:0.78rem;color:var(--text-muted);font-weight:600;margin-bottom:0.5rem">4 CANALES — SE ELIGEN POR DÓNDE ESTÁ EL COMPRADOR</p>
+  <div class="cards cards-4">
+    <div class="card">
+      <div class="card-icon">🎯</div>
+      <h3>Prospección directa</h3>
+      <p>Canal principal hoy. 63 empresas ya contactadas + red personal + egresados ITBA. Mensaje personalizado, nunca masivo.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">💼</div>
+      <h3>LinkedIn orgánico</h3>
+      <p>Cuentas personales de los 4 fundadores. No vende el producto: construye autoridad mostrando que entendemos el rubro.</p>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">🤝</div>
+      <h3>Referidos del ecosistema</h3>
+      <p>Dalmiro ya se comprometió a pasar contactos de otras fábricas. Convierten a tasa mucho más alta que un contacto frío.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📍</div>
+      <h3>Eventos del rubro</h3>
+      <p>Emitex, Pro Tejer, APYMEL. Asistencia como visitantes (stand fuera de presupuesto). Mapear empresas + generar contenido.</p>
+    </div>
+  </div>
+
+  <div class="result-pill aprendizaje" style="margin-top:1rem">
+    <div class="label">Activo de marketing #1: el caso Muter</div>
+    Permiso de uso del nombre · documentación del piloto (fotos, números, testimonio) · referencia activa de Dalmiro a prospectos
   </div>
 </div>
 
-<!-- SLIDE 14: [Completar por el compañero] -->
+
+<!-- SLIDE 14: Proceso de venta + pricing -->
 <div class="slide" id="slide-14">
   <div class="slide-header">
-    <span class="slide-tag">Punto 3 — Go to Market</span>
+    <span class="slide-tag">Punto 3 — Ventas</span>
     <span class="slide-counter" id="counter-14"></span>
   </div>
-  <h2><!-- Título del slide --></h2>
-  <p class="subtitle"><!-- Subtítulo opcional --></p>
+  <h2>Proceso de venta y pricing</h2>
+  <p class="subtitle" style="margin-bottom:1.3rem">El integrante que abre el contacto lleva el deal de punta a punta. La demo con datos reales del cliente es la pieza central.</p>
 
-  <div class="placeholder-box">
-    <div class="ph-icon">✏️</div>
-    <div class="ph-text">Slide para completar</div>
-    <div class="ph-sub">Copiá la estructura de los slides anteriores y reemplazá el contenido. Los componentes disponibles están todos comentados al final del &lt;style&gt;.</div>
+  <div class="steps" style="margin-bottom:1.3rem">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>Calificación</h3>
+      <p>Charla de 30 min. Confirmar perfil ideal: terceriza teñido, decide, le entra el precio, tiene horizonte.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>Demo con datos reales</h3>
+      <p>MVP funcionando con la planilla y artículos del cliente. Ve su propio depósito en pantalla, no un demo genérico.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>Prueba en planta</h3>
+      <p>Cada rol prueba el sistema en planta con acompañamiento. Momento decisivo para la adopción.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <h3>Propuesta y cierre</h3>
+      <p>Propuesta escrita + reunión de cierre. Regla del equipo: no salir sin un próximo paso concreto acordado.</p>
+    </div>
+  </div>
+
+  <div class="cols cols-2">
+    <div class="card accent">
+      <div class="card-icon">💵</div>
+      <h3>Pricing — abono mensual</h3>
+      <p style="color:var(--text);font-size:0.85rem"><strong style="font-size:1.05rem;color:var(--navy)">~ USD 210/mes</strong> de referencia. Validado por Dalmiro: una empresa de su tamaño lo pagaría sin problema si le resuelve el problema.</p>
+      <p style="margin-top:0.4rem">Modelo recomendado por el propio cliente: mejoras continuas + sostenibilidad del negocio.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🧩</div>
+      <h3>A futuro: módulos por separado</h3>
+      <p>Estadísticas de merma · integración con facturación · alertas avanzadas. Cada cliente arma el sistema según lo que necesita.</p>
+      <p style="margin-top:0.4rem"><strong style="color:var(--navy)">Demo y prueba en planta sin cargo.</strong></p>
+    </div>
   </div>
 </div>
 
-<!-- SLIDE 15: [Completar por el compañero] -->
+
+<!-- SLIDE 15: Implementación + Estado actual -->
 <div class="slide" id="slide-15">
   <div class="slide-header">
-    <span class="slide-tag">Punto 3 — Go to Market</span>
+    <span class="slide-tag">Punto 3 — Implementación · Estado</span>
     <span class="slide-counter" id="counter-15"></span>
   </div>
-  <h2><!-- Título del slide --></h2>
+  <h2>Implementación intensiva y presencial</h2>
+  <p class="subtitle" style="margin-bottom:1rem">La adopción —en especial la del operario— es el principal riesgo. Por eso onboarding en planta, no remoto.</p>
 
-  <div class="placeholder-box">
-    <div class="ph-icon">✏️</div>
-    <div class="ph-text">Slide para completar</div>
-    <div class="ph-sub">Usá <code>.cards.cards-2</code>, <code>.list</code>, <code>.blockquote</code>, <code>.result-pill</code> y <code>.diff-item</code> para armar el contenido.</div>
+  <div class="cards cards-3" style="margin-bottom:1rem">
+    <div class="card">
+      <div class="card-icon">⚙️</div>
+      <h3>Semana 1 — Configuración</h3>
+      <p>Alta del cliente, carga de catálogos, generación de QR para el stock existente, capacitación en planta a cada rol.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔄</div>
+      <h3>Semanas 2–4 — Paralelo</h3>
+      <p>StockApp + Excel como respaldo. Equipo en planta varias veces por semana para detectar y resolver fricciones en el momento.</p>
+    </div>
+    <div class="card accent">
+      <div class="card-icon">✅</div>
+      <h3>Semana 5+ — Autónoma</h3>
+      <p>StockApp como única fuente de verdad. Soporte por WhatsApp/mail. Cada feedback alimenta el roadmap del producto.</p>
+    </div>
+  </div>
+
+  <div class="cols cols-2">
+    <div>
+      <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:0.5rem">ESTADO ACTUAL</h3>
+      <ul class="list">
+        <li><strong>Muter Textil</strong> — demo realizada, prueba en planta agendada</li>
+        <li><strong>Pipeline</strong> — prospección directa activa con 63 empresas validadas</li>
+        <li><strong>Mensaje de marca</strong> — definido y consistente en todos los canales</li>
+        <li><strong>Próximos pasos</strong> — contenido LinkedIn + documentación caso Muter + presencia en Emitex</li>
+      </ul>
+    </div>
+    <div class="result-pill resultado" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="label">Próximas semanas</div>
+      <p style="font-size:0.85rem;margin-top:0.3rem">La prueba real del proceso completo, de la demo al onboarding. Cada problema que aparezca en Muter alimenta el roadmap y se convierte en material de marketing del próximo cliente.</p>
+    </div>
   </div>
 </div>
 
-<!-- SLIDE 16: [Completar por el compañero] -->
-<div class="slide" id="slide-16">
-  <div class="slide-header">
-    <span class="slide-tag">Punto 3 — Go to Market</span>
-    <span class="slide-counter" id="counter-16"></span>
-  </div>
-  <h2><!-- Título del slide --></h2>
 
-  <div class="placeholder-box">
-    <div class="ph-icon">✏️</div>
-    <div class="ph-text">Slide para completar</div>
-    <div class="ph-sub">Si necesitás más slides, duplicá este bloque y cambiá el número del id y del counter.</div>
-  </div>
-</div>
-
-
-<!-- ─────────────────────────────────────────────
-     NAVEGACIÓN
-───────────────────────────────────────────── -->
+<!-- NAVEGACIÓN -->
 <div id="nav">
   <button id="btn-prev" onclick="changeSlide(-1)" title="Anterior (←)">←</button>
-  <span id="nav-counter">1 / 16</span>
+  <span id="nav-counter">1 / 15</span>
   <button id="btn-next" onclick="changeSlide(1)" title="Siguiente (→)">→</button>
 </div>
-
 
 <script>
   const slides = document.querySelectorAll('.slide');
@@ -1080,16 +911,13 @@
     updateCounters();
   }
 
-  function changeSlide(dir) {
-    showSlide(current + dir);
-  }
+  function changeSlide(dir) { showSlide(current + dir); }
 
   document.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') changeSlide(1);
     if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   changeSlide(-1);
   });
 
-  // Init
   slides[0].classList.add('active');
   updateCounters();
 </script>
