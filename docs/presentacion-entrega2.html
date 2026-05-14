@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockApp — Presentación ITBA 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ─────────────────────────────────────────────
+       VARIABLES Y RESET
+    ───────────────────────────────────────────── */
+    :root {
+      --orange: #f97316;
+      --orange-light: #fff7ed;
+      --navy: #1e3a5f;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #ffffff;
+      --bg-alt: #f9fafb;
+      --green: #16a34a;
+      --yellow: #ca8a04;
+      --red: #dc2626;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #111;
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* ─────────────────────────────────────────────
+       SLIDE BASE
+    ───────────────────────────────────────────── */
+    .slide {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      padding: 3.5rem 5.5rem 4rem;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 0;
+      overflow: hidden;
+    }
+    .slide.active { display: flex; }
+
+    /* ─────────────────────────────────────────────
+       HEADER / COUNTER
+    ───────────────────────────────────────────── */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.2rem;
+    }
+    .slide-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--orange);
+      background: var(--orange-light);
+      padding: 0.3rem 0.75rem;
+      border-radius: 99px;
+    }
+    .slide-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* ─────────────────────────────────────────────
+       TIPOGRAFÍA
+    ───────────────────────────────────────────── */
+    h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      color: var(--navy);
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+    h2 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.2;
+      margin-bottom: 1.2rem;
+    }
+    h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 0.4rem;
+    }
+    .subtitle {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      margin-bottom: 2rem;
+    }
+    p { font-size: 0.95rem; line-height: 1.65; color: var(--text); }
+
+    /* ─────────────────────────────────────────────
+       COMPONENTES REUTILIZABLES
+    ───────────────────────────────────────────── */
+
+    /* Badges en fila */
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+    .badge {
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.3rem 0.8rem;
+      border-radius: 99px;
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      background: var(--bg-alt);
+    }
+    .badge.orange { border-color: var(--orange); color: var(--orange); background: var(--orange-light); }
+
+    /* Grid de cards */
+    .cards {
+      display: grid;
+      gap: 1rem;
+    }
+    .cards-2 { grid-template-columns: 1fr 1fr; }
+    .cards-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .cards-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+    .card {
+      background: var(--bg-alt);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+    }
+    .card-icon { font-size: 1.4rem; margin-bottom: 0.4rem; }
+    .card h3 { font-size: 0.9rem; margin-bottom: 0.3rem; }
+    .card p { font-size: 0.82rem; color: var(--text-muted); }
+    .card.accent { border-color: var(--orange); background: var(--orange-light); }
+
+    /* Lista con bullets personalizados */
+    .list { list-style: none; display: flex; flex-direction: column; gap: 0.55rem; }
+    .list li {
+      font-size: 0.93rem;
+      line-height: 1.5;
+      padding-left: 1.4rem;
+      position: relative;
+    }
+    .list li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: var(--orange);
+      font-weight: 700;
+    }
+    .list li strong { color: var(--navy); }
+
+    /* Blockquote */
+    blockquote {
+      border-left: 3px solid var(--orange);
+      padding: 0.8rem 1.2rem;
+      margin: 1.2rem 0;
+      background: var(--orange-light);
+      border-radius: 0 8px 8px 0;
+    }
+    blockquote p { font-size: 1.05rem; font-style: italic; color: var(--navy); font-weight: 500; }
+    blockquote footer { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+    /* Row con dos columnas */
+    .cols { display: grid; gap: 2rem; }
+    .cols-2 { grid-template-columns: 1fr 1fr; }
+    .cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .cols-6040 { grid-template-columns: 6fr 4fr; }
+
+    /* Tabla */
+    .table-wrap { overflow: auto; border-radius: 8px; border: 1.5px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    thead { background: var(--navy); color: #fff; }
+    thead th { padding: 0.6rem 0.8rem; text-align: left; font-weight: 600; }
+    tbody tr:nth-child(even) { background: var(--bg-alt); }
+    tbody td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+    tbody tr:last-child td { border-bottom: none; }
+    .cell-yes { color: var(--green); font-weight: 700; }
+    .cell-no { color: var(--red); }
+    .cell-partial { color: var(--yellow); }
+    .highlight-row td { background: var(--orange-light) !important; font-weight: 600; color: var(--navy); }
+
+    /* Timeline */
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+    .tl-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .tl-dot {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--navy);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .tl-dot.star { background: var(--orange); }
+    .tl-dot::after {
+      content: "✓";
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      background: var(--green);
+      color: #fff;
+      font-size: 0.5rem;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tl-label {
+      font-size: 0.62rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-weight: 500;
+      line-height: 1.3;
+    }
+    .tl-label strong { display: block; color: var(--text); font-weight: 700; }
+
+    /* Divisor de sección */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .section-divider h2 { margin: 0; }
+    .section-divider::after {
+      content: "";
+      flex: 1;
+      height: 2px;
+      background: var(--border);
+    }
+
+    /* Resultado + aprendizaje pill */
+    .result-row {
+      display: flex;
+      gap: 0.8rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+    .result-pill {
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+      font-size: 0.82rem;
+      flex: 1;
+      min-width: 200px;
+    }
+    .result-pill .label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.2rem;
+    }
+    .result-pill.resultado { background: #f0fdf4; border: 1.5px solid #86efac; }
+    .result-pill.resultado .label { color: var(--green); }
+    .result-pill.aprendizaje { background: #eff6ff; border: 1.5px solid #93c5fd; }
+    .result-pill.aprendizaje .label { color: #1d4ed8; }
+
+    /* Diferenciadores */
+    .diff-item {
+      display: flex;
+      gap: 0.8rem;
+      align-items: flex-start;
+      padding: 0.8rem 1rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-alt);
+    }
+    .diff-item .icon { font-size: 1.3rem; flex-shrink: 0; }
+    .diff-item .text h3 { font-size: 0.9rem; margin-bottom: 0.2rem; }
+    .diff-item .text p { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* Arq diagram */
+    .arch {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 1rem 0;
+    }
+    .arch-box {
+      flex: 1;
+      background: var(--bg-alt);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
+      text-align: center;
+    }
+    .arch-box .arch-icon { font-size: 1.4rem; }
+    .arch-box .arch-label { font-size: 0.75rem; font-weight: 700; color: var(--navy); }
+    .arch-box .arch-sub { font-size: 0.65rem; color: var(--text-muted); }
+    .arch-box.highlight { border-color: var(--orange); background: var(--orange-light); }
+    .arch-arrow { padding: 0 0.5rem; color: var(--text-muted); font-size: 1.2rem; flex-shrink: 0; }
+
+    /* ─────────────────────────────────────────────
+       NAVEGACIÓN
+    ───────────────────────────────────────────── */
+    #nav {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      z-index: 100;
+    }
+    #nav button {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      color: var(--navy);
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    #nav button:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
+    #nav button:disabled { opacity: 0.3; cursor: default; }
+    #nav-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      min-width: 48px;
+      text-align: center;
+    }
+
+    /* ─────────────────────────────────────────────
+       SLIDE ESPECIAL: COVER DE BLOQUE
+    ───────────────────────────────────────────── */
+    .slide-cover {
+      justify-content: center;
+      background: var(--navy);
+    }
+    .slide-cover h1 { color: #fff; font-size: 3rem; }
+    .slide-cover .subtitle { color: rgba(255,255,255,0.65); }
+    .slide-cover .badge { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.08); }
+    .slide-cover .slide-counter { color: rgba(255,255,255,0.4); }
+    .slide-cover .slide-tag { background: var(--orange); color: #fff; }
+
+    /* placeholder para el compañero */
+    .placeholder-box {
+      flex: 1;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8rem;
+      color: var(--text-muted);
+      background: var(--bg-alt);
+      padding: 2rem;
+    }
+    .placeholder-box .ph-icon { font-size: 2.5rem; opacity: 0.4; }
+    .placeholder-box .ph-text { font-size: 1rem; font-weight: 600; color: var(--text-muted); }
+    .placeholder-box .ph-sub { font-size: 0.85rem; text-align: center; max-width: 400px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     BLOQUE 1 — MVP VERSIÓN FINAL
+     Slides 01 a 07
+════════════════════════════════════════════════════════ -->
+
+<!-- SLIDE 01: Cover bloque 1 -->
+<div class="slide slide-cover" id="slide-1">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 1</span>
+    <span class="slide-counter" id="counter-1"></span>
+  </div>
+  <h1>MVP<br/>Versión Final</h1>
+  <p class="subtitle">De la hipótesis al producto en producción</p>
+  <div class="badges">
+    <span class="badge">14 etapas completadas</span>
+    <span class="badge">11 migraciones</span>
+    <span class="badge">4 roles de usuario</span>
+    <span class="badge">$0 de infraestructura mensual</span>
+    <span class="badge orange">En producción · Vercel + Supabase</span>
+  </div>
+</div>
+
+
+<!-- SLIDE 02: Timeline de etapas -->
+<div class="slide" id="slide-2">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 1 — Metodología</span>
+    <span class="slide-counter" id="counter-2"></span>
+  </div>
+  <h2>Desarrollo iterativo en 14 etapas</h2>
+  <p class="subtitle" style="margin-bottom:1.5rem">Cada etapa entregó funcionalidad completa y usable. Las marcadas en naranja se detallan a continuación.</p>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot">0</div>
+      <div class="tl-label"><strong>Bootstrap</strong>Next.js · Supabase · Tailwind</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">1</div>
+      <div class="tl-label"><strong>Auth + DB</strong>Roles · RLS · Multi-tenant</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">2</div>
+      <div class="tl-label"><strong>Ingresos</strong>Carga manual de rollos</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot star">3</div>
+      <div class="tl-label"><strong>IA ⭐</strong>Extracción de planillas</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot star">4</div>
+      <div class="tl-label"><strong>QR ⭐</strong>Scanner + confirmación</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">5</div>
+      <div class="tl-label"><strong>Stock</strong>Filtros · Ubicaciones</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot star">6</div>
+      <div class="tl-label"><strong>Pedidos ⭐</strong>Ventas · Picking · Entrega</div>
+    </div>
+  </div>
+
+  <div class="timeline" style="margin-top:1.5rem">
+    <div class="tl-item">
+      <div class="tl-dot">7A</div>
+      <div class="tl-label"><strong>Muestras</strong>Descuento de kilos</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">7B</div>
+      <div class="tl-label"><strong>Reportes</strong>Análisis + CSV export</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">7C</div>
+      <div class="tl-label"><strong>UX</strong>Mobile-first · Toasts</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">7D</div>
+      <div class="tl-label"><strong>Polish</strong>Seguridad · Contraseña</div>
+    </div>
+    <div class="tl-item" style="grid-column: span 3;">
+      <div class="tl-dot star" style="width:auto;border-radius:99px;padding:0 1rem;font-size:0.7rem">
+        Iteración final ⭐
+      </div>
+      <div class="tl-label" style="text-align:center"><strong>9 bugs · 9 features</strong>Feedback real del cliente</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SLIDE 03: Etapa 3 — IA -->
+<div class="slide" id="slide-3">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 1 — Etapa 3</span>
+    <span class="slide-counter" id="counter-3"></span>
+  </div>
+  <div class="section-divider">
+    <h2>🧠 Extracción con IA</h2>
+  </div>
+
+  <div class="cols cols-2" style="flex:1;gap:1.5rem">
+    <div>
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">OBJETIVO</p>
+      <p style="margin-bottom:1rem">Eliminar la carga manual de planillas de tintorería. El operario saca una foto o sube el PDF y el sistema extrae los rollos automáticamente.</p>
+
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">HERRAMIENTAS</p>
+      <div class="badges" style="margin-bottom:1rem">
+        <span class="badge orange">Google Gemini 2.5 Flash</span>
+        <span class="badge">@google/genai SDK</span>
+        <span class="badge">Next.js Server Actions</span>
+      </div>
+
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">FUNCIONALIDADES</p>
+      <ul class="list">
+        <li>Foto o PDF de planilla → extracción automática de rollos, metros y kilos</li>
+        <li><strong>Configuración por tintorería</strong> — prompt customizado para Muter (diferente al genérico)</li>
+        <li>Revisión y edición antes de confirmar el lote</li>
+        <li>Manejo de error con timeout de 30s y mensaje claro al usuario</li>
+      </ul>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:0.8rem">
+      <div class="result-pill resultado">
+        <div class="label">Resultado</div>
+        Precisión &gt;90% en planillas reales de Muter Textil. El operario corrige excepciones, no transcribe manualmente.
+      </div>
+      <div class="result-pill aprendizaje">
+        <div class="label">Aprendizaje</div>
+        Un prompt específico por tintorería supera ampliamente al prompt genérico. La IA necesita contexto del formato del proveedor.
+      </div>
+
+      <div class="card" style="flex:1">
+        <div class="card-icon">📋</div>
+        <h3>Flujo completo</h3>
+        <p>Subir imagen/PDF → Gemini extrae → tabla editable → confirmación → rollos en sistema con QR asignado</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SLIDE 04: Etapa 4 — QR -->
+<div class="slide" id="slide-4">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 1 — Etapa 4</span>
+    <span class="slide-counter" id="counter-4"></span>
+  </div>
+  <div class="section-divider">
+    <h2>📱 Scanner QR/Barcode</h2>
+  </div>
+
+  <div class="cols cols-2" style="flex:1;gap:1.5rem">
+    <div>
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">OBJETIVO</p>
+      <p style="margin-bottom:1rem">Cerrar la brecha entre el mundo físico y el sistema digital. Cada rollo físico tiene un código QR; el sistema no da por ingresado ningún rollo que no fue escaneado.</p>
+
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">HERRAMIENTAS</p>
+      <div class="badges" style="margin-bottom:1rem">
+        <span class="badge orange">@zxing/browser</span>
+        <span class="badge">Web Camera API</span>
+        <span class="badge">Next.js PWA</span>
+      </div>
+
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">FUNCIONALIDADES</p>
+      <ul class="list">
+        <li>Flujo <strong>"Aduana"</strong> — confirmación obligatoria rollo por rollo desde el celular</li>
+        <li>Asignación de <strong>ubicación física</strong> al confirmar (A-1, B-3, hasta F-6)</li>
+        <li>Fallback de ingreso manual si la cámara no está disponible</li>
+        <li>Scanner también en picking — el mismo flujo para despachar</li>
+      </ul>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:0.8rem">
+      <div class="result-pill resultado">
+        <div class="label">Resultado</div>
+        0 rollos en estado "fantasma" post-confirmación. Si no está escaneado, no está en stock.
+      </div>
+      <div class="result-pill aprendizaje">
+        <div class="label">Aprendizaje</div>
+        Hacer el paso obligatorio (no salteable) cambió el comportamiento del operario. La UX de "no hay atajos" es una feature.
+      </div>
+
+      <div class="card" style="flex:1">
+        <div class="card-icon">🔄</div>
+        <h3>Estado del rollo</h3>
+        <p style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--navy)">
+          pendiente → en_stock → reservado → entregado
+        </p>
+        <p style="margin-top:0.4rem">Cada transición requiere acción explícita del usuario con el scanner.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SLIDE 05: Etapas 5 + 6 — Stock y Pedidos -->
+<div class="slide" id="slide-5">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 1 — Etapas 5 y 6</span>
+    <span class="slide-counter" id="counter-5"></span>
+  </div>
+  <div class="section-divider">
+    <h2>📦 Stock y Pedidos — ciclo end-to-end</h2>
+  </div>
+
+  <div class="cols cols-2" style="flex:1;gap:2rem">
+    <div>
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">VISTA DE STOCK (ETAPA 5)</p>
+      <ul class="list" style="margin-bottom:1rem">
+        <li>Filtros multicriteria: artículo, color, tintorería, ubicación, estado</li>
+        <li>Vista rollo por rollo con peso, metros, tintorería de origen</li>
+        <li>Accesible para todos los roles (operario, ventas, admin)</li>
+      </ul>
+
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">MÓDULO DE PEDIDOS (ETAPA 6)</p>
+      <ul class="list">
+        <li><strong>Ventas</strong> crea el pedido y selecciona rollos disponibles</li>
+        <li>Rollos quedan en estado <em>reservado</em> — no se pueden asignar a otro pedido</li>
+        <li><strong>Operario</strong> hace el picking escaneando rollo por rollo</li>
+        <li><strong>Admin</strong> confirma la entrega o cancela con devolución de stock</li>
+      </ul>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:0.8rem">
+      <div class="result-pill resultado">
+        <div class="label">Resultado</div>
+        Ciclo completo sin papel, sin WhatsApp, sin Excel. Del ingreso a la entrega, todo trazado en el sistema.
+      </div>
+      <div class="result-pill aprendizaje">
+        <div class="label">Aprendizaje</div>
+        Las RPCs en Supabase para lógica transaccional del picking son más seguras que lógica en cliente — los estados no se pueden saltar.
+      </div>
+      <div class="card accent" style="flex:1">
+        <div class="card-icon">👥</div>
+        <h3>4 roles con permisos diferenciados</h3>
+        <p>operario · ventas · admin · super — enforceados a nivel de base de datos con Row Level Security</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SLIDE 06: Etapa 7 — Muestras, Reportes, UX -->
+<div class="slide" id="slide-6">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 1 — Etapa 7</span>
+    <span class="slide-counter" id="counter-6"></span>
+  </div>
+  <div class="section-divider">
+    <h2>📊 Muestras, Reportes y UX</h2>
+  </div>
+
+  <div class="cards cards-3" style="margin-bottom:1rem">
+    <div class="card">
+      <div class="card-icon">🧵</div>
+      <h3>Módulo Muestras</h3>
+      <p>Registro de muestras enviadas con descuento automático de kilos del rollo. Trazabilidad: qué se mandó como muestra y cuándo.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📈</div>
+      <h3>Reportes para el Admin</h3>
+      <p>Stock por artículo y color, movimientos del mes, diferencias de inventario, antigüedad de crudo. Export a CSV.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📱</div>
+      <h3>UX Mobile-First</h3>
+      <p>Touch targets de 44px, diseño optimizado para el depósito. Toasts de confirmación (Sonner). Recuperación de contraseña.</p>
+    </div>
+  </div>
+
+  <div class="result-row">
+    <div class="result-pill resultado">
+      <div class="label">Resultado</div>
+      El admin tiene visibilidad real del depósito en tiempo real. No una estimación en un Excel desactualizado.
+    </div>
+    <div class="result-pill aprendizaje">
+      <div class="label">Aprendizaje</div>
+      El UX polish define si el producto "se usa" o solo "funciona". El operario no usa lo que le cuesta más que el método anterior.
+    </div>
+  </div>
+</div>
+
+
+<!-- SLIDE 07: Iteración final -->
+<div class="slide" id="slide-7">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 1 — Iteración final</span>
+    <span class="slide-counter" id="counter-7"></span>
+  </div>
+  <div class="section-divider">
+    <h2>🔧 Iteración de correcciones y features</h2>
+  </div>
+  <p class="subtitle" style="margin-bottom:1rem">Tras el primer uso real con Muter Textil: 9 bugs resueltos + 9 features nuevas solicitadas por el cliente.</p>
+
+  <div class="cols cols-2" style="flex:1;gap:1.5rem">
+    <div>
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">BUGS CRÍTICOS RESUELTOS</p>
+      <ul class="list">
+        <li>Timeout de 30s en IA — antes quedaba en carga infinita con archivos inválidos</li>
+        <li>Permisos: operario ya no puede agregar tintorerías (solo admin)</li>
+        <li>Reportes con etiquetas profesionales en español (antes mostraban <code style="font-size:0.78rem;background:#f3f4f6;padding:0 3px;border-radius:3px">rollos.created</code>)</li>
+        <li>Pedidos clickeables desde perfil admin (problema de overlay de z-index)</li>
+        <li>Responsive desktop del depósito corregido</li>
+      </ul>
+    </div>
+    <div>
+      <p style="font-size:0.82rem;color:var(--text-muted);font-weight:600;margin-bottom:0.6rem">NUEVAS FEATURES (cliente)</p>
+      <ul class="list">
+        <li><strong>Ubicaciones de stock</strong> — asignación masiva A-1 a F-6 al ingresar un lote</li>
+        <li><strong>Pedidos pendientes</strong> — alertas por días (verde &lt;7 / amarillo 7-15 / rojo &gt;15)</li>
+        <li><strong>Estado "segunda"</strong> — mercadería defectuosa recuperable, diferente a baja definitiva</li>
+        <li><strong>Cálculo de merma</strong> — kg y % por rollo, panel de análisis en reportes</li>
+        <li><strong>Stock mínimo con alertas</strong> — badge en dashboard, hook <code style="font-size:0.78rem;background:#f3f4f6;padding:0 3px;border-radius:3px">notificarStockMinimo()</code> listo para email/WhatsApp</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="result-row" style="margin-top:0.8rem">
+    <div class="result-pill resultado">
+      <div class="label">Resultado</div>
+      MVP estable y robusto, listo para piloto real con cliente pagante.
+    </div>
+    <div class="result-pill aprendizaje">
+      <div class="label">Aprendizaje</div>
+      El primer usuario real revela edge cases que ningún test de laboratorio anticipa. El feedback de Muter fue más valioso que cualquier hipótesis previa.
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     BLOQUE 2 — PAIN POINTS Y PROPUESTA DE VALOR
+     Slides 08 a 11
+════════════════════════════════════════════════════════ -->
+
+<!-- SLIDE 08: Cover bloque 2 -->
+<div class="slide slide-cover" id="slide-8">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 2</span>
+    <span class="slide-counter" id="counter-8"></span>
+  </div>
+  <h1>Pain Points<br/>y Propuesta<br/>de Valor</h1>
+  <p class="subtitle">Por qué StockApp resuelve algo que la competencia no cubre</p>
+  <div class="badges">
+    <span class="badge">12 empresas contactadas</span>
+    <span class="badge">100% confirmaron el problema</span>
+    <span class="badge orange">0 soluciones verticales para este flujo</span>
+  </div>
+</div>
+
+
+<!-- SLIDE 09: El problema hoy -->
+<div class="slide" id="slide-9">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 2 — El problema</span>
+    <span class="slide-counter" id="counter-9"></span>
+  </div>
+  <h2>El proceso hoy en una PyME textil</h2>
+
+  <blockquote style="margin-bottom:1.5rem">
+    <p>"Yo sé lo que compré. No sé lo que tengo."</p>
+    <footer>— Hernán, dueño de Muter Textil</footer>
+  </blockquote>
+
+  <div class="cards cards-3">
+    <div class="card">
+      <div class="card-icon">📦</div>
+      <h3>Stock invisible</h3>
+      <p>Excel desactualizado + WhatsApp con la tintorería. "Cuántos rollos hay" depende de con quién hables y cuándo actualizaron la planilla.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚠️</div>
+      <h3>Merma sin control</h3>
+      <p>Cuánto se pierde en el proceso de teñido, nadie lo sabe con exactitud. La diferencia entre kilos enviados y kilos recibidos se anota a mano, si se anota.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔄</div>
+      <h3>Pedidos sin trazabilidad</h3>
+      <p>No hay reserva de stock. El mismo rollo puede quedar prometido a dos clientes. Los pedidos pendientes viven en un anotador o en la memoria.</p>
+    </div>
+  </div>
+
+  <div class="result-pill aprendizaje" style="margin-top:1rem">
+    <div class="label">Costo oculto</div>
+    Horas-persona de carga manual · errores de despacho · pérdidas por antigüedad de crudo · imposibilidad de responder pedidos urgentes en tiempo real
+  </div>
+</div>
+
+
+<!-- SLIDE 10: Mapa competitivo -->
+<div class="slide" id="slide-10">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 2 — Competidores</span>
+    <span class="slide-counter" id="counter-10"></span>
+  </div>
+  <h2>Lo que existe — y por qué no alcanza</h2>
+  <p class="subtitle" style="margin-bottom:1rem">Análisis de 15 soluciones. Ninguna cubre el flujo completo de un productor de tela con tintorería tercerizada.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Solución</th>
+          <th>Tipo</th>
+          <th>Textil-específico</th>
+          <th>QR nativo</th>
+          <th>Lógica tintorería</th>
+          <th>Precio/mes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Excel / planillas</td>
+          <td>Manual</td>
+          <td class="cell-no">✗ No</td>
+          <td class="cell-no">✗ No</td>
+          <td class="cell-no">✗ No</td>
+          <td>USD 0</td>
+        </tr>
+        <tr>
+          <td>ERPs genéricos (Xubio, Colppy, Alegra)</td>
+          <td>ERP cloud · Arg.</td>
+          <td class="cell-no">✗ No</td>
+          <td class="cell-no">✗ No</td>
+          <td class="cell-no">✗ No</td>
+          <td>USD 15 – 185</td>
+        </tr>
+        <tr>
+          <td>Dragonfish</td>
+          <td>ERP retail textil</td>
+          <td class="cell-partial">~ Retail/talle</td>
+          <td class="cell-partial">~ Add-on POS</td>
+          <td class="cell-no">✗ No</td>
+          <td>Desde USD 16</td>
+        </tr>
+        <tr>
+          <td>Flexxus</td>
+          <td>ERP multi-vertical</td>
+          <td class="cell-partial">~ Confección</td>
+          <td class="cell-partial">~ Add-on</td>
+          <td class="cell-no">✗ No</td>
+          <td>USD 250 – 1.000+</td>
+        </tr>
+        <tr>
+          <td>Tango Gestión (Axoft)</td>
+          <td>ERP mediana empresa</td>
+          <td class="cell-partial">~ Configurable</td>
+          <td class="cell-partial">~ Add-on</td>
+          <td class="cell-partial">~ Dev. a medida</td>
+          <td>USD 400+ (+ partner)</td>
+        </tr>
+        <tr>
+          <td>PULPO WMS</td>
+          <td>WMS cloud</td>
+          <td class="cell-no">✗ No</td>
+          <td class="cell-yes">✓ Sí</td>
+          <td class="cell-no">✗ No</td>
+          <td>USD 49 – 1.200</td>
+        </tr>
+        <tr class="highlight-row">
+          <td><strong>StockApp</strong></td>
+          <td>Vertical PyME textil</td>
+          <td class="cell-yes">✓ Rollo + tintorería</td>
+          <td class="cell-yes">✓ Nativo</td>
+          <td class="cell-yes">✓ Primera clase</td>
+          <td>Plan Pro: USD 150 – 200</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem">Fuente: Análisis de competidores Nudo/StockApp, abril 2026. Precios en USD al tipo de cambio referencial.</p>
+</div>
+
+
+<!-- SLIDE 11: Por qué StockApp -->
+<div class="slide" id="slide-11">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 2 — Propuesta de valor</span>
+    <span class="slide-counter" id="counter-11"></span>
+  </div>
+  <h2>Por qué StockApp resuelve algo real</h2>
+  <p class="subtitle" style="margin-bottom:1.2rem">Ningún competidor cubre las cinco piezas críticas del flujo simultáneamente.</p>
+
+  <div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.2rem">
+    <div class="diff-item">
+      <div class="icon">🧠</div>
+      <div class="text">
+        <h3>IA entrenada por tintorería</h3>
+        <p>No extracción genérica. Cada proveedor tiene su propio prompt optimizado para su formato de planilla. Flexxus y Tango no tienen esto; lo harían con desarrollo a medida.</p>
+      </div>
+    </div>
+    <div class="diff-item">
+      <div class="icon">📱</div>
+      <div class="text">
+        <h3>Mobile-first para el operario, sin fricción</h3>
+        <p>El operario usa el celular que ya tiene. Sin hardware extra, sin capacitación de semanas. El scanner funciona con la cámara nativa.</p>
+      </div>
+    </div>
+    <div class="diff-item">
+      <div class="icon">🔐</div>
+      <div class="text">
+        <h3>Multi-tenant desde el diseño</h3>
+        <p>Dato de un cliente nunca es visible para otro (Row Level Security por empresa_id). Escala a N clientes sin re-arquitectura.</p>
+      </div>
+    </div>
+    <div class="diff-item">
+      <div class="icon">📍</div>
+      <div class="text">
+        <h3>Ubicaciones físicas reales (A-1 a F-6)</h3>
+        <p>No un campo de texto libre. El sistema conoce el layout del depósito y guía el picking por ubicación.</p>
+      </div>
+    </div>
+    <div class="diff-item">
+      <div class="icon">⚡</div>
+      <div class="text">
+        <h3>Implementación sin consultor · $0 de infraestructura en piloto</h3>
+        <p>Vercel + Supabase free tier. Sin fee de setup obligatorio para empezar. Tango cobra USD 150 – 1.500 solo para instalar.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SLIDE 12: Arquitectura -->
+<div class="slide" id="slide-12">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 2 — Arquitectura</span>
+    <span class="slide-counter" id="counter-12"></span>
+  </div>
+  <h2>Arquitectura que soporta el crecimiento</h2>
+  <p class="subtitle" style="margin-bottom:1.5rem">SaaS cloud-native, serverless, desplegado en Latinoamérica.</p>
+
+  <div class="arch" style="margin-bottom:1.5rem">
+    <div class="arch-box">
+      <div class="arch-icon">📱</div>
+      <div class="arch-label">Browser / PWA</div>
+      <div class="arch-sub">Mobile · Desktop</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box highlight">
+      <div class="arch-icon">⚡</div>
+      <div class="arch-label">Next.js 16</div>
+      <div class="arch-sub">Vercel · São Paulo</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box">
+      <div class="arch-icon">🗄️</div>
+      <div class="arch-label">Supabase PostgreSQL</div>
+      <div class="arch-sub">RLS · Auth · Realtime</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box">
+      <div class="arch-icon">🧠</div>
+      <div class="arch-label">Gemini 2.5 Flash</div>
+      <div class="arch-sub">Google AI Studio</div>
+    </div>
+  </div>
+
+  <div class="cards cards-4">
+    <div class="card">
+      <h3>Next.js 16</h3>
+      <p>App Router · TypeScript · Server Actions · Tailwind v4 · shadcn/ui</p>
+    </div>
+    <div class="card">
+      <h3>Supabase</h3>
+      <p>PostgreSQL · Row Level Security por empresa_id · Invitaciones por email</p>
+    </div>
+    <div class="card">
+      <h3>Gemini 2.5 Flash</h3>
+      <p>Extracción de planillas · Configs por tintorería · Timeout 30s</p>
+    </div>
+    <div class="card">
+      <h3>@zxing/browser</h3>
+      <p>Scanner QR/barcode nativo · Funciona en cualquier celular con cámara</p>
+    </div>
+  </div>
+
+  <div class="badge orange" style="display:inline-block;margin-top:1rem">
+    "El dato de un cliente nunca es visible para otro" — Multi-tenant enforceado a nivel DB
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     PUNTO 3 — COMPLETAR POR EL COMPAÑERO
+
+     Para agregar slides, copiá la estructura de cualquier
+     slide de arriba, cambiá el id="slide-N" con el número
+     siguiente, y el <span id="counter-N"> también.
+
+     Después de agregar el último slide, no hace falta
+     tocar nada más — el contador se actualiza solo.
+════════════════════════════════════════════════════════ -->
+
+<!-- SLIDE 13: Cover punto 3 (COMPLETAR) -->
+<div class="slide slide-cover" id="slide-13">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 3</span>
+    <span class="slide-counter" id="counter-13"></span>
+  </div>
+  <h1>Go to Market</h1>
+  <p class="subtitle">Estrategia de visibilidad + implementación y ventas</p>
+  <div class="badges">
+    <!-- Agrega badges relevantes acá -->
+  </div>
+</div>
+
+<!-- SLIDE 14: [Completar por el compañero] -->
+<div class="slide" id="slide-14">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 3 — Go to Market</span>
+    <span class="slide-counter" id="counter-14"></span>
+  </div>
+  <h2><!-- Título del slide --></h2>
+  <p class="subtitle"><!-- Subtítulo opcional --></p>
+
+  <div class="placeholder-box">
+    <div class="ph-icon">✏️</div>
+    <div class="ph-text">Slide para completar</div>
+    <div class="ph-sub">Copiá la estructura de los slides anteriores y reemplazá el contenido. Los componentes disponibles están todos comentados al final del &lt;style&gt;.</div>
+  </div>
+</div>
+
+<!-- SLIDE 15: [Completar por el compañero] -->
+<div class="slide" id="slide-15">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 3 — Go to Market</span>
+    <span class="slide-counter" id="counter-15"></span>
+  </div>
+  <h2><!-- Título del slide --></h2>
+
+  <div class="placeholder-box">
+    <div class="ph-icon">✏️</div>
+    <div class="ph-text">Slide para completar</div>
+    <div class="ph-sub">Usá <code>.cards.cards-2</code>, <code>.list</code>, <code>.blockquote</code>, <code>.result-pill</code> y <code>.diff-item</code> para armar el contenido.</div>
+  </div>
+</div>
+
+<!-- SLIDE 16: [Completar por el compañero] -->
+<div class="slide" id="slide-16">
+  <div class="slide-header">
+    <span class="slide-tag">Punto 3 — Go to Market</span>
+    <span class="slide-counter" id="counter-16"></span>
+  </div>
+  <h2><!-- Título del slide --></h2>
+
+  <div class="placeholder-box">
+    <div class="ph-icon">✏️</div>
+    <div class="ph-text">Slide para completar</div>
+    <div class="ph-sub">Si necesitás más slides, duplicá este bloque y cambiá el número del id y del counter.</div>
+  </div>
+</div>
+
+
+<!-- ─────────────────────────────────────────────
+     NAVEGACIÓN
+───────────────────────────────────────────── -->
+<div id="nav">
+  <button id="btn-prev" onclick="changeSlide(-1)" title="Anterior (←)">←</button>
+  <span id="nav-counter">1 / 16</span>
+  <button id="btn-next" onclick="changeSlide(1)" title="Siguiente (→)">→</button>
+</div>
+
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function updateCounters() {
+    slides.forEach((s, i) => {
+      const el = s.querySelector('[id^="counter-"]');
+      if (el) el.textContent = `${String(i + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+    });
+    document.getElementById('nav-counter').textContent = `${current + 1} / ${total}`;
+    document.getElementById('btn-prev').disabled = current === 0;
+    document.getElementById('btn-next').disabled = current === total - 1;
+  }
+
+  function showSlide(n) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(total - 1, n));
+    slides[current].classList.add('active');
+    updateCounters();
+  }
+
+  function changeSlide(dir) {
+    showSlide(current + dir);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') changeSlide(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   changeSlide(-1);
+  });
+
+  // Init
+  slides[0].classList.add('active');
+  updateCounters();
+</script>
+
+</body>
+</html>
