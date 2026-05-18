@@ -1,17 +1,63 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
+type AlertaStockMinimo = {
+  articuloId: string
+  nombre: string
+  stockActualKg: number
+  stockMinimoKg: number
+}
+
+async function getAlertasStockMinimo(
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<AlertaStockMinimo[]> {
+  const [{ data: articulos }, { data: rollos }] = await Promise.all([
+    supabase
+      .from('articulos')
+      .select('id, nombre, stock_minimo_kg')
+      .not('stock_minimo_kg', 'is', null)
+      .eq('activo', true),
+    supabase
+      .from('rollos')
+      .select('articulo_id, kilos')
+      .eq('estado', 'en_stock'),
+  ])
+
+  if (!articulos?.length) return []
+
+  const stockMap = new Map<string, number>()
+  for (const r of rollos ?? []) {
+    const prev = stockMap.get(r.articulo_id) ?? 0
+    stockMap.set(r.articulo_id, prev + Number(r.kilos ?? 0))
+  }
+
+  return articulos
+    .filter((a) => {
+      const actual = stockMap.get(a.id) ?? 0
+      return actual < Number(a.stock_minimo_kg)
+    })
+    .map((a) => ({
+      articuloId: a.id,
+      nombre: a.nombre,
+      stockActualKg: stockMap.get(a.id) ?? 0,
+      stockMinimoKg: Number(a.stock_minimo_kg),
+    }))
+}
+
 export default async function AdminDashboard() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('nombre')
-    .eq('id', user!.id)
-    .single()
+  const [{ data: profile }, alertas] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('nombre')
+      .eq('id', user!.id)
+      .single(),
+    getAlertasStockMinimo(supabase),
+  ])
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -21,6 +67,26 @@ export default async function AdminDashboard() {
           Bienvenida, {profile?.nombre ?? 'usuaria'}
         </p>
       </div>
+
+      {alertas.length > 0 && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 space-y-2">
+          <p className="text-sm font-medium">
+            ⚠ Stock por debajo del mínimo configurado
+          </p>
+          <ul className="space-y-1">
+            {alertas.map((a) => (
+              <li key={a.articuloId} className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{a.nombre}</span>
+                {' — '}
+                {a.stockActualKg.toFixed(2)} kg actuales / {a.stockMinimoKg.toFixed(2)} kg mínimo
+              </li>
+            ))}
+          </ul>
+          <Link href="/stock" className="text-xs underline hover:no-underline">
+            Ver stock →
+          </Link>
+        </div>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">

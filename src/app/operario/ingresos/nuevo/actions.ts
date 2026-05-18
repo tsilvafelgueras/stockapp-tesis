@@ -322,6 +322,22 @@ export async function crearIngreso(input: IngresoInput) {
 
 export async function createTintoreriaInline(nombre: string) {
   const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Sesión expirada.' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Solo el administrador puede agregar tintorerías.' }
+  }
+
   const cleanName = nombre.trim()
   if (!cleanName) return { error: 'El nombre no puede estar vacío.' }
 
@@ -333,6 +349,67 @@ export async function createTintoreriaInline(nombre: string) {
 
   if (error || !data) return { error: error?.message ?? 'Error al crear.' }
   return { success: true, data }
+}
+
+// ── Edición de encabezado de ingreso (solo admin) ──────────
+
+export type EditarIngresoInput = {
+  ingresoId: string
+  tintoreria_id: string
+  articulo_id: string
+  fecha: string
+  numero_remito: string
+  color: string
+  ot: string
+  rem_tejeduria: string
+  referencia: string
+  total_rollos_declarado: string
+  total_kilos_declarado: string
+}
+
+export async function editarIngreso(input: EditarIngresoInput) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Sesión expirada — volvé a iniciar sesión.' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Solo el administrador puede editar ingresos.' }
+  }
+
+  const { error } = await supabase
+    .from('ingresos')
+    .update({
+      tintoreria_id: input.tintoreria_id,
+      articulo_id: input.articulo_id,
+      fecha_despacho: input.fecha,
+      numero_remito: input.numero_remito.trim() || null,
+      color: input.color.trim() || null,
+      ot: input.ot.trim() || null,
+      rem_tejeduria: input.rem_tejeduria.trim() || null,
+      referencia: input.referencia.trim() || null,
+      total_rollos_declarado: input.total_rollos_declarado
+        ? parseInt(input.total_rollos_declarado)
+        : null,
+      total_kilos_declarado: input.total_kilos_declarado
+        ? parseFloat(input.total_kilos_declarado)
+        : null,
+      editado_at: new Date().toISOString(),
+      editado_por: user.id,
+    })
+    .eq('id', input.ingresoId)
+
+  if (error) return { error: error.message }
+
+  redirect(`/operario/ingresos/${input.ingresoId}?editado=1`)
 }
 
 export async function createArticuloInline(nombre: string) {

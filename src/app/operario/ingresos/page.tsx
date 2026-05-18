@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import BackButton from '@/components/BackButton'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   borrador: { text: 'Borrador', className: 'bg-zinc-100 text-zinc-700' },
@@ -25,6 +26,9 @@ export default async function IngresosPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      <div>
+        <BackButton href="/operario/dashboard" />
+      </div>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Ingresos</h1>

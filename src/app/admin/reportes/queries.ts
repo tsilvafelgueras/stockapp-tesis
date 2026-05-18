@@ -161,6 +161,91 @@ export async function reporteDiferencias(
   })
 }
 
+// ── Merma (diferencia planilla vs propio) ──────────────────
+
+export type MermaRow = {
+  articulo: string
+  color: string
+  rollos_con_medicion: number
+  kilos_planilla: number
+  kilos_propios: number
+  merma_kg: number
+  merma_pct: number
+}
+
+export type MermaResult = {
+  rows: MermaRow[]
+  total_kilos_planilla: number
+  total_kilos_propios: number
+  total_merma_kg: number
+  total_merma_pct: number
+}
+
+export async function reporteMerma(
+  supabase: SupabaseClient
+): Promise<MermaResult> {
+  const { data } = await supabase
+    .from('rollos')
+    .select(`kilos, kilos_propios, articulos ( nombre ), ingresos ( color )`)
+    .not('kilos_propios', 'is', null)
+    .not('kilos', 'is', null)
+
+  type Raw = {
+    kilos: number | null
+    kilos_propios: number | null
+    articulos: { nombre: string } | null
+    ingresos: { color: string | null } | null
+  }
+  const rows = (data ?? []) as unknown as Raw[]
+
+  const map = new Map<string, MermaRow>()
+  for (const r of rows) {
+    const articulo = r.articulos?.nombre ?? '—'
+    const color = r.ingresos?.color ?? '—'
+    const key = `${articulo}|||${color}`
+    const prev = map.get(key) ?? {
+      articulo,
+      color,
+      rollos_con_medicion: 0,
+      kilos_planilla: 0,
+      kilos_propios: 0,
+      merma_kg: 0,
+      merma_pct: 0,
+    }
+    const kPlanilla = Number(r.kilos ?? 0)
+    const kPropios = Number(r.kilos_propios ?? 0)
+    prev.rollos_con_medicion += 1
+    prev.kilos_planilla += kPlanilla
+    prev.kilos_propios += kPropios
+    prev.merma_kg += Math.max(0, kPlanilla - kPropios)
+    map.set(key, prev)
+  }
+
+  const result: MermaRow[] = []
+  for (const row of map.values()) {
+    row.merma_pct =
+      row.kilos_planilla > 0 ? (row.merma_kg / row.kilos_planilla) * 100 : 0
+    result.push(row)
+  }
+  result.sort((a, b) => b.merma_kg - a.merma_kg)
+
+  const total_kilos_planilla = result.reduce((s, r) => s + r.kilos_planilla, 0)
+  const total_kilos_propios = result.reduce((s, r) => s + r.kilos_propios, 0)
+  const total_merma_kg = result.reduce((s, r) => s + r.merma_kg, 0)
+  const total_merma_pct =
+    total_kilos_planilla > 0
+      ? (total_merma_kg / total_kilos_planilla) * 100
+      : 0
+
+  return {
+    rows: result,
+    total_kilos_planilla,
+    total_kilos_propios,
+    total_merma_kg,
+    total_merma_pct,
+  }
+}
+
 // ── Antigüedad de stock ─────────────────────────────────────
 
 export type AntiguedadRow = {

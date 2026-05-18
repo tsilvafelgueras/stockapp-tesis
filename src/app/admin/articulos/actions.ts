@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 export async function createArticulo(formData: {
   nombre: string
   descripcion: string
+  stock_minimo_kg?: string
 }) {
   const supabase = await createClient()
 
@@ -15,6 +16,9 @@ export async function createArticulo(formData: {
   const { error } = await supabase.from('articulos').insert({
     nombre,
     descripcion: formData.descripcion.trim() || null,
+    stock_minimo_kg: formData.stock_minimo_kg
+      ? parseFloat(formData.stock_minimo_kg)
+      : null,
   })
 
   if (error) return { error: error.message }
@@ -25,7 +29,7 @@ export async function createArticulo(formData: {
 
 export async function updateArticulo(
   id: string,
-  formData: { nombre: string; descripcion: string }
+  formData: { nombre: string; descripcion: string; stock_minimo_kg?: string }
 ) {
   const supabase = await createClient()
 
@@ -37,6 +41,9 @@ export async function updateArticulo(
     .update({
       nombre,
       descripcion: formData.descripcion.trim() || null,
+      stock_minimo_kg: formData.stock_minimo_kg
+        ? parseFloat(formData.stock_minimo_kg)
+        : null,
     })
     .eq('id', id)
 

@@ -11,7 +11,7 @@ export default async function EquipoPage() {
 
   const { data: usuarios } = await supabase
     .from('profiles')
-    .select('id, nombre, role, created_at')
+    .select('id, nombre, role, created_at, disabled')
     .order('created_at', { ascending: true })
 
   return (

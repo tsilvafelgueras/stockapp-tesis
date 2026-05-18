@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 const ESTADO_INGRESO: Record<string, { text: string; className: string }> = {
@@ -14,6 +15,7 @@ const ESTADO_ROLLO: Record<string, { text: string; className: string }> = {
   reservado: { text: 'Reservado', className: 'bg-primary/15 text-primary' },
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
   baja: { text: 'Baja', className: 'bg-destructive/15 text-destructive' },
+  segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
 }
 
 export default async function IngresoDetailPage({
@@ -21,11 +23,21 @@ export default async function IngresoDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ creado?: string }>
+  searchParams: Promise<{ creado?: string; editado?: string }>
 }) {
   const { id } = await params
-  const { creado } = await searchParams
+  const { creado, editado } = await searchParams
   const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user!.id)
+    .single()
+  const esAdmin = profile?.role === 'admin'
 
   const { data: ingreso } = await supabase
     .from('ingresos')
@@ -39,11 +51,20 @@ export default async function IngresoDetailPage({
 
   if (!ingreso) notFound()
 
-  const { data: rollos } = await supabase
-    .from('rollos')
-    .select('*')
-    .eq('ingreso_id', id)
-    .order('numero_pieza', { ascending: true })
+  const [{ data: rollos }, { data: demandasCoincidentes }] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select('*')
+      .eq('ingreso_id', id)
+      .order('numero_pieza', { ascending: true }),
+    ingreso.articulo_id
+      ? supabase
+          .from('pedidos_pendientes')
+          .select('id, cliente, color, metros_estimados, kilos_estimados')
+          .eq('articulo_id', ingreso.articulo_id)
+          .eq('estado', 'activo')
+      : Promise.resolve({ data: [] }),
+  ])
 
   const tintoreria = (
     ingreso.tintorerias as unknown as { nombre: string } | null
@@ -64,18 +85,59 @@ export default async function IngresoDetailPage({
           {(rollos?.length ?? 0) !== 1 ? 's' : ''}.
         </div>
       )}
+      {editado === '1' && (
+        <div className="rounded-lg border bg-success/10 border-success/30 px-4 py-3 text-sm text-foreground">
+          ✓ Ingreso actualizado correctamente.
+        </div>
+      )}
+
+      {demandasCoincidentes && demandasCoincidentes.length > 0 && (
+        <div className="rounded-lg border bg-warning/10 border-warning/30 px-4 py-3 text-sm space-y-2">
+          <p className="font-medium">
+            ⚠ {demandasCoincidentes.length === 1
+              ? 'Hay 1 demanda pendiente'
+              : `Hay ${demandasCoincidentes.length} demandas pendientes`} para este artículo
+          </p>
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            {demandasCoincidentes.map((d) => (
+              <li key={d.id}>
+                <strong>{d.cliente}</strong>
+                {d.color ? ` · ${d.color}` : ''}
+                {d.metros_estimados ? ` · ${d.metros_estimados} m` : ''}
+                {d.kilos_estimados ? ` · ${d.kilos_estimados} kg` : ''}
+              </li>
+            ))}
+          </ul>
+          <a
+            href="/ventas/pedidos-pendientes"
+            className="inline-block text-xs underline hover:no-underline mt-1"
+          >
+            Ver demandas pendientes →
+          </a>
+        </div>
+      )}
 
       <div>
         <BackButton href="/operario/ingresos" label="Volver a ingresos" />
-        <div className="flex flex-wrap items-center gap-3 mt-1">
-          <h1 className="text-xl sm:text-2xl font-bold">
-            Ingreso del {ingreso.fecha_despacho}
-          </h1>
-          <span
-            className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}
-          >
-            {estado.text}
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold">
+              Ingreso del {ingreso.fecha_despacho}
+            </h1>
+            <span
+              className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}
+            >
+              {estado.text}
+            </span>
+          </div>
+          {esAdmin && (
+            <Link
+              href={`/operario/ingresos/${id}/editar`}
+              className="rounded-md border px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors"
+            >
+              Editar
+            </Link>
+          )}
         </div>
       </div>
 

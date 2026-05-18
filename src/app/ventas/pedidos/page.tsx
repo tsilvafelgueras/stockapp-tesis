@@ -194,36 +194,50 @@ export default async function PedidosListPage({
                       (acc, pr) => acc + Number(pr.rollos?.kilos ?? 0),
                       0
                     ) ?? 0
+                  const href = `/ventas/pedidos/${p.id}`
                   return (
                     <tr
                       key={p.id}
                       className="border-b last:border-0 hover:bg-zinc-50"
                     >
-                      <td className="px-4 py-3 font-medium">
-                        <Link
-                          href={`/ventas/pedidos/${p.id}`}
-                          className="hover:underline"
-                        >
+                      <td className="font-medium">
+                        <Link href={href} className="block px-4 py-3 hover:underline">
                           {p.numero_pedido ?? '—'}
                         </Link>
                       </td>
-                      <td className="px-4 py-3">{p.cliente}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {new Date(p.created_at).toLocaleDateString('es-AR')}
+                      <td>
+                        <Link href={href} className="block px-4 py-3">
+                          {p.cliente}
+                        </Link>
                       </td>
-                      <td className="px-4 py-3 tabular-nums">{cantidad}</td>
-                      <td className="px-4 py-3 tabular-nums">
-                        {kilos > 0 ? `${kilos.toFixed(2)} kg` : '—'}
+                      <td>
+                        <Link href={href} className="block px-4 py-3 text-muted-foreground">
+                          {new Date(p.created_at).toLocaleDateString('es-AR')}
+                        </Link>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {p.numero_remito_externo ?? '—'}
+                      <td>
+                        <Link href={href} className="block px-4 py-3 tabular-nums">
+                          {cantidad}
+                        </Link>
                       </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}
-                        >
-                          {estado.text}
-                        </span>
+                      <td>
+                        <Link href={href} className="block px-4 py-3 tabular-nums">
+                          {kilos > 0 ? `${kilos.toFixed(2)} kg` : '—'}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link href={href} className="block px-4 py-3 text-muted-foreground">
+                          {p.numero_remito_externo ?? '—'}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link href={href} className="block px-4 py-3">
+                          <span
+                            className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}
+                          >
+                            {estado.text}
+                          </span>
+                        </Link>
                       </td>
                     </tr>
                   )

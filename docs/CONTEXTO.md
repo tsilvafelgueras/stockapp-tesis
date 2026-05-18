@@ -225,11 +225,15 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 009 | **RPC de pedidos** (Etapa 6A). Funciones `crear_pedido`, `cancelar_pedido`, `entregar_pedido` con `SECURITY DEFINER`, locks `FOR UPDATE`, advisory lock por empresa para `numero_pedido`. Agrega columna `pedido_rollos.pickeado_at`. |
 | 010 | **RPC de picking** (Etapa 6B). Función `pickear_rollo` que valida match rollo↔pedido, transiciona pedido a `en_preparacion` al primer pickeo y a `lista` al último. |
 | 011 | **Muestras** (Etapa 7A). Tabla `muestras` con RLS por empresa + RPC `registrar_muestra` que descuenta kilos del rollo atómicamente. |
+| 012 | **Tintorerías solo admin** (iteración mayo 2026). Reemplaza la policy `FOR ALL` de operario+admin por una que solo permite admin gestionar tintorerías (operario las podía crear por accidente desde el form del ingreso). La lectura sigue abierta a todos los autenticados de la empresa. |
+| 013 | **Pedidos pendientes** (iteración mayo 2026). Tabla `pedidos_pendientes` (id, empresa_id, cliente, articulo_id, color, metros_estimados, kilos_estimados, notas, estado `activo`/`resuelto`/`cancelado`, created_at, resolved_at, created_by). RLS por empresa. Insert/Update por ventas y admin. Registra demandas de clientes sin stock asignado todavía — distinto de `pedidos` (que reserva rollos concretos). |
+| 014 | **Usuarios desactivables** (iteración mayo 2026). `profiles.disabled BOOLEAN NOT NULL DEFAULT FALSE`. Permite que el admin pause la cuenta de un usuario sin borrarla. La desactivación también banea la cuenta en Supabase Auth (vía server action `disableUser` en `/admin/equipo/actions.ts`). |
+| 015 | **Auditoría de edición de ingresos** (iteración mayo 2026). `ingresos.editado_at TIMESTAMPTZ`, `ingresos.editado_por UUID REFERENCES auth.users(id)`. Solo última edición (sin historial completo). Habilita la pantalla nueva `/operario/ingresos/[id]/editar`. |
+| 016 | **Estado `segunda` en rollos** (iteración mayo 2026). Reemplaza el CHECK constraint para incluir `'segunda'` (mercadería de calidad inferior). Estados ahora: `pendiente` \| `en_stock` \| `reservado` \| `entregado` \| `baja` \| `segunda`. Los rollos en `segunda` siguen en stock pero se muestran separados. |
+| 017 | **Stock mínimo configurable** (iteración mayo 2026). `articulos.stock_minimo_kg NUMERIC NULL`. El admin lo fija por artículo desde `/admin/articulos`. Cuando los kg en stock caen por debajo, el dashboard muestra una alerta. |
 
-**Schema canónico**: ✅ `supabase/schema.sql` regenerado en Etapa 7D — refleja
-todas las migraciones 001..011. Para DB nueva: correr `schema.sql` y después
-las migraciones `009`, `010`, `011` (que sólo definen RPCs, no se duplican
-en `schema.sql`).
+**Schema canónico**: ✅ `supabase/schema.sql` refleja migraciones 001..011 (regenerado en Etapa 7D).
+Las migraciones **012..017** (iteración mayo 2026) NO están incluidas en `schema.sql` todavía — para DB nueva: correr `schema.sql` y después las migraciones `009`, `010`, `011`, `012`, `013`, `014`, `015`, `016`, `017` en orden.
 
 ---
 
@@ -704,6 +708,43 @@ operarios, se prioriza ahí. Tiempo estimado original: 3-4 horas.
 - **Sign-up público**: hoy solo invitation-only. Si en algún momento se quiere abrir, agregar página `/signup` + validación de email + cobro.
 - **Multi-idioma**: hoy solo español. i18n con next-intl si se quiere expandir.
 - **Auditoría / log de cambios**: tabla `audit_log` que registre quién hizo qué (útil para clientes con compliance).
+
+---
+
+## 10.6. Iteración mayo 2026 — extensiones post-MVP (sin commit aún)
+
+Cambios traídos por un colaborador del equipo (zip externo, mayo 2026 — aplicados localmente 2026-05-18 antes de commitear).
+Foco: cerrar gaps detectados después del MVP base y agregar features pedidos por Muter durante el uso real.
+
+### Features nuevos (DB + UI)
+
+1. **Demandas pendientes (`/ventas/pedidos-pendientes`)** — ventas registra "Cliente X pidió Y metros de tela Z color W" sin que haya stock asignado. Cuando entra mercadería que matchea, el equipo puede revisar la lista y marcar la demanda como `resuelto` o `cancelado`. Coloreado por antigüedad (verde <3 días, naranja 3-7, rojo >7). Backed by migración 013 (tabla `pedidos_pendientes`).
+2. **Editar header de ingreso (`/operario/ingresos/[id]/editar`)** — permite corregir tintorería/artículo/fecha/remito/totales declarados/OT/rem.tejeduría/referencia/color de un ingreso ya cargado. Guarda `editado_at` y `editado_por` para auditoría (migración 015).
+3. **Estado `segunda` para rollos** — botón nuevo en el detalle de rollo (`RolloDetailDialog.tsx`) para marcarlo como segunda calidad. Sigue en stock pero se filtra/muestra distinto. Backed por migración 016.
+4. **Stock mínimo por artículo** — el admin setea `stock_minimo_kg` por artículo desde `/admin/articulos`. El dashboard de admin muestra alerta cuando un artículo cae bajo su mínimo. Migración 017.
+5. **Desactivar usuarios sin borrarlos** — `/admin/equipo` ahora tiene botón "Desactivar" además de "Eliminar". El usuario desactivado no puede loguear (Auth banned + flag `profiles.disabled=true`). Migración 014.
+6. **Tintorerías solo admin** — operario perdió permiso de crear/editar tintorerías (RLS). Se ajustó el form de ingreso para que el dropdown sea read-only para operario. Migración 012.
+
+### Helpers y polish
+
+- `src/lib/ubicaciones.ts` — constante exportada con las 180 ubicaciones del depósito (`A1..F30`). La usa el form de confirmación de rollos y el editor de rollos para popular dropdowns.
+- Sidebar (`AppShell.tsx`) y `BackButton.tsx` con ajustes menores de navegación.
+- `/operario/ingresos/nuevo/NuevoIngresoForm.tsx`, `actions.ts` y `[id]/page.tsx` retocados para soportar edición + ubicaciones.
+- `/admin/dashboard/page.tsx` extendido con widgets de stock bajo + demandas pendientes.
+- `/admin/reportes/queries.ts` + `page.tsx` con ajustes de queries (probable: incluir `segunda` y excluir `disabled`).
+- Stock (`StockList.tsx`, `StockFilters.tsx`, `RolloDetailDialog.tsx`, `actions.ts`) — filtros y acciones nuevas para los estados `segunda` + `baja`.
+
+### Pendiente para que esto funcione en producción
+
+1. **Aplicar migraciones 012..017 en Supabase** (SQL Editor, en orden). Todas son idempotentes.
+2. **Regenerar `supabase/schema.sql`** para incluir 012..017 (sigue siendo deuda técnica de baja prioridad — la DB de prod ya tiene aplicadas las migraciones).
+3. **Commit + push a `main`** — Vercel redeploya automático.
+
+### Archivos tocados en esta iteración
+
+**Modificados** (24): admin/articulos/{actions,ArticuloForm,page}, admin/dashboard/page, admin/equipo/{actions,page,UsuarioRow}, admin/reportes/{page,queries}, operario/confirmar/page, operario/ingresos/[id]/page, operario/ingresos/nuevo/{actions,NuevoIngresoForm,page}, operario/{ingresos,muestras,picking}/page, stock/{actions,RolloDetailDialog,StockFilters,StockList}, ventas/pedidos/page, components/{AppShell,BackButton}.
+
+**Nuevos** (14): operario/ingresos/[id]/editar/{page,EditarIngresoForm}, ventas/pedidos-pendientes/{page,PedidoPendienteRow,actions,nuevo/page,nuevo/NuevaDemandaForm}, lib/ubicaciones.ts, supabase/migrations/{012..017}_*.sql.
 
 ---
 

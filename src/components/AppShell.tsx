@@ -76,6 +76,7 @@ function navForRole(role: Role): NavSection[] {
           { href: '/ventas/dashboard', label: 'Inicio', icon: '🏠' },
           { href: '/stock', label: 'Stock', icon: '🔎' },
           { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
+          { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: '⏳' },
         ],
       },
     ]
@@ -100,6 +101,7 @@ function navForRole(role: Role): NavSection[] {
       items: [
         { href: '/stock', label: 'Stock', icon: '🔎' },
         { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
+        { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: '⏳' },
       ],
     },
     {

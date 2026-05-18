@@ -14,6 +14,7 @@ import {
   type IngresoExtraido,
   type Field,
 } from '@/lib/extraccion/extraerPlanilla'
+import { UBICACIONES } from '@/lib/ubicaciones'
 
 type Catalog = { id: string; nombre: string }
 
@@ -77,9 +78,11 @@ function celdaCls(confianza: number | undefined): string {
 export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
+  role,
 }: {
   tintorerias: Catalog[]
   articulos: Catalog[]
+  role: 'operario' | 'admin'
 }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -109,6 +112,7 @@ export default function NuevoIngresoForm({
   const [totalKilosDeclarado, setTotalKilosDeclarado] = useState('')
 
   const [rollos, setRollos] = useState<RolloInput[]>([emptyRollo()])
+  const [bulkUbicacion, setBulkUbicacion] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -136,6 +140,11 @@ export default function NuevoIngresoForm({
       nuevas.rollos = nuevas.rollos.filter((_, i) => i !== idx)
       setConfianzas(nuevas)
     }
+  }
+
+  function applyBulkUbicacion() {
+    if (!bulkUbicacion.trim()) return
+    setRollos(rollos.map((r) => ({ ...r, ubicacion: bulkUbicacion.trim() })))
   }
 
   function resetIA() {
@@ -385,7 +394,7 @@ export default function NuevoIngresoForm({
                 </option>
               ))}
             </select>
-            {!tintoreriaBloqueada && (
+            {!tintoreriaBloqueada && role === 'admin' && (
               <InlineCreator
                 label="+ Nueva tintorería"
                 placeholder="Nombre de la tintorería"
@@ -548,21 +557,23 @@ export default function NuevoIngresoForm({
                   </option>
                 ))}
               </select>
-              <InlineCreator
-                label="+ Nueva tintorería"
-                placeholder="Nombre de la tintorería"
-                onCreate={async (nombre) => {
-                  const res = await createTintoreriaInline(nombre)
-                  if (res.success && res.data) {
-                    setTintorerias([
-                      ...tintorerias,
-                      { id: res.data.id, nombre: res.data.nombre },
-                    ])
-                    setTintoreriaId(res.data.id)
-                  }
-                  return res
-                }}
-              />
+              {role === 'admin' && (
+                <InlineCreator
+                  label="+ Nueva tintorería"
+                  placeholder="Nombre de la tintorería"
+                  onCreate={async (nombre) => {
+                    const res = await createTintoreriaInline(nombre)
+                    if (res.success && res.data) {
+                      setTintorerias([
+                        ...tintorerias,
+                        { id: res.data.id, nombre: res.data.nombre },
+                      ])
+                      setTintoreriaId(res.data.id)
+                    }
+                    return res
+                  }}
+                />
+              )}
             </div>
           )}
 
@@ -702,6 +713,30 @@ export default function NuevoIngresoForm({
             {validations.cantidadRollos} cargados · suma{' '}
             {validations.sumaKilos.toFixed(2)} kg
           </span>
+        </div>
+        <div className="px-3 sm:px-4 py-2 border-b bg-zinc-50/60 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Ubicación para todos:</span>
+          <input
+            type="text"
+            list="ubicaciones-list"
+            value={bulkUbicacion}
+            onChange={(e) => setBulkUbicacion(e.target.value)}
+            placeholder="Ej. A1"
+            className="rounded border border-input bg-background px-2 py-1 text-xs w-24 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <datalist id="ubicaciones-list">
+            {UBICACIONES.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
+          <button
+            type="button"
+            onClick={applyBulkUbicacion}
+            disabled={!bulkUbicacion.trim()}
+            className="rounded bg-primary text-primary-foreground px-2 py-1 text-xs font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
+          >
+            Aplicar
+          </button>
         </div>
 
         {/* Mobile: cards apilados */}
@@ -851,12 +886,13 @@ export default function NuevoIngresoForm({
                     <td className="px-3 py-1">
                       <input
                         type="text"
+                        list="ubicaciones-list"
                         value={r.ubicacion}
                         onChange={(e) =>
                           updateRollo(i, 'ubicacion', e.target.value)
                         }
                         placeholder={
-                          r.estado === 'en_stock' ? 'A42' : 'opcional'
+                          r.estado === 'en_stock' ? 'A1' : 'opcional'
                         }
                         className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
                           ubicacionFaltante
@@ -1089,9 +1125,10 @@ function RolloCardMobile({
           </label>
           <input
             type="text"
+            list="ubicaciones-list"
             value={rollo.ubicacion}
             onChange={(e) => onUpdate('ubicacion', e.target.value)}
-            placeholder={rollo.estado === 'en_stock' ? 'A42' : 'opcional'}
+            placeholder={rollo.estado === 'en_stock' ? 'A1' : 'opcional'}
             className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
               ubicacionFaltante ? 'border-destructive' : 'border-input'
             }`}

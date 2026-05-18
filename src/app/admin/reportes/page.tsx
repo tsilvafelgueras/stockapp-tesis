@@ -1,13 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
+import BackButton from '@/components/BackButton'
 import {
   reporteStock,
   reporteMovimientos,
   reporteDiferencias,
   reporteAntiguedad,
+  reporteMerma,
   type StockRow,
   type MovimientosResult,
   type DiferenciaRow,
   type AntiguedadRow,
+  type MermaResult,
 } from './queries'
 
 type SearchParams = {
@@ -24,18 +27,20 @@ export default async function ReportesPage({
 
   const supabase = await createClient()
 
-  // Las 4 queries en paralelo
-  const [stock, movimientos, diferencias, antiguedad] = await Promise.all([
+  // Las 5 queries en paralelo
+  const [stock, movimientos, diferencias, antiguedad, merma] = await Promise.all([
     reporteStock(supabase),
     reporteMovimientos(supabase),
     reporteDiferencias(supabase),
     reporteAntiguedad(supabase, dias),
+    reporteMerma(supabase),
   ])
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-8">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Reportes</h1>
+        <BackButton href="/admin/dashboard" />
+        <h1 className="text-xl sm:text-2xl font-bold mt-1">Reportes</h1>
         <p className="text-sm text-muted-foreground">
           Estado del stock, movimientos del mes y diferencias
         </p>
@@ -43,6 +48,7 @@ export default async function ReportesPage({
 
       <SeccionStock data={stock} />
       <SeccionMovimientos data={movimientos} />
+      <SeccionMerma data={merma} />
       <SeccionDiferencias data={diferencias} />
       <SeccionAntiguedad data={antiguedad} dias={dias} />
     </div>
@@ -87,7 +93,7 @@ function SeccionStock({ data }: { data: StockRow[] }) {
     <section className="space-y-3">
       <SectionHeader
         title="Stock por artículo y color"
-        description="Rollos en estado en_stock agrupados por artículo+color"
+        description="Rollos disponibles en depósito, agrupados por artículo y color"
         csvHref="/admin/reportes/csv?tipo=stock"
       />
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
@@ -196,12 +202,144 @@ function SeccionMovimientos({ data }: { data: MovimientosResult }) {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        <strong>Aclaración:</strong> sin un timestamp explícito de
-        &ldquo;cuándo entró al stock&rdquo; en cada rollo, ingresos del mes se
-        calcula sobre <code>rollos.created_at</code>. Egresos se calcula sobre
-        pedidos en estado <code>entregada</code> creados en el mes (proxy
+        <strong>Aclaración:</strong> sin un campo de fecha de entrada al stock
+        en cada rollo, los ingresos del mes se calculan sobre la fecha de
+        creación del rollo en el sistema. Los egresos se calculan sobre pedidos
+        en estado &ldquo;Entregada&rdquo; creados en el mes (aproximación
         consistente con los datos disponibles).
       </p>
+    </section>
+  )
+}
+
+function SeccionMerma({ data }: { data: MermaResult }) {
+  if (data.rows.length === 0) {
+    return (
+      <section className="space-y-3">
+        <SectionHeader
+          title="Merma por artículo y color"
+          description="Diferencia entre kilos de planilla y kilos propios medidos"
+          csvHref="/admin/reportes/csv?tipo=merma"
+        />
+        <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">
+          Sin datos de merma todavía. Cuando los operarios carguen el peso propio
+          de los rollos, la merma aparecerá acá.
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        title="Merma por artículo y color"
+        description="Diferencia entre kilos de planilla y kilos propios medidos"
+        csvHref="/admin/reportes/csv?tipo=merma"
+      />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Merma total
+          </p>
+          <p className="text-2xl font-bold mt-1 tabular-nums">
+            {data.total_merma_kg.toFixed(2)}{' '}
+            <span className="text-base font-normal text-muted-foreground">kg</span>
+          </p>
+        </div>
+        <div className="rounded-lg border bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Merma promedio
+          </p>
+          <p
+            className={`text-2xl font-bold mt-1 tabular-nums ${
+              data.total_merma_pct > 5
+                ? 'text-destructive'
+                : data.total_merma_pct > 2
+                  ? 'text-warning'
+                  : 'text-success'
+            }`}
+          >
+            {data.total_merma_pct.toFixed(2)}%
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            sobre {data.total_kilos_planilla.toFixed(2)} kg de planilla
+          </p>
+        </div>
+        <div className="rounded-lg border bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Rollos medidos
+          </p>
+          <p className="text-2xl font-bold mt-1 tabular-nums">
+            {data.rows.reduce((s, r) => s + r.rollos_con_medicion, 0)}
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-zinc-50 border-b">
+              <tr className="text-left">
+                <th className="px-4 py-3 font-medium">Artículo</th>
+                <th className="px-4 py-3 font-medium">Color</th>
+                <th className="px-4 py-3 font-medium text-right">Kg planilla</th>
+                <th className="px-4 py-3 font-medium text-right">Kg propios</th>
+                <th className="px-4 py-3 font-medium text-right">Merma kg</th>
+                <th className="px-4 py-3 font-medium text-right">Merma %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((r, i) => (
+                <tr
+                  key={`${r.articulo}-${r.color}-${i}`}
+                  className="border-b last:border-0"
+                >
+                  <td className="px-4 py-2 font-medium">{r.articulo}</td>
+                  <td className="px-4 py-2">{r.color}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {r.kilos_planilla.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {r.kilos_propios.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums font-medium">
+                    {r.merma_kg.toFixed(2)}
+                  </td>
+                  <td
+                    className={`px-4 py-2 text-right tabular-nums font-medium ${
+                      r.merma_pct > 5
+                        ? 'text-destructive'
+                        : r.merma_pct > 2
+                          ? 'text-warning'
+                          : 'text-muted-foreground'
+                    }`}
+                  >
+                    {r.merma_pct.toFixed(2)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-zinc-50 border-t">
+              <tr>
+                <td className="px-4 py-2 font-semibold" colSpan={2}>
+                  Total
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                  {data.total_kilos_planilla.toFixed(2)}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                  {data.total_kilos_propios.toFixed(2)}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                  {data.total_merma_kg.toFixed(2)}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                  {data.total_merma_pct.toFixed(2)}%
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </section>
   )
 }
@@ -218,9 +356,8 @@ function SeccionDiferencias({ data }: { data: DiferenciaRow[] }) {
       />
       {data.length === 0 ? (
         <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">
-          Todavía no hay rollos con datos propios cargados. Cuando el operario
-          mida y registre <code>kilos_propios</code>, las diferencias aparecen
-          acá.
+          Todavía no hay rollos con peso propio registrado. Cuando el operario
+          mida y cargue el peso real del rollo, las diferencias aparecen acá.
         </div>
       ) : (
         <>

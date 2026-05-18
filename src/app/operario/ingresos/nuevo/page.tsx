@@ -5,19 +5,30 @@ import NuevoIngresoForm from './NuevoIngresoForm'
 
 export default async function NuevoIngresoPage() {
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  const [{ data: tintorerias }, { data: articulos }] = await Promise.all([
-    supabase
-      .from('tintorerias')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
-    supabase
-      .from('articulos')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
-  ])
+  const [{ data: tintorerias }, { data: articulos }, { data: profile }] =
+    await Promise.all([
+      supabase
+        .from('tintorerias')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('articulos')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user!.id)
+        .single(),
+    ])
+
+  const role = (profile?.role ?? 'operario') as 'operario' | 'admin'
 
   const sinCatalogos = !tintorerias?.length || !articulos?.length
 
@@ -57,7 +68,7 @@ export default async function NuevoIngresoPage() {
           </div>
         </div>
       ) : (
-        <NuevoIngresoForm tintorerias={tintorerias!} articulos={articulos!} />
+        <NuevoIngresoForm tintorerias={tintorerias!} articulos={articulos!} role={role} />
       )}
     </div>
   )

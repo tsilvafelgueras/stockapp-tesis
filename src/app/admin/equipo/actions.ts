@@ -189,3 +189,72 @@ export async function deleteUser(userId: string): Promise<SimpleResult> {
   revalidatePath('/admin/equipo')
   return { ok: true }
 }
+
+export async function disableUser(userId: string): Promise<SimpleResult> {
+  const ctx = await requireAdminEnEmpresa()
+  if (!ctx.ok) return ctx
+
+  if (userId === ctx.user_id) {
+    return { ok: false, error: 'No te podés desactivar a vos mismo.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: target } = await admin
+    .from('profiles')
+    .select('role, empresa_id')
+    .eq('id', userId)
+    .single()
+
+  if (!target || target.empresa_id !== ctx.empresa_id) {
+    return { ok: false, error: 'Usuario no encontrado.' }
+  }
+
+  // Ban en Supabase Auth
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: 'infinity',
+  } as Parameters<typeof admin.auth.admin.updateUserById>[1])
+  if (authError) return { ok: false, error: authError.message }
+
+  // Marcar en profiles
+  const { error } = await admin
+    .from('profiles')
+    .update({ disabled: true })
+    .eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/admin/equipo')
+  return { ok: true }
+}
+
+export async function enableUser(userId: string): Promise<SimpleResult> {
+  const ctx = await requireAdminEnEmpresa()
+  if (!ctx.ok) return ctx
+
+  const admin = createAdminClient()
+
+  const { data: target } = await admin
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', userId)
+    .single()
+
+  if (!target || target.empresa_id !== ctx.empresa_id) {
+    return { ok: false, error: 'Usuario no encontrado.' }
+  }
+
+  // Desbanear en Supabase Auth (ban_duration '0' = sin ban)
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: '0',
+  } as Parameters<typeof admin.auth.admin.updateUserById>[1])
+  if (authError) return { ok: false, error: authError.message }
+
+  const { error } = await admin
+    .from('profiles')
+    .update({ disabled: false })
+    .eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/admin/equipo')
+  return { ok: true }
+}

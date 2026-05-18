@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import BackButton from '@/components/BackButton'
 
 export default async function ConfirmarPage() {
   const supabase = await createClient()
@@ -32,7 +33,8 @@ export default async function ConfirmarPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Confirmar llegadas</h1>
+        <BackButton href="/operario/dashboard" />
+        <h1 className="text-xl sm:text-2xl font-bold mt-1">Confirmar llegadas</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Escaneá los códigos de los rollos para confirmar que están en el depósito
         </p>

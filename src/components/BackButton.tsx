@@ -12,7 +12,7 @@ export default function BackButton({
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-1"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors min-h-[44px]"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

@@ -168,6 +168,7 @@ export default function StockFilters({
             className="w-full rounded-md border px-3 py-2 text-sm bg-white"
           >
             <option value="en_stock">En stock</option>
+            <option value="segunda">Segunda</option>
             <option value="reservado">Reservado</option>
             <option value="pendiente">Pendiente</option>
             <option value="entregado">Entregado</option>

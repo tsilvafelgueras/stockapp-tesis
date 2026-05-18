@@ -117,3 +117,50 @@ export async function darDeBajaRollo(
   revalidatePath('/stock')
   return { ok: true }
 }
+
+export async function marcarComoSegunda(
+  rolloId: string
+): Promise<StockActionResult> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'operario' && profile?.role !== 'admin') {
+    return { ok: false, error: 'Solo el operario o el admin pueden marcar rollos.' }
+  }
+
+  const { data: rollo, error: fetchError } = await supabase
+    .from('rollos')
+    .select('id, estado')
+    .eq('id', rolloId)
+    .single()
+
+  if (fetchError || !rollo) {
+    return { ok: false, error: 'No se encontró el rollo.' }
+  }
+  if (!['pendiente', 'en_stock'].includes(rollo.estado)) {
+    return {
+      ok: false,
+      error: 'Solo se puede marcar como segunda un rollo pendiente o en stock.',
+    }
+  }
+
+  const { error } = await supabase
+    .from('rollos')
+    .update({ estado: 'segunda' })
+    .eq('id', rolloId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/stock')
+  return { ok: true }
+}

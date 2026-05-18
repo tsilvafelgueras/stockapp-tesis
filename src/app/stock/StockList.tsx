@@ -39,6 +39,7 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   reservado: { text: 'Reservado', className: 'bg-primary/15 text-primary' },
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
   baja: { text: 'Baja', className: 'bg-destructive/15 text-destructive' },
+  segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
 }
 
 export default function StockList({
@@ -108,7 +109,7 @@ export default function StockList({
       {/* Desktop: tabla */}
       <div className="hidden sm:block rounded-lg border bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-zinc-50 border-b">
               <tr className="text-left">
                 <th className="px-3 py-3 font-medium w-12"></th>

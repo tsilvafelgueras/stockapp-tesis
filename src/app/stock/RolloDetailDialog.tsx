@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import type { StockRollo, StockRole } from './StockList'
-import { darDeBajaRollo, moverUbicacion } from './actions'
+import { darDeBajaRollo, moverUbicacion, marcarComoSegunda } from './actions'
+import { UBICACIONES } from '@/lib/ubicaciones'
 
 const ESTADO_TEXT: Record<string, string> = {
   pendiente: 'Pendiente',
@@ -11,6 +12,7 @@ const ESTADO_TEXT: Record<string, string> = {
   reservado: 'Reservado',
   entregado: 'Entregado',
   baja: 'Baja',
+  segunda: 'Segunda',
 }
 
 // El padre remonta este componente con `key={rollo.id}` cuando cambia el rollo
@@ -25,7 +27,7 @@ export default function RolloDetailDialog({
   role: StockRole
   onClose: () => void
 }) {
-  const [mode, setMode] = useState<'view' | 'mover' | 'baja'>('view')
+  const [mode, setMode] = useState<'view' | 'mover' | 'baja' | 'segunda'>('view')
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [pending, startTransition] = useTransition()
 
@@ -40,7 +42,10 @@ export default function RolloDetailDialog({
   const puedeMover =
     (role === 'operario' || role === 'admin') &&
     (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
-  const puedeBaja = role === 'admin' && rollo.estado !== 'baja'
+  const puedeSegunda =
+    (role === 'operario' || role === 'admin') &&
+    (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
+  const puedeBaja = role === 'admin' && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
 
   function handleMover() {
     startTransition(async () => {
@@ -50,6 +55,18 @@ export default function RolloDetailDialog({
         return
       }
       toast.success(`Pieza ${rollo.numero_pieza} movida a ${ubicacion.trim()}.`)
+      onClose()
+    })
+  }
+
+  function handleSegunda() {
+    startTransition(async () => {
+      const res = await marcarComoSegunda(rollo.id)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(`Pieza ${rollo.numero_pieza} marcada como segunda calidad.`)
       onClose()
     })
   }
@@ -186,7 +203,7 @@ export default function RolloDetailDialog({
           </div>
 
           {/* Acciones */}
-          {mode === 'view' && (puedeMover || puedeBaja) && (
+          {mode === 'view' && (puedeMover || puedeSegunda || puedeBaja) && (
             <div className="flex flex-wrap gap-2 pt-2 border-t">
               {puedeMover && (
                 <button
@@ -195,6 +212,15 @@ export default function RolloDetailDialog({
                   className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
                   Mover ubicación
+                </button>
+              )}
+              {puedeSegunda && (
+                <button
+                  type="button"
+                  onClick={() => setMode('segunda')}
+                  className="rounded-md border border-amber-400/40 text-amber-700 px-4 py-2 text-sm font-medium hover:bg-amber-50 transition-colors"
+                >
+                  Marcar como segunda
                 </button>
               )}
               {puedeBaja && (
@@ -214,12 +240,18 @@ export default function RolloDetailDialog({
               <label className="text-sm font-medium">Nueva ubicación</label>
               <input
                 type="text"
+                list="ubicaciones-dialog-list"
                 value={ubicacion}
                 onChange={(e) => setUbicacion(e.target.value)}
-                placeholder="Ej. A42"
+                placeholder="Ej. A1"
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 autoFocus
               />
+              <datalist id="ubicaciones-dialog-list">
+                {UBICACIONES.map((u) => (
+                  <option key={u} value={u} />
+                ))}
+              </datalist>
               <div className="flex gap-2 justify-end pt-1">
                 <button
                   type="button"
@@ -236,6 +268,36 @@ export default function RolloDetailDialog({
                   className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
                   {pending ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'segunda' && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-sm">
+                ¿Confirmás marcar la pieza{' '}
+                <strong>{rollo.numero_pieza}</strong> como segunda calidad?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                El rollo quedará en estado &ldquo;Segunda&rdquo;. Se puede revertir cambiando el estado desde stock.
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSegunda}
+                  disabled={pending}
+                  className="rounded-md bg-amber-500 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {pending ? 'Marcando…' : 'Confirmar segunda'}
                 </button>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import BackButton from '@/components/BackButton'
 
 export default async function MuestrasListPage() {
   const supabase = await createClient()
@@ -46,6 +47,9 @@ export default async function MuestrasListPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+      <div>
+        <BackButton href="/operario/dashboard" />
+      </div>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Muestras</h1>

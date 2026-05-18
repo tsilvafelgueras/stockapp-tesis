@@ -7,7 +7,7 @@ export default async function ArticulosPage() {
 
   const { data: articulos } = await supabase
     .from('articulos')
-    .select('*')
+    .select('id, nombre, descripcion, stock_minimo_kg')
     .order('created_at', { ascending: false })
 
   return (
@@ -30,6 +30,7 @@ export default async function ArticulosPage() {
             <tr className="text-left">
               <th className="px-4 py-3 font-medium">Nombre</th>
               <th className="px-4 py-3 font-medium">Descripción</th>
+              <th className="px-4 py-3 font-medium">Stock mínimo</th>
               <th className="px-4 py-3 font-medium">Acciones</th>
             </tr>
           </thead>
@@ -41,7 +42,7 @@ export default async function ArticulosPage() {
             ) : (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   className="px-4 py-8 text-center text-sm text-muted-foreground"
                 >
                   Todavía no cargaste ningún artículo.
