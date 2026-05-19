@@ -6,15 +6,39 @@ import {
   reporteDiferencias,
   reporteAntiguedad,
   reporteMerma,
+  reporteTintorerias,
   type StockRow,
   type MovimientosResult,
   type DiferenciaRow,
   type AntiguedadRow,
   type MermaResult,
+  type PedidosTintoreriaRow,
+  type ReportesFilters as ReportesFiltersType,
 } from './queries'
+import ReportesFilters from './ReportesFilters'
 
 type SearchParams = {
   dias?: string
+  anio?: string
+  mes?: string
+  tintoreria?: string
+  articulo?: string
+}
+
+function buildCsvHref(
+  tipo: string,
+  filters: ReportesFiltersType,
+  extra?: Record<string, string | number>
+): string {
+  const sp = new URLSearchParams({ tipo })
+  if (filters.tintoreriaId) sp.set('tintoreria', filters.tintoreriaId)
+  if (filters.articuloId) sp.set('articulo', filters.articuloId)
+  if (filters.anio) sp.set('anio', String(filters.anio))
+  if (filters.mes) sp.set('mes', String(filters.mes))
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) sp.set(k, String(v))
+  }
+  return `/admin/reportes/csv?${sp.toString()}`
 }
 
 export default async function ReportesPage({
@@ -25,16 +49,51 @@ export default async function ReportesPage({
   const sp = await searchParams
   const dias = Number(sp.dias) > 0 ? Number(sp.dias) : 30
 
+  const filters: ReportesFiltersType = {
+    tintoreriaId: sp.tintoreria || undefined,
+    articuloId: sp.articulo || undefined,
+    anio: sp.anio ? Number(sp.anio) : undefined,
+    mes: sp.mes ? Number(sp.mes) : undefined,
+  }
+
   const supabase = await createClient()
 
-  // Las 5 queries en paralelo
-  const [stock, movimientos, diferencias, antiguedad, merma] = await Promise.all([
-    reporteStock(supabase),
-    reporteMovimientos(supabase),
-    reporteDiferencias(supabase),
-    reporteAntiguedad(supabase, dias),
-    reporteMerma(supabase),
+  // Catálogos para filtros + queries de reporte, en paralelo
+  const [
+    stock,
+    movimientos,
+    diferencias,
+    antiguedad,
+    merma,
+    pedidosTintoreria,
+    { data: tintorerias },
+    { data: articulos },
+    { data: aniosRollos },
+  ] = await Promise.all([
+    reporteStock(supabase, filters),
+    reporteMovimientos(supabase, filters),
+    reporteDiferencias(supabase, filters),
+    reporteAntiguedad(supabase, dias, filters),
+    reporteMerma(supabase, filters),
+    reporteTintorerias(supabase, filters),
+    supabase
+      .from('tintorerias')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('articulos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase.from('rollos').select('created_at').limit(2000),
   ])
+
+  const aniosSet = new Set<number>()
+  for (const r of aniosRollos ?? []) {
+    if (r.created_at) aniosSet.add(new Date(r.created_at).getFullYear())
+  }
+  const anios = [...aniosSet]
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-8">
@@ -46,12 +105,140 @@ export default async function ReportesPage({
         </p>
       </div>
 
-      <SeccionStock data={stock} />
-      <SeccionMovimientos data={movimientos} />
-      <SeccionMerma data={merma} />
-      <SeccionDiferencias data={diferencias} />
-      <SeccionAntiguedad data={antiguedad} dias={dias} />
+      <ReportesFilters
+        current={{
+          anio: sp.anio ?? '',
+          mes: sp.mes ?? '',
+          tintoreria: sp.tintoreria ?? '',
+          articulo: sp.articulo ?? '',
+          dias: sp.dias ?? '30',
+        }}
+        tintorerias={tintorerias ?? []}
+        articulos={articulos ?? []}
+        anios={anios}
+      />
+
+      <SeccionStock
+        data={stock}
+        csvHref={buildCsvHref('stock', filters)}
+      />
+      <SeccionMovimientos
+        data={movimientos}
+        csvHref={buildCsvHref('movimientos', filters)}
+      />
+      <SeccionTintorerias
+        data={pedidosTintoreria}
+        csvHref={buildCsvHref('tintorerias', filters)}
+      />
+      <SeccionMerma
+        data={merma}
+        csvHref={buildCsvHref('merma', filters)}
+      />
+      <SeccionDiferencias
+        data={diferencias}
+        csvHref={buildCsvHref('diferencias', filters)}
+      />
+      <SeccionAntiguedad
+        data={antiguedad}
+        dias={dias}
+        csvHref={buildCsvHref('antiguedad', filters, { dias })}
+      />
     </div>
+  )
+}
+
+function SeccionTintorerias({
+  data,
+  csvHref,
+}: {
+  data: PedidosTintoreriaRow[]
+  csvHref: string
+}) {
+  const totalPedidos = data.reduce((s, r) => s + r.pedidos, 0)
+  const totalRollos = data.reduce((s, r) => s + r.rollos, 0)
+  const totalKilos = data.reduce((s, r) => s + r.kilos, 0)
+
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        title="Pedidos por tintorería"
+        description="Cruce de pedidos con la tintorería de origen de los rollos vendidos. Útil para análisis de proveedores."
+        csvHref={csvHref}
+      />
+      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-zinc-50 border-b">
+              <tr className="text-left">
+                <th className="px-4 py-3 font-medium">Tintorería</th>
+                <th className="px-4 py-3 font-medium text-right">Pedidos</th>
+                <th className="px-4 py-3 font-medium text-right">Entregados</th>
+                <th className="px-4 py-3 font-medium text-right">En curso</th>
+                <th className="px-4 py-3 font-medium text-right">Cancelados</th>
+                <th className="px-4 py-3 font-medium text-right">Rollos</th>
+                <th className="px-4 py-3 font-medium text-right">Kilos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-8 text-center text-sm text-muted-foreground"
+                  >
+                    Sin pedidos con rollos de tintorerías en este período.
+                  </td>
+                </tr>
+              ) : (
+                data.map((r) => (
+                  <tr
+                    key={r.tintoreria_id ?? 'sin'}
+                    className="border-b last:border-0"
+                  >
+                    <td className="px-4 py-2 font-medium">{r.tintoreria}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {r.pedidos}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-success">
+                      {r.entregados}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {r.en_curso}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-destructive">
+                      {r.cancelados}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {r.rollos}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {r.kilos.toFixed(2)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {data.length > 0 && (
+              <tfoot className="bg-zinc-50 border-t">
+                <tr>
+                  <td className="px-4 py-2 font-semibold">Total</td>
+                  <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                    {totalPedidos}
+                  </td>
+                  <td colSpan={3}></td>
+                  <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                    {totalRollos}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                    {totalKilos.toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -85,7 +272,7 @@ function SectionHeader({
   )
 }
 
-function SeccionStock({ data }: { data: StockRow[] }) {
+function SeccionStock({ data, csvHref }: { data: StockRow[]; csvHref: string }) {
   const totalRollos = data.reduce((acc, r) => acc + r.rollos, 0)
   const totalKilos = data.reduce((acc, r) => acc + r.kilos, 0)
 
@@ -94,7 +281,7 @@ function SeccionStock({ data }: { data: StockRow[] }) {
       <SectionHeader
         title="Stock por artículo y color"
         description="Rollos disponibles en depósito, agrupados por artículo y color"
-        csvHref="/admin/reportes/csv?tipo=stock"
+        csvHref={csvHref}
       />
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -157,13 +344,19 @@ function SeccionStock({ data }: { data: StockRow[] }) {
   )
 }
 
-function SeccionMovimientos({ data }: { data: MovimientosResult }) {
+function SeccionMovimientos({
+  data,
+  csvHref,
+}: {
+  data: MovimientosResult
+  csvHref: string
+}) {
   return (
     <section className="space-y-3">
       <SectionHeader
-        title="Movimientos del mes"
+        title="Movimientos"
         description={`Ingresos creados y pedidos entregados durante ${data.mes}`}
-        csvHref="/admin/reportes/csv?tipo=movimientos"
+        csvHref={csvHref}
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-lg border bg-white p-5 shadow-sm">
@@ -212,14 +405,20 @@ function SeccionMovimientos({ data }: { data: MovimientosResult }) {
   )
 }
 
-function SeccionMerma({ data }: { data: MermaResult }) {
+function SeccionMerma({
+  data,
+  csvHref,
+}: {
+  data: MermaResult
+  csvHref: string
+}) {
   if (data.rows.length === 0) {
     return (
       <section className="space-y-3">
         <SectionHeader
           title="Merma por artículo y color"
           description="Diferencia entre kilos de planilla y kilos propios medidos"
-          csvHref="/admin/reportes/csv?tipo=merma"
+          csvHref={csvHref}
         />
         <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">
           Sin datos de merma todavía. Cuando los operarios carguen el peso propio
@@ -234,7 +433,7 @@ function SeccionMerma({ data }: { data: MermaResult }) {
       <SectionHeader
         title="Merma por artículo y color"
         description="Diferencia entre kilos de planilla y kilos propios medidos"
-        csvHref="/admin/reportes/csv?tipo=merma"
+        csvHref={csvHref}
       />
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border bg-white p-4 shadow-sm">
@@ -344,7 +543,13 @@ function SeccionMerma({ data }: { data: MermaResult }) {
   )
 }
 
-function SeccionDiferencias({ data }: { data: DiferenciaRow[] }) {
+function SeccionDiferencias({
+  data,
+  csvHref,
+}: {
+  data: DiferenciaRow[]
+  csvHref: string
+}) {
   const totalDifKilos = data.reduce((acc, r) => acc + r.dif_kilos, 0)
 
   return (
@@ -352,7 +557,7 @@ function SeccionDiferencias({ data }: { data: DiferenciaRow[] }) {
       <SectionHeader
         title="Diferencias proveedor vs propio"
         description="Rollos con kilos_propios cargados (control de calidad)"
-        csvHref="/admin/reportes/csv?tipo=diferencias"
+        csvHref={csvHref}
       />
       {data.length === 0 ? (
         <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">
@@ -435,38 +640,19 @@ function SeccionDiferencias({ data }: { data: DiferenciaRow[] }) {
 function SeccionAntiguedad({
   data,
   dias,
+  csvHref,
 }: {
   data: AntiguedadRow[]
   dias: number
+  csvHref: string
 }) {
   return (
     <section className="space-y-3">
       <SectionHeader
         title={`Antigüedad de stock (>${dias} días sin moverse)`}
-        description="Rollos en stock que entraron hace más del umbral. Cambiá el umbral con ?dias=N"
-        csvHref={`/admin/reportes/csv?tipo=antiguedad&dias=${dias}`}
+        description="El umbral se cambia desde el filtro de arriba"
+        csvHref={csvHref}
       />
-
-      <form className="flex items-center gap-2 text-sm">
-        <label className="text-muted-foreground">Días de antigüedad:</label>
-        <select
-          name="dias"
-          defaultValue={dias}
-          className="rounded-md border px-2 py-1 text-sm bg-white"
-        >
-          {[7, 15, 30, 60, 90, 180].map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="rounded-md border bg-white px-3 py-1 text-sm hover:bg-zinc-50"
-        >
-          Aplicar
-        </button>
-      </form>
 
       {data.length === 0 ? (
         <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">

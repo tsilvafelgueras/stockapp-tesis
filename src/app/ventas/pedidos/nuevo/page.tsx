@@ -21,18 +21,24 @@ export default async function NuevoPedidoPage({
   const sp = await searchParams
 
   // Catálogos para los dropdowns
-  const [{ data: articulos }, { data: tintorerias }] = await Promise.all([
-    supabase
-      .from('articulos')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
-    supabase
-      .from('tintorerias')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
-  ])
+  const [{ data: articulos }, { data: tintorerias }, { data: clientes }] =
+    await Promise.all([
+      supabase
+        .from('articulos')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('tintorerias')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('clientes')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+    ])
 
   // Rollos disponibles (en_stock) con filtros opcionales. !inner sobre
   // ingresos para poder filtrar por color y tintorería del ingreso.
@@ -84,6 +90,7 @@ export default async function NuevoPedidoPage({
           rollosDisponibles={rollos}
           articulos={(articulos ?? []) as Catalogo[]}
           tintorerias={(tintorerias ?? []) as Catalogo[]}
+          clientes={(clientes ?? []) as Catalogo[]}
           currentFilters={{
             q: sp.q ?? '',
             articulo: sp.articulo ?? '',

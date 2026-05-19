@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import PedidosFilters from './PedidosFilters'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
@@ -8,6 +9,10 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
     className: 'bg-primary/15 text-primary',
   },
   lista: { text: 'Lista', className: 'bg-success/15 text-success' },
+  confirmada_venta: {
+    text: 'Venta confirmada',
+    className: 'bg-primary/15 text-primary',
+  },
   entregada: { text: 'Entregada', className: 'bg-zinc-100 text-zinc-700' },
   cancelada: {
     text: 'Cancelada',
@@ -15,17 +20,12 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   },
 }
 
-const ORDEN_FILTRO = [
-  { value: '', label: 'Todos' },
-  { value: 'pendiente', label: 'Pendientes' },
-  { value: 'en_preparacion', label: 'En preparación' },
-  { value: 'lista', label: 'Listos' },
-  { value: 'entregada', label: 'Entregados' },
-  { value: 'cancelada', label: 'Cancelados' },
-]
-
 type SearchParams = {
   estado?: string
+  cliente_id?: string
+  desde?: string
+  hasta?: string
+  q?: string
 }
 
 export default async function PedidosListPage({
@@ -50,11 +50,32 @@ export default async function PedidosListPage({
       `
     )
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(500)
 
   if (sp.estado) query = query.eq('estado', sp.estado)
+  if (sp.cliente_id) query = query.eq('cliente_id', sp.cliente_id)
+  if (sp.desde) query = query.gte('created_at', sp.desde)
+  if (sp.hasta) {
+    // Inclusivo del día 'hasta': sumamos 1 día y usamos lt.
+    const hasta = new Date(sp.hasta)
+    hasta.setDate(hasta.getDate() + 1)
+    query = query.lt('created_at', hasta.toISOString().slice(0, 10))
+  }
+  if (sp.q) {
+    const term = sp.q.trim()
+    query = query.or(
+      `numero_pedido.ilike.%${term}%,numero_remito_externo.ilike.%${term}%`
+    )
+  }
 
   const { data: pedidos, error } = await query
+
+  // Catálogo de clientes para el dropdown del filtro.
+  const { data: clientes } = await supabase
+    .from('clientes')
+    .select('id, nombre')
+    .eq('activo', true)
+    .order('nombre')
 
   type PedidoRow = {
     id: string
@@ -86,27 +107,16 @@ export default async function PedidosListPage({
         </Link>
       </div>
 
-      <div className="rounded-lg border bg-white p-3 shadow-sm flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground px-1">
-          Estado:
-        </span>
-        {ORDEN_FILTRO.map((f) => {
-          const active = (sp.estado ?? '') === f.value
-          return (
-            <Link
-              key={f.value}
-              href={f.value ? `/ventas/pedidos?estado=${f.value}` : '/ventas/pedidos'}
-              className={`text-xs rounded-full px-3 py-1.5 transition-colors ${
-                active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-foreground'
-              }`}
-            >
-              {f.label}
-            </Link>
-          )
-        })}
-      </div>
+      <PedidosFilters
+        clientes={clientes ?? []}
+        current={{
+          estado: sp.estado ?? '',
+          cliente_id: sp.cliente_id ?? '',
+          desde: sp.desde ?? '',
+          hasta: sp.hasta ?? '',
+          q: sp.q ?? '',
+        }}
+      />
 
       {error && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">

@@ -66,6 +66,7 @@ export default async function StockPage({
         gramaje_planilla,
         estado,
         created_at,
+        auditado_at,
         articulos ( id, nombre ),
         ingresos!inner (
           id,

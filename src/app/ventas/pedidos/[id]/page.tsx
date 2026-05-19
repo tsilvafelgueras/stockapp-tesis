@@ -9,7 +9,11 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
     text: 'En preparación',
     className: 'bg-primary/15 text-primary',
   },
-  lista: { text: 'Lista', className: 'bg-success/15 text-success' },
+  lista: { text: 'Lista (esperando venta)', className: 'bg-success/15 text-success' },
+  confirmada_venta: {
+    text: 'Venta confirmada',
+    className: 'bg-primary/15 text-primary',
+  },
   entregada: { text: 'Entregada', className: 'bg-zinc-100 text-zinc-700' },
   cancelada: {
     text: 'Cancelada',

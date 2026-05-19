@@ -23,18 +23,27 @@ export default async function EditarIngresoPage({
 
   if (profile?.role !== 'admin') redirect(`/operario/ingresos/${id}`)
 
-  const [{ data: ingreso }, { data: tintorerias }, { data: articulos }] =
-    await Promise.all([
-      supabase
-        .from('ingresos')
-        .select('*')
-        .eq('id', id)
-        .single(),
-      supabase.from('tintorerias').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('articulos').select('id, nombre').eq('activo', true).order('nombre'),
-    ])
+  const [
+    { data: ingreso },
+    { data: tintorerias },
+    { data: articulos },
+    { data: rollos },
+  ] = await Promise.all([
+    supabase
+      .from('ingresos')
+      .select('*')
+      .eq('id', id)
+      .single(),
+    supabase.from('tintorerias').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('articulos').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('rollos').select('kilos').eq('ingreso_id', id),
+  ])
 
   if (!ingreso) notFound()
+
+  const cantidadRollos = rollos?.length ?? 0
+  const sumaKilos =
+    rollos?.reduce((acc, r) => acc + (Number(r.kilos) || 0), 0) ?? 0
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
@@ -50,6 +59,8 @@ export default async function EditarIngresoPage({
         ingreso={ingreso}
         tintorerias={tintorerias ?? []}
         articulos={articulos ?? []}
+        cantidadRollosReal={cantidadRollos}
+        sumaKilosReal={sumaKilos}
       />
     </div>
   )

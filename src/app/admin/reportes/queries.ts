@@ -2,6 +2,17 @@ import { createClient } from '@/lib/supabase/server'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
+export type ReportesFilters = {
+  /** ID de tintorería para filtrar rollos por origen (stock, merma, diferencias, antigüedad). */
+  tintoreriaId?: string
+  /** ID de artículo. */
+  articuloId?: string
+  /** Año en formato 4 dígitos. Solo aplica a Movimientos. */
+  anio?: number
+  /** Mes 1-12. Solo aplica a Movimientos. Si se omite y hay año → todo el año. */
+  mes?: number
+}
+
 // ── Stock por artículo+color ───────────────────────────────
 
 export type StockRow = {
@@ -12,14 +23,22 @@ export type StockRow = {
 }
 
 export async function reporteStock(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  filters: ReportesFilters = {}
 ): Promise<StockRow[]> {
-  const { data } = await supabase
+  let query = supabase
     .from('rollos')
     .select(
-      'kilos, articulos!inner ( nombre ), ingresos!inner ( color )'
+      'kilos, articulo_id, articulos!inner ( nombre ), ingresos!inner ( color, tintoreria_id )'
     )
     .eq('estado', 'en_stock')
+
+  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
+  if (filters.tintoreriaId) {
+    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  }
+
+  const { data } = await query
 
   type Raw = {
     kilos: number | null
@@ -41,7 +60,7 @@ export async function reporteStock(
   return [...map.values()].sort((a, b) => b.kilos - a.kilos)
 }
 
-// ── Movimientos del mes ─────────────────────────────────────
+// ── Movimientos del mes/año ─────────────────────────────────
 
 export type MovimientosResult = {
   mes: string
@@ -52,62 +71,146 @@ export type MovimientosResult = {
   pedidosEntregados: number
 }
 
-export async function reporteMovimientos(
-  supabase: SupabaseClient
-): Promise<MovimientosResult> {
-  const inicioMes = new Date()
-  inicioMes.setDate(1)
-  inicioMes.setHours(0, 0, 0, 0)
-  const inicioIso = inicioMes.toISOString()
-  const mesLabel = inicioMes.toLocaleDateString('es-AR', {
-    month: 'long',
-    year: 'numeric',
-  })
+/** Devuelve el rango [desde, hasta) en ISO y un label legible. */
+function rangoPeriodo(filters: ReportesFilters): {
+  desde: string
+  hasta: string
+  label: string
+} {
+  if (filters.anio && filters.mes) {
+    const desde = new Date(filters.anio, filters.mes - 1, 1)
+    const hasta = new Date(filters.anio, filters.mes, 1)
+    return {
+      desde: desde.toISOString(),
+      hasta: hasta.toISOString(),
+      label: desde.toLocaleDateString('es-AR', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    }
+  }
+  if (filters.anio) {
+    const desde = new Date(filters.anio, 0, 1)
+    const hasta = new Date(filters.anio + 1, 0, 1)
+    return {
+      desde: desde.toISOString(),
+      hasta: hasta.toISOString(),
+      label: `año ${filters.anio}`,
+    }
+  }
+  // Default: mes actual
+  const inicio = new Date()
+  inicio.setDate(1)
+  inicio.setHours(0, 0, 0, 0)
+  const finMes = new Date(inicio)
+  finMes.setMonth(finMes.getMonth() + 1)
+  return {
+    desde: inicio.toISOString(),
+    hasta: finMes.toISOString(),
+    label: inicio.toLocaleDateString('es-AR', {
+      month: 'long',
+      year: 'numeric',
+    }),
+  }
+}
 
-  // Ingresos: rollos creados este mes (proxy de "qué entró al sistema")
-  const { data: rollosMes } = await supabase
+export async function reporteMovimientos(
+  supabase: SupabaseClient,
+  filters: ReportesFilters = {}
+): Promise<MovimientosResult> {
+  const { desde, hasta, label } = rangoPeriodo(filters)
+
+  // Ingresos: rollos creados en el período
+  let qRollos = supabase
     .from('rollos')
-    .select('kilos')
-    .gte('created_at', inicioIso)
+    .select('kilos, articulo_id, ingresos!inner ( tintoreria_id )')
+    .gte('created_at', desde)
+    .lt('created_at', hasta)
+
+  if (filters.articuloId) qRollos = qRollos.eq('articulo_id', filters.articuloId)
+  if (filters.tintoreriaId) {
+    qRollos = qRollos.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  }
+
+  const { data: rollosMes } = await qRollos
 
   const ingresosRollos = rollosMes?.length ?? 0
   const ingresosKilos =
     rollosMes?.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0) ?? 0
 
-  // Egresos: pedidos entregados este mes (proxy: created_at en estado entregada)
-  // Sin updated_at confiable, usamos pedidos creados este mes que ya están entregados.
+  // Egresos: pedidos entregados en el período
   const { data: pedidosEntregadosRaw } = await supabase
     .from('pedidos')
-    .select(
-      `id, pedido_rollos ( rollos ( kilos ) )`
-    )
+    .select(`id, pedido_rollos ( rollos ( kilos, articulo_id, ingreso_id ) )`)
     .eq('estado', 'entregada')
-    .gte('created_at', inicioIso)
+    .gte('created_at', desde)
+    .lt('created_at', hasta)
 
   type PedRaw = {
     id: string
     pedido_rollos:
-      | { rollos: { kilos: number | null } | null }[]
+      | {
+          rollos: {
+            kilos: number | null
+            articulo_id: string | null
+            ingreso_id: string
+          } | null
+        }[]
       | null
   }
   const pedidos = (pedidosEntregadosRaw ?? []) as unknown as PedRaw[]
 
-  let egresosRollos = 0
-  let egresosKilos = 0
-  for (const p of pedidos) {
-    for (const pr of p.pedido_rollos ?? []) {
-      egresosRollos += 1
-      egresosKilos += Number(pr.rollos?.kilos ?? 0)
+  // Si hay filtros de articulo/tintoreria, los aplicamos en el lado client.
+  // Para tintorería necesitamos lookup, lo hacemos abajo si hace falta.
+  let tintoreriaRolloMap = new Map<string, string | null>()
+  if (filters.tintoreriaId) {
+    const ingresoIds = new Set<string>()
+    for (const p of pedidos)
+      for (const pr of p.pedido_rollos ?? [])
+        if (pr.rollos?.ingreso_id) ingresoIds.add(pr.rollos.ingreso_id)
+    if (ingresoIds.size > 0) {
+      const { data: ings } = await supabase
+        .from('ingresos')
+        .select('id, tintoreria_id')
+        .in('id', [...ingresoIds])
+      tintoreriaRolloMap = new Map(
+        (ings ?? []).map((i) => [i.id, i.tintoreria_id])
+      )
     }
   }
 
+  let egresosRollos = 0
+  let egresosKilos = 0
+  let pedidosContados = 0
+  for (const p of pedidos) {
+    let pedidoTieneRolloMatch = false
+    for (const pr of p.pedido_rollos ?? []) {
+      const r = pr.rollos
+      if (!r) continue
+      if (
+        filters.articuloId &&
+        r.articulo_id !== filters.articuloId
+      )
+        continue
+      if (
+        filters.tintoreriaId &&
+        tintoreriaRolloMap.get(r.ingreso_id) !== filters.tintoreriaId
+      )
+        continue
+      egresosRollos += 1
+      egresosKilos += Number(r.kilos ?? 0)
+      pedidoTieneRolloMatch = true
+    }
+    if (pedidoTieneRolloMatch) pedidosContados += 1
+  }
+
   return {
-    mes: mesLabel,
+    mes: label,
     ingresosRollos,
     ingresosKilos,
     egresosRollos,
     egresosKilos,
-    pedidosEntregados: pedidos.length,
+    pedidosEntregados: pedidosContados,
   }
 }
 
@@ -124,17 +227,25 @@ export type DiferenciaRow = {
 }
 
 export async function reporteDiferencias(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  filters: ReportesFilters = {}
 ): Promise<DiferenciaRow[]> {
-  const { data } = await supabase
+  let query = supabase
     .from('rollos')
     .select(
-      `id, numero_pieza, kilos, kilos_propios,
+      `id, numero_pieza, kilos, kilos_propios, articulo_id,
        articulos ( nombre ),
-       ingresos ( color )`
+       ingresos!inner ( color, tintoreria_id )`
     )
     .not('kilos_propios', 'is', null)
     .order('numero_pieza', { ascending: true })
+
+  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
+  if (filters.tintoreriaId) {
+    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  }
+
+  const { data } = await query
 
   type Raw = {
     id: string
@@ -182,13 +293,23 @@ export type MermaResult = {
 }
 
 export async function reporteMerma(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  filters: ReportesFilters = {}
 ): Promise<MermaResult> {
-  const { data } = await supabase
+  let query = supabase
     .from('rollos')
-    .select(`kilos, kilos_propios, articulos ( nombre ), ingresos ( color )`)
+    .select(
+      `kilos, kilos_propios, articulo_id, articulos ( nombre ), ingresos!inner ( color, tintoreria_id )`
+    )
     .not('kilos_propios', 'is', null)
     .not('kilos', 'is', null)
+
+  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
+  if (filters.tintoreriaId) {
+    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  }
+
+  const { data } = await query
 
   type Raw = {
     kilos: number | null
@@ -246,6 +367,156 @@ export async function reporteMerma(
   }
 }
 
+// ── Pedidos por tintorería ──────────────────────────────────
+// Cruza pedido_rollos → rollos → ingresos → tintorerias para
+// medir qué tintorerías están atrás de los pedidos. Útil para
+// análisis de origen de la mercadería vendida.
+
+export type PedidosTintoreriaRow = {
+  tintoreria_id: string | null
+  tintoreria: string
+  pedidos: number          // pedidos distintos con al menos un rollo de esta tintorería
+  rollos: number           // rollos totales originados acá
+  kilos: number            // suma de kilos
+  entregados: number       // pedidos en estado entregada
+  cancelados: number       // pedidos en estado cancelada
+  en_curso: number         // pedidos en estados intermedios
+}
+
+export async function reporteTintorerias(
+  supabase: SupabaseClient,
+  filters: ReportesFilters = {}
+): Promise<PedidosTintoreriaRow[]> {
+  // Sin filtro de período → todo el histórico. Con filtros → el rango.
+  const aplicarPeriodo = filters.anio !== undefined
+  const { desde, hasta } = aplicarPeriodo
+    ? (() => {
+        const r = (function () {
+          if (filters.anio && filters.mes) {
+            return {
+              desde: new Date(filters.anio, filters.mes - 1, 1),
+              hasta: new Date(filters.anio, filters.mes, 1),
+            }
+          }
+          if (filters.anio) {
+            return {
+              desde: new Date(filters.anio, 0, 1),
+              hasta: new Date(filters.anio + 1, 0, 1),
+            }
+          }
+          return null
+        })()
+        return r
+          ? { desde: r.desde.toISOString(), hasta: r.hasta.toISOString() }
+          : { desde: '', hasta: '' }
+      })()
+    : { desde: '', hasta: '' }
+
+  let query = supabase
+    .from('pedido_rollos')
+    .select(
+      `
+        rollos!inner (
+          id,
+          kilos,
+          articulo_id,
+          ingresos!inner (
+            id,
+            tintoreria_id,
+            tintorerias ( id, nombre )
+          )
+        ),
+        pedidos!inner ( id, estado, created_at )
+      `
+    )
+    .limit(5000)
+
+  if (filters.articuloId) {
+    query = query.eq('rollos.articulo_id', filters.articuloId)
+  }
+  if (filters.tintoreriaId) {
+    query = query.eq('rollos.ingresos.tintoreria_id', filters.tintoreriaId)
+  }
+  if (aplicarPeriodo && desde && hasta) {
+    query = query.gte('pedidos.created_at', desde).lt('pedidos.created_at', hasta)
+  }
+
+  const { data } = await query
+
+  type Raw = {
+    rollos: {
+      kilos: number | null
+      ingresos: {
+        tintoreria_id: string | null
+        tintorerias: { id: string; nombre: string } | null
+      } | null
+    } | null
+    pedidos: {
+      id: string
+      estado: string
+      created_at: string
+    } | null
+  }
+  const rows = (data ?? []) as unknown as Raw[]
+
+  // Agregar por tintoreria_id. Para contar pedidos distintos, llevamos
+  // un Set de IDs por tintorería.
+  const map = new Map<
+    string,
+    {
+      tintoreria_id: string | null
+      tintoreria: string
+      pedidoIds: Set<string>
+      pedidoEstados: Map<string, string>
+      rollos: number
+      kilos: number
+    }
+  >()
+
+  for (const r of rows) {
+    if (!r.rollos || !r.pedidos) continue
+    const ting = r.rollos.ingresos?.tintorerias
+    const key = ting?.id ?? 'sin'
+    const acc = map.get(key) ?? {
+      tintoreria_id: ting?.id ?? null,
+      tintoreria: ting?.nombre ?? 'Sin tintorería',
+      pedidoIds: new Set<string>(),
+      pedidoEstados: new Map<string, string>(),
+      rollos: 0,
+      kilos: 0,
+    }
+    acc.pedidoIds.add(r.pedidos.id)
+    acc.pedidoEstados.set(r.pedidos.id, r.pedidos.estado)
+    acc.rollos += 1
+    acc.kilos += Number(r.rollos.kilos ?? 0)
+    map.set(key, acc)
+  }
+
+  const result: PedidosTintoreriaRow[] = []
+  for (const v of map.values()) {
+    let entregados = 0
+    let cancelados = 0
+    let en_curso = 0
+    for (const estado of v.pedidoEstados.values()) {
+      if (estado === 'entregada') entregados += 1
+      else if (estado === 'cancelada') cancelados += 1
+      else en_curso += 1
+    }
+    result.push({
+      tintoreria_id: v.tintoreria_id,
+      tintoreria: v.tintoreria,
+      pedidos: v.pedidoIds.size,
+      rollos: v.rollos,
+      kilos: v.kilos,
+      entregados,
+      cancelados,
+      en_curso,
+    })
+  }
+  result.sort((a, b) => b.kilos - a.kilos)
+  return result
+}
+
 // ── Antigüedad de stock ─────────────────────────────────────
 
 export type AntiguedadRow = {
@@ -261,22 +532,30 @@ export type AntiguedadRow = {
 
 export async function reporteAntiguedad(
   supabase: SupabaseClient,
-  dias: number
+  dias: number,
+  filters: ReportesFilters = {}
 ): Promise<AntiguedadRow[]> {
   const limite = new Date()
   limite.setDate(limite.getDate() - dias)
   const limiteIso = limite.toISOString()
 
-  const { data } = await supabase
+  let query = supabase
     .from('rollos')
     .select(
-      `id, numero_pieza, ubicacion, kilos, created_at,
+      `id, numero_pieza, ubicacion, kilos, created_at, articulo_id,
        articulos ( nombre ),
-       ingresos ( color )`
+       ingresos!inner ( color, tintoreria_id )`
     )
     .eq('estado', 'en_stock')
     .lt('created_at', limiteIso)
     .order('created_at', { ascending: true })
+
+  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
+  if (filters.tintoreriaId) {
+    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  }
+
+  const { data } = await query
 
   type Raw = {
     id: string

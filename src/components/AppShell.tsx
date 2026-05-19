@@ -77,6 +77,7 @@ function navForRole(role: Role): NavSection[] {
           { href: '/stock', label: 'Stock', icon: '🔎' },
           { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
           { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: '⏳' },
+          { href: '/ventas/clientes', label: 'Clientes', icon: '👤' },
         ],
       },
     ]
@@ -102,6 +103,7 @@ function navForRole(role: Role): NavSection[] {
         { href: '/stock', label: 'Stock', icon: '🔎' },
         { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
         { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: '⏳' },
+        { href: '/ventas/clientes', label: 'Clientes', icon: '👤' },
       ],
     },
     {
@@ -111,6 +113,7 @@ function navForRole(role: Role): NavSection[] {
         { href: '/admin/tintorerias', label: 'Tintorerías', icon: '🏭' },
         { href: '/admin/equipo', label: 'Equipo', icon: '👥' },
         { href: '/admin/reportes', label: 'Reportes', icon: '📊' },
+        { href: '/admin/historial', label: 'Historial', icon: '🧾' },
       ],
     },
   ]

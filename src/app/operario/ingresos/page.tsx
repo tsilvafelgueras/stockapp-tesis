@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import BackButton from '@/components/BackButton'
+import RollosBulkView, { type RolloBulk } from './RollosBulkView'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   borrador: { text: 'Borrador', className: 'bg-zinc-100 text-zinc-700' },
@@ -8,24 +9,29 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   confirmado: { text: 'Confirmado', className: 'bg-success/15 text-success' },
 }
 
-export default async function IngresosPage() {
-  const supabase = await createClient()
+type SearchParams = { vista?: 'ingresos' | 'rollos' }
 
-  const { data: ingresos } = await supabase
-    .from('ingresos')
-    .select(`
-      id,
-      fecha_despacho,
-      numero_remito,
-      estado,
-      tintorerias ( nombre ),
-      articulos ( nombre ),
-      rollos ( kilos )
-    `)
-    .order('fecha_despacho', { ascending: false })
+export default async function IngresosPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
+  const supabase = await createClient()
+  const sp = await searchParams
+  const vista = sp.vista === 'rollos' ? 'rollos' : 'ingresos'
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user!.id)
+    .single()
+  const role = profile?.role === 'admin' ? 'admin' : 'operario'
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <BackButton href="/operario/dashboard" />
       </div>
@@ -44,6 +50,59 @@ export default async function IngresosPage() {
         </Link>
       </div>
 
+      {/* Tabs */}
+      <div className="border-b">
+        <nav className="flex gap-2 -mb-px">
+          <Link
+            href="/operario/ingresos?vista=ingresos"
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              vista === 'ingresos'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Por ingreso
+          </Link>
+          <Link
+            href="/operario/ingresos?vista=rollos"
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              vista === 'rollos'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Por rollo (filtros + edición masiva)
+          </Link>
+        </nav>
+      </div>
+
+      {vista === 'ingresos' ? (
+        <IngresosListView />
+      ) : (
+        <RollosBulkLoader role={role} />
+      )}
+    </div>
+  )
+}
+
+async function IngresosListView() {
+  const supabase = await createClient()
+
+  const { data: ingresos } = await supabase
+    .from('ingresos')
+    .select(`
+      id,
+      fecha_despacho,
+      numero_remito,
+      estado,
+      tintorerias ( nombre ),
+      articulos ( nombre ),
+      rollos ( kilos )
+    `)
+    .order('fecha_despacho', { ascending: false })
+
+  return (
+    <>
       {/* Vista mobile: cards apilados */}
       <div className="sm:hidden space-y-3">
         {ingresos && ingresos.length > 0 ? (
@@ -178,6 +237,98 @@ export default async function IngresosPage() {
           </table>
         </div>
       </div>
-    </div>
+    </>
+  )
+}
+
+async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
+  const supabase = await createClient()
+
+  const [{ data: rollosRaw }, { data: articulos }] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select(
+        `
+          id,
+          numero_pieza,
+          kilos,
+          metros,
+          ubicacion,
+          estado,
+          articulo_id,
+          articulos ( nombre ),
+          ingreso_id,
+          ingresos!inner (
+            id,
+            fecha_despacho,
+            numero_remito,
+            color,
+            ot,
+            rem_tejeduria,
+            referencia,
+            tintoreria_id,
+            tintorerias ( nombre )
+          )
+        `
+      )
+      .order('created_at', { ascending: false })
+      .limit(2000),
+    supabase
+      .from('articulos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+  ])
+
+  type Row = {
+    id: string
+    numero_pieza: string
+    kilos: number | null
+    metros: number | null
+    ubicacion: string | null
+    estado: string
+    articulo_id: string | null
+    articulos: { nombre: string } | null
+    ingreso_id: string
+    ingresos: {
+      fecha_despacho: string | null
+      numero_remito: string | null
+      color: string | null
+      ot: string | null
+      rem_tejeduria: string | null
+      referencia: string | null
+      tintoreria_id: string | null
+      tintorerias: { nombre: string } | null
+    } | null
+  }
+
+  const rollos: RolloBulk[] = ((rollosRaw ?? []) as unknown as Row[]).map(
+    (r) => ({
+      id: r.id,
+      numero_pieza: r.numero_pieza,
+      kilos: r.kilos,
+      metros: r.metros,
+      ubicacion: r.ubicacion,
+      estado: r.estado,
+      articulo_id: r.articulo_id,
+      articulo_nombre: r.articulos?.nombre ?? null,
+      ingreso_id: r.ingreso_id,
+      ingreso_fecha: r.ingresos?.fecha_despacho ?? null,
+      ingreso_remito: r.ingresos?.numero_remito ?? null,
+      ingreso_color: r.ingresos?.color ?? null,
+      ingreso_ot: r.ingresos?.ot ?? null,
+      ingreso_rem_tejeduria: r.ingresos?.rem_tejeduria ?? null,
+      ingreso_referencia: r.ingresos?.referencia ?? null,
+      tintoreria_id: r.ingresos?.tintoreria_id ?? null,
+      tintoreria_nombre: r.ingresos?.tintorerias?.nombre ?? null,
+    })
+  )
+
+  return (
+    <RollosBulkView
+      rollos={rollos}
+      articulos={articulos ?? []}
+      role={role}
+    />
   )
 }

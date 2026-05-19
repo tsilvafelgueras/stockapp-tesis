@@ -333,7 +333,9 @@ export default function NuevoIngresoForm({
     !fecha ||
     validations.cantidadRollos === 0 ||
     validations.duplicados.length > 0 ||
-    validations.ubicacionesFaltantes > 0
+    validations.ubicacionesFaltantes > 0 ||
+    !validations.cantidadCoincide ||
+    !validations.kilosCoinciden
 
   // En modo IA, una vez subida la planilla, la tintorería queda fija
   // (cambiarla = cambiar config = empezar de cero)
@@ -949,15 +951,15 @@ export default function NuevoIngresoForm({
             </p>
           )}
           {!validations.cantidadCoincide && (
-            <p>
+            <p className="text-destructive">
               ⚠ Cargaste {validations.cantidadRollos} rollos, pero declaraste{' '}
-              {totalRollosDeclarado}.
+              {totalRollosDeclarado}. Ajustá la cantidad declarada o agregá los rollos faltantes para poder guardar.
             </p>
           )}
           {!validations.kilosCoinciden && (
-            <p>
+            <p className="text-destructive">
               ⚠ Suma de kilos {validations.sumaKilos.toFixed(2)} kg vs{' '}
-              {totalKilosDeclarado} kg declarados.
+              {totalKilosDeclarado} kg declarados. Ajustá el total declarado o corregí los kilos por rollo.
             </p>
           )}
         </div>

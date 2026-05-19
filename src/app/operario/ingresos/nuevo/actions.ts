@@ -312,6 +312,15 @@ export async function crearIngreso(input: IngresoInput) {
 
   if (rError) {
     await supabase.from('ingresos').delete().eq('id', ingreso.id)
+    if (rError.code === '23505') {
+      const match = rError.message.match(/\(empresa_id, numero_pieza\)=\([^,]+, ([^)]+)\)/)
+      const numero = match?.[1]
+      return {
+        error: numero
+          ? `El número de pieza "${numero}" ya existe en otro rollo de la empresa. Cambialo y volvé a intentar.`
+          : 'Hay números de pieza que ya existen en la empresa. Revisá y volvé a intentar.',
+      }
+    }
     return { error: `No se pudieron cargar los rollos: ${rError.message}` }
   }
 

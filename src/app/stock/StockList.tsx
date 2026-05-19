@@ -18,6 +18,7 @@ export type StockRollo = {
   gramaje_planilla: number | null
   estado: string
   created_at: string
+  auditado_at: string | null
   articulos: { id: string; nombre: string } | null
   ingresos: {
     id: string

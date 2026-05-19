@@ -231,9 +231,14 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 015 | **Auditoría de edición de ingresos** (iteración mayo 2026). `ingresos.editado_at TIMESTAMPTZ`, `ingresos.editado_por UUID REFERENCES auth.users(id)`. Solo última edición (sin historial completo). Habilita la pantalla nueva `/operario/ingresos/[id]/editar`. |
 | 016 | **Estado `segunda` en rollos** (iteración mayo 2026). Reemplaza el CHECK constraint para incluir `'segunda'` (mercadería de calidad inferior). Estados ahora: `pendiente` \| `en_stock` \| `reservado` \| `entregado` \| `baja` \| `segunda`. Los rollos en `segunda` siguen en stock pero se muestran separados. |
 | 017 | **Stock mínimo configurable** (iteración mayo 2026). `articulos.stock_minimo_kg NUMERIC NULL`. El admin lo fija por artículo desde `/admin/articulos`. Cuando los kg en stock caen por debajo, el dashboard muestra una alerta. |
+| 018 | **Limpieza data prueba + unicidad** (iteración 2026-05-19). TRUNCATE de `rollos`/`ingresos`/`pedidos`/`pedido_rollos`/`muestras`/`pedidos_pendientes` (decidido explícitamente: era data de prueba). `empresas.nombre` pasa a UNIQUE (resuelve bug CU-02-02). `rollos.numero_pieza` ahora UNIQUE por **empresa** (reemplaza el viejo UNIQUE por `ingreso_id`). |
+| 019 | **Auditoría de rollos** (iteración 2026-05-19). `rollos.auditado_at TIMESTAMPTZ` + `auditado_por UUID`. Habilita la acción "Auditar" desde stock — registra verificación física sin cambiar estado. |
+| 020 | **Confirmación de venta post-picking** (iteración 2026-05-19). Nuevo estado `confirmada_venta` en pedidos (CHECK extendido) + columnas `confirmada_venta_at`/`confirmada_venta_por`. Nueva RPC `confirmar_venta_pedido`. `entregar_pedido` ahora requiere `confirmada_venta` en lugar de `lista`. `cancelar_pedido` acepta cancelar también desde `confirmada_venta`. |
+| 021 | **Historial inborrable** (iteración 2026-05-19). Tabla `movimientos` (entidad, entidad_id, accion, usuario_id, detalle JSONB) con RLS lectura solo admin/super, sin policies de INSERT/UPDATE/DELETE expuestas. Helper `log_movimiento` SECURITY DEFINER. Triggers AFTER INSERT/UPDATE/DELETE en `rollos`/`pedidos`/`ingresos`/`pedido_rollos`/`muestras` capturan cambios (con viejo→nuevo en JSONB). |
+| 022 | **Clientes** (iteración 2026-05-19). Tabla `clientes` (nombre UNIQUE por empresa, contacto, email, telefono, direccion, notas, activo). Agrega `pedidos.cliente_id` UUID FK nullable. Reescritura de RPC `crear_pedido`: ahora toma `p_cliente_id UUID` (en lugar de `p_cliente TEXT`) y autocompleta `pedidos.cliente` desde el catálogo. |
 
 **Schema canónico**: ✅ `supabase/schema.sql` refleja migraciones 001..011 (regenerado en Etapa 7D).
-Las migraciones **012..017** (iteración mayo 2026) NO están incluidas en `schema.sql` todavía — para DB nueva: correr `schema.sql` y después las migraciones `009`, `010`, `011`, `012`, `013`, `014`, `015`, `016`, `017` en orden.
+Las migraciones **012..022** (iteraciones mayo 2026) NO están incluidas en `schema.sql` todavía — para DB nueva: correr `schema.sql` y después las migraciones `009`..`022` en orden.
 
 ---
 
@@ -745,6 +750,187 @@ Foco: cerrar gaps detectados después del MVP base y agregar features pedidos po
 **Modificados** (24): admin/articulos/{actions,ArticuloForm,page}, admin/dashboard/page, admin/equipo/{actions,page,UsuarioRow}, admin/reportes/{page,queries}, operario/confirmar/page, operario/ingresos/[id]/page, operario/ingresos/nuevo/{actions,NuevoIngresoForm,page}, operario/{ingresos,muestras,picking}/page, stock/{actions,RolloDetailDialog,StockFilters,StockList}, ventas/pedidos/page, components/{AppShell,BackButton}.
 
 **Nuevos** (14): operario/ingresos/[id]/editar/{page,EditarIngresoForm}, ventas/pedidos-pendientes/{page,PedidoPendienteRow,actions,nuevo/page,nuevo/NuevaDemandaForm}, lib/ubicaciones.ts, supabase/migrations/{012..017}_*.sql.
+
+---
+
+## 10.7. Iteración 2026-05-19 — Extensiones de negocio (Bloques A–H)
+
+Segunda ronda mayor de cambios post-MVP, pedidos por el cliente después
+del primer uso real. Foco: trazabilidad fuerte (historial inborrable),
+flujo de venta más estricto (confirmación explícita post-picking),
+catálogo de clientes propio, y filtros + edición masiva tipo Excel
+donde más hacía falta.
+
+### Bloque A — DB + bugs base
+- **Migración 018**: `empresas.nombre` UNIQUE (resuelve bug duplicado).
+  `rollos.numero_pieza` UNIQUE por empresa (reemplaza el viejo UNIQUE
+  por ingreso). TRUNCATE de todas las tablas transaccionales (la data
+  era de prueba, confirmado explícito con el cliente).
+- `crearIngreso` y `createEmpresaConAdmin` mapean PG 23505 a mensaje
+  amigable con el valor duplicado.
+- `NuevoIngresoForm` y `EditarIngresoForm` ahora **bloquean el submit**
+  si la suma de kilos o cantidad de rollos no coincide con lo declarado.
+  Reemplaza la política previa de Etapa 3 ("avisar fuerte, nunca
+  bloquear"). El editor del header trae la suma real de los rollos del
+  ingreso desde el server para validar contra ella.
+
+### Bloque B — Stock: confirmación / auditoría manual
+- **Migración 019**: `rollos.auditado_at` + `auditado_por`.
+- Server actions nuevas en `stock/actions.ts`:
+  - `confirmarRolloManual(rolloId, ubicacion)`: rollo `pendiente` →
+    `en_stock` sin pasar por el scanner. Si todos los hermanos del
+    ingreso quedan en_stock, cierra el ingreso a `confirmado`. Operario
+    y admin.
+  - `auditarRollo(rolloId)`: setea `auditado_at = NOW()` sin cambiar
+    estado. Operario y admin. Disponible en estados `en_stock` /
+    `reservado` / `segunda`.
+- Botones nuevos en `RolloDetailDialog`. La metadata muestra la fecha
+  de "Última auditoría" si existe.
+
+### Bloque C — Ingresos: filtros tipo Excel + edición masiva
+- Componente reusable `src/components/ExcelFilter.tsx`: chip con
+  search-bar arriba + checkboxes multi-selección. Convención
+  `selected = []` → "todos".
+- `/operario/ingresos` ahora tiene **tabs**: "Por ingreso" (vista
+  histórica existente) / "Por rollo" (nueva). La vista por rollo es un
+  client component (`RollosBulkView.tsx`) que carga hasta 2000 rollos y
+  los filtra client-side con 8 filtros tipo Excel: tintorería, artículo,
+  color, lote (OT), rem. tejeduría, referencia, estado, ubicación. Más
+  búsqueda libre por nº de pieza.
+- Selección por checkbox + "Seleccionar visibles" + "Limpiar selección".
+  Acciones masivas: **Ubicación** / **Estado** / **Artículo**.
+- Server action `bulkEditRollos` en `bulkActions.ts`. Rechaza modificar
+  rollos en `reservado` / `entregado` (están en flow de pedidos). Solo
+  admin puede dar `baja` en bulk.
+
+### Bloque D — Pedidos y reportes con filtros
+- `/ventas/pedidos`: componente `PedidosFilters` reemplaza la barra de
+  chips por filtros completos (cliente, estado, rango de fechas,
+  búsqueda libre por nº pedido o nº remito externo). URL-based.
+- `/admin/reportes`: componente `ReportesFilters` agrega filtro por
+  **año** + **mes** (aplican a Movimientos), **tintorería** y
+  **artículo** (aplican a stock/merma/diferencias/antigüedad/pedidos
+  por tintorería). El selector de "días de antigüedad" se movió al
+  mismo bloque (antes era un form suelto).
+- `reporteMovimientos` ahora acepta período arbitrario (año o año+mes)
+  además del default "mes actual". El CSV respeta filtros activos.
+
+### Bloque E — Confirmación de venta post-picking
+- **Migración 020**: nuevo estado `confirmada_venta` en el CHECK de
+  `pedidos.estado` + columnas `confirmada_venta_at`/`confirmada_venta_por`.
+- Nueva RPC `confirmar_venta_pedido(p_pedido_id)` (solo ventas/admin,
+  estado debe ser `lista`). Reescritura de `entregar_pedido` para
+  exigir `confirmada_venta` en lugar de `lista`. `cancelar_pedido`
+  acepta cancelar desde `pendiente`/`en_preparacion`/`lista`/`confirmada_venta`.
+- Flujo nuevo: `pendiente → en_preparacion → lista → confirmada_venta → entregada`.
+- `PedidoActions` agrega: "Confirmar venta" y "Caer venta" cuando
+  estado=lista (ventas/admin). "Marcar como entregada" ahora aparece
+  solo si estado=`confirmada_venta` (admin). Caer venta = `cancelar_pedido`
+  (libera rollos a `en_stock`).
+
+### Bloque F — Historial inborrable
+- **Migración 021**: tabla `movimientos` (entidad, entidad_id, accion,
+  usuario_id, detalle JSONB) con RLS lectura solo admin/super y **sin
+  policies** de INSERT/UPDATE/DELETE expuestas a `authenticated`.
+  Helper `log_movimiento` SECURITY DEFINER que los triggers usan para
+  escribir bypasseando RLS.
+- Triggers AFTER INSERT/UPDATE/DELETE en `rollos`, `pedidos`,
+  `ingresos`, `pedido_rollos`, `muestras`. UPDATE solo dispara log si
+  cambió un campo relevante (estado, ubicacion, kilos, articulo,
+  cliente, etc.); el detalle guarda `{cambios: { campo: [viejo, nuevo] }}`.
+- Pantalla `/admin/historial` con filtros (entidad, acción, usuario,
+  rango de fechas). Formatea cada movimiento en texto amigable
+  ("cambió estado del rollo Nº 123 de en_stock → reservado"). Link en
+  sidebar de admin.
+- ⚠ El historial empieza desde el momento en que se aplica la 021.
+  Cambios anteriores no quedan registrados.
+
+### Bloque G — Clientes
+- **Migración 022**: tabla `clientes` (id, empresa_id, nombre,
+  contacto, email, telefono, direccion, notas, activo). Nombre UNIQUE
+  por empresa. RLS por empresa, gestión por ventas+admin, lectura por
+  todos los autenticados de la empresa. `pedidos.cliente_id UUID FK NULL`
+  agregada — los pedidos viejos (que solo tenían texto en `cliente`) ya
+  fueron borrados en la 018, así que los nuevos exigen cliente_id desde
+  la UI.
+- **Reescritura de RPC `crear_pedido`**: cambia firma de
+  `(TEXT, TEXT, UUID[])` a `(UUID, TEXT, UUID[])`. Toma `cliente_id` y
+  autocompleta `pedidos.cliente` (denormalizado) desde el catálogo.
+  ⚠ Breaking: cualquier llamada con la firma vieja falla.
+- `/ventas/clientes`: lista con búsqueda + ver inactivos + alta inline.
+- `/ventas/clientes/[id]`: detalle con stats (antigüedad, total
+  pedidos, entregados, en curso, kilos totales) + historial de pedidos
+  + edición de datos + botón activar/desactivar.
+- `NuevoPedidoForm` reemplaza el input texto de cliente por un
+  `<select>` del catálogo + botón "+ Nuevo cliente" que abre un
+  mini-form inline (sin salir de la pantalla, autoselecciona el
+  cliente creado).
+- `PedidosFilters` cambia el filtro de cliente de texto libre a
+  dropdown con `cliente_id`.
+- Link "Clientes" en sidebar de ventas y admin.
+
+### Bloque H — Reporte de pedidos por tintorería
+- Nueva query `reporteTintorerias` en `admin/reportes/queries.ts`:
+  cruza `pedido_rollos → rollos → ingresos → tintorerias`. Por
+  tintorería: pedidos únicos (con desglose entregados / en curso /
+  cancelados), rollos totales, kilos. Respeta los filtros globales
+  de la pantalla.
+- Sección nueva "Pedidos por tintorería" en `/admin/reportes` entre
+  Movimientos y Merma. Export CSV (`?tipo=tintorerias`).
+
+### Bugs verificados (punto 10 del pedido)
+- **a** — empresa duplicada (CU-02-02): bug real → fix con UNIQUE en
+  migración 018.
+- **b** — kilos/rollos no coinciden con declarado (CU-04-09/10): era
+  intencional según decisión de Etapa 3 (avisar no bloquear); por
+  pedido explícito en esta iteración se cambió a **bloquear submit**.
+- **c** — muestra con kilos > kilos del rollo (CU-11-02): falso
+  positivo, la RPC `registrar_muestra` ya valida `v_rollo_kilos -
+  p_kilos < 0`.
+- **d** — picking auto a "lista" cuando se pickean todos (CU-10-05):
+  falso positivo, la RPC `pickear_rollo` ya transiciona automáticamente.
+
+### Pendiente para que esto funcione en producción
+
+1. **Aplicar migraciones 018..022 en Supabase SQL Editor en orden**.
+   - **018 hace TRUNCATE** de todas las tablas transaccionales —
+     confirmado explícitamente con el cliente que era data de prueba.
+2. **Regenerar `supabase/schema.sql`** para incluir 012..022 (sigue
+   siendo deuda técnica de baja prioridad).
+3. **Commit + push a `main`** — Vercel redeploya automático.
+
+### Notas operativas post-iteración
+
+- **Pedido nuevo ahora requiere cliente del catálogo** (no texto
+  libre). El form ofrece "+ Nuevo cliente" inline, pero la primera vez
+  alguien tiene que dar de alta al menos uno.
+- **"Confirmar venta" es paso obligatorio** entre picking y entrega.
+  Admin no puede entregar un pedido directamente desde `lista`.
+- **El historial** (`/admin/historial`) registra solo desde que se
+  aplica la 021. Cambios previos no aparecen.
+- **N° de pieza único por empresa**: si se intenta crear un rollo
+  con un número ya existente en la empresa, el form devuelve el
+  mensaje específico con el número conflictivo.
+
+### Archivos tocados en esta iteración
+
+**Nuevos** (~15):
+- `supabase/migrations/{018..022}_*.sql` (5)
+- `src/components/ExcelFilter.tsx`
+- `src/app/operario/ingresos/{RollosBulkView,bulkActions}.tsx`
+- `src/app/admin/historial/{page,HistorialFilters}.tsx`
+- `src/app/admin/reportes/ReportesFilters.tsx`
+- `src/app/ventas/pedidos/PedidosFilters.tsx`
+- `src/app/ventas/clientes/{page,actions,ClientesList,ClienteForm}.tsx`
+- `src/app/ventas/clientes/[id]/{page,ClienteActions}.tsx`
+
+**Modificados** (~15):
+- `src/app/operario/ingresos/{page,nuevo/{actions,NuevoIngresoForm},[id]/editar/{page,EditarIngresoForm}}.tsx`
+- `src/app/stock/{actions,RolloDetailDialog,StockList,page}.tsx`
+- `src/app/ventas/pedidos/{page,actions,[id]/{page,PedidoActions},nuevo/{page,NuevoPedidoForm}}.tsx`
+- `src/app/admin/reportes/{page,queries,csv/route}.{ts,tsx}`
+- `src/app/super/{actions,NuevaEmpresaForm}.tsx`
+- `src/components/AppShell.tsx` (links Historial + Clientes en sidebar)
 
 ---
 

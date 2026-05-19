@@ -72,6 +72,11 @@ export async function createEmpresaConAdmin(input: {
     .single()
 
   if (eError || !empresa) {
+    if (eError?.code === '23505') {
+      return {
+        error: `Ya existe una empresa con el nombre "${empresa_nombre}". Elegí otro nombre.`,
+      }
+    }
     return { error: `Error creando empresa: ${eError?.message}` }
   }
 

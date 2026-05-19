@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { crearPedido } from '../actions'
+import { crearCliente } from '@/app/ventas/clientes/actions'
 
 export type Catalogo = { id: string; nombre: string }
 
@@ -32,17 +33,23 @@ export default function NuevoPedidoForm({
   rollosDisponibles,
   articulos,
   tintorerias,
+  clientes: clientesIniciales,
   currentFilters,
 }: {
   rollosDisponibles: RolloDisponible[]
   articulos: Catalogo[]
   tintorerias: Catalogo[]
+  clientes: Catalogo[]
   currentFilters: Filters
 }) {
   const router = useRouter()
   const sp = useSearchParams()
 
-  const [cliente, setCliente] = useState('')
+  const [clientes, setClientes] = useState(clientesIniciales)
+  const [clienteId, setClienteId] = useState('')
+  const [nuevoCliente, setNuevoCliente] = useState(false)
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState('')
+  const [creandoCliente, startClienteTransition] = useTransition()
   const [remito, setRemito] = useState('')
   const [carrito, setCarrito] = useState<RolloDisponible[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -83,10 +90,27 @@ export default function NuevoPedidoForm({
     setCarrito((prev) => prev.filter((r) => r.id !== id))
   }
 
+  function handleCrearCliente() {
+    const nombre = nuevoClienteNombre.trim()
+    if (!nombre) return
+    startClienteTransition(async () => {
+      const res = await crearCliente({ nombre })
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      setClientes((prev) => [...prev, res.cliente].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+      setClienteId(res.cliente.id)
+      setNuevoCliente(false)
+      setNuevoClienteNombre('')
+      toast.success(`Cliente "${res.cliente.nombre}" creado.`)
+    })
+  }
+
   function handleSubmit() {
     setError(null)
-    if (!cliente.trim()) {
-      setError('Ingresá el nombre del cliente.')
+    if (!clienteId) {
+      setError('Elegí un cliente del catálogo (o creá uno nuevo).')
       return
     }
     if (carrito.length === 0) {
@@ -95,7 +119,7 @@ export default function NuevoPedidoForm({
     }
     startSubmitTransition(async () => {
       const res = await crearPedido(
-        cliente,
+        clienteId,
         remito,
         carrito.map((r) => r.id)
       )
@@ -124,14 +148,70 @@ export default function NuevoPedidoForm({
             <label className="text-xs font-medium text-muted-foreground">
               Cliente <span className="text-destructive">*</span>
             </label>
-            <input
-              type="text"
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              placeholder="Nombre del cliente"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              required
-            />
+            {!nuevoCliente ? (
+              <>
+                <select
+                  value={clienteId}
+                  onChange={(e) => setClienteId(e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+                  required
+                >
+                  <option value="">Seleccionar cliente...</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setNuevoCliente(true)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  + Nuevo cliente
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={nuevoClienteNombre}
+                  onChange={(e) => setNuevoClienteNombre(e.target.value)}
+                  placeholder="Nombre del cliente nuevo"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleCrearCliente()
+                    } else if (e.key === 'Escape') {
+                      setNuevoCliente(false)
+                      setNuevoClienteNombre('')
+                    }
+                  }}
+                  className="flex-1 rounded-md border px-3 py-2 text-sm"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCrearCliente}
+                    disabled={creandoCliente || !nuevoClienteNombre.trim()}
+                    className="rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {creandoCliente ? '...' : 'Guardar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNuevoCliente(false)
+                      setNuevoClienteNombre('')
+                    }}
+                    className="rounded-md border bg-white px-3 py-2 text-xs hover:bg-zinc-50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
@@ -209,7 +289,7 @@ export default function NuevoPedidoForm({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitPending || carrito.length === 0 || !cliente.trim()}
+            disabled={submitPending || carrito.length === 0 || !clienteId}
             className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {submitPending ? 'Creando pedido…' : 'Crear pedido'}

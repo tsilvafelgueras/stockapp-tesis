@@ -3,7 +3,13 @@
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import type { StockRollo, StockRole } from './StockList'
-import { darDeBajaRollo, moverUbicacion, marcarComoSegunda } from './actions'
+import {
+  darDeBajaRollo,
+  moverUbicacion,
+  marcarComoSegunda,
+  confirmarRolloManual,
+  auditarRollo,
+} from './actions'
 import { UBICACIONES } from '@/lib/ubicaciones'
 
 const ESTADO_TEXT: Record<string, string> = {
@@ -27,8 +33,11 @@ export default function RolloDetailDialog({
   role: StockRole
   onClose: () => void
 }) {
-  const [mode, setMode] = useState<'view' | 'mover' | 'baja' | 'segunda'>('view')
+  const [mode, setMode] = useState<
+    'view' | 'mover' | 'baja' | 'segunda' | 'confirmar' | 'auditar'
+  >('view')
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
+  const [confirmUbicacion, setConfirmUbicacion] = useState('')
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -39,13 +48,18 @@ export default function RolloDetailDialog({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const esOperarioOAdmin = role === 'operario' || role === 'admin'
   const puedeMover =
-    (role === 'operario' || role === 'admin') &&
+    esOperarioOAdmin &&
     (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
   const puedeSegunda =
-    (role === 'operario' || role === 'admin') &&
+    esOperarioOAdmin &&
     (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
   const puedeBaja = role === 'admin' && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+  const puedeConfirmar = esOperarioOAdmin && rollo.estado === 'pendiente'
+  const puedeAuditar =
+    esOperarioOAdmin &&
+    ['en_stock', 'reservado', 'segunda'].includes(rollo.estado)
 
   function handleMover() {
     startTransition(async () => {
@@ -79,6 +93,32 @@ export default function RolloDetailDialog({
         return
       }
       toast.success(`Pieza ${rollo.numero_pieza} dada de baja.`)
+      onClose()
+    })
+  }
+
+  function handleConfirmar() {
+    startTransition(async () => {
+      const res = await confirmarRolloManual(rollo.id, confirmUbicacion)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(
+        `Pieza ${rollo.numero_pieza} confirmada en ${confirmUbicacion.trim()}.`
+      )
+      onClose()
+    })
+  }
+
+  function handleAuditar() {
+    startTransition(async () => {
+      const res = await auditarRollo(rollo.id)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(`Auditoría registrada para la pieza ${rollo.numero_pieza}.`)
       onClose()
     })
   }
@@ -200,38 +240,147 @@ export default function RolloDetailDialog({
                 {rollo.ingresos.rem_tejeduria}
               </p>
             )}
+            {rollo.auditado_at && (
+              <p>
+                <span className="text-muted-foreground">Última auditoría: </span>
+                {formatFecha(rollo.auditado_at)}
+              </p>
+            )}
           </div>
 
           {/* Acciones */}
-          {mode === 'view' && (puedeMover || puedeSegunda || puedeBaja) && (
-            <div className="flex flex-wrap gap-2 pt-2 border-t">
-              {puedeMover && (
+          {mode === 'view' &&
+            (puedeConfirmar ||
+              puedeAuditar ||
+              puedeMover ||
+              puedeSegunda ||
+              puedeBaja) && (
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {puedeConfirmar && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('confirmar')}
+                    className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:bg-success/90 transition-colors"
+                  >
+                    Confirmar manualmente
+                  </button>
+                )}
+                {puedeAuditar && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('auditar')}
+                    className="rounded-md border border-primary/40 text-primary px-4 py-2 text-sm font-medium hover:bg-primary/5 transition-colors"
+                  >
+                    Auditar
+                  </button>
+                )}
+                {puedeMover && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('mover')}
+                    className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    Mover ubicación
+                  </button>
+                )}
+                {puedeSegunda && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('segunda')}
+                    className="rounded-md border border-amber-400/40 text-amber-700 px-4 py-2 text-sm font-medium hover:bg-amber-50 transition-colors"
+                  >
+                    Marcar como segunda
+                  </button>
+                )}
+                {puedeBaja && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('baja')}
+                    className="rounded-md border border-destructive/40 text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/5 transition-colors"
+                  >
+                    Dar de baja
+                  </button>
+                )}
+              </div>
+            )}
+
+          {mode === 'confirmar' && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-sm">
+                Confirmar manualmente la pieza{' '}
+                <strong>{rollo.numero_pieza}</strong>. El rollo pasa de
+                pendiente a en stock.
+              </p>
+              <label className="text-sm font-medium block">
+                Ubicación asignada *
+              </label>
+              <input
+                type="text"
+                list="ubicaciones-dialog-list"
+                value={confirmUbicacion}
+                onChange={(e) => setConfirmUbicacion(e.target.value)}
+                placeholder="Ej. A1"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                autoFocus
+              />
+              <datalist id="ubicaciones-dialog-list">
+                {UBICACIONES.map((u) => (
+                  <option key={u} value={u} />
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                Si el rollo ya está en el depósito sin haber sido escaneado por
+                cámara, este atajo permite cerrarlo a mano.
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
                 <button
                   type="button"
-                  onClick={() => setMode('mover')}
-                  className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
                 >
-                  Mover ubicación
+                  Cancelar
                 </button>
-              )}
-              {puedeSegunda && (
                 <button
                   type="button"
-                  onClick={() => setMode('segunda')}
-                  className="rounded-md border border-amber-400/40 text-amber-700 px-4 py-2 text-sm font-medium hover:bg-amber-50 transition-colors"
+                  onClick={handleConfirmar}
+                  disabled={pending || !confirmUbicacion.trim()}
+                  className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
-                  Marcar como segunda
+                  {pending ? 'Confirmando…' : 'Confirmar y pasar a stock'}
                 </button>
-              )}
-              {puedeBaja && (
+              </div>
+            </div>
+          )}
+
+          {mode === 'auditar' && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-sm">
+                Registrar auditoría de la pieza{' '}
+                <strong>{rollo.numero_pieza}</strong>.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Esto no cambia el estado del rollo, pero deja registro de quién
+                lo verificó físicamente y cuándo.
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
                 <button
                   type="button"
-                  onClick={() => setMode('baja')}
-                  className="rounded-md border border-destructive/40 text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/5 transition-colors"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
                 >
-                  Dar de baja
+                  Cancelar
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={handleAuditar}
+                  disabled={pending}
+                  className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {pending ? 'Registrando…' : 'Confirmar auditoría'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -356,4 +505,16 @@ function fmt(v: number | null, suffix?: string): string {
   return `${num.toLocaleString('es-AR', {
     maximumFractionDigits: 2,
   })}${suffix ? ' ' + suffix : ''}`
+}
+
+function formatFecha(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarIngreso } from '@/app/operario/ingresos/nuevo/actions'
 
@@ -10,6 +10,8 @@ export default function EditarIngresoForm({
   ingreso,
   tintorerias,
   articulos,
+  cantidadRollosReal,
+  sumaKilosReal,
 }: {
   ingreso: {
     id: string
@@ -26,6 +28,8 @@ export default function EditarIngresoForm({
   }
   tintorerias: Catalog[]
   articulos: Catalog[]
+  cantidadRollosReal: number
+  sumaKilosReal: number
 }) {
   const router = useRouter()
 
@@ -46,6 +50,23 @@ export default function EditarIngresoForm({
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const validation = useMemo(() => {
+    const declaradoRollos = totalRollos.trim() === '' ? null : parseInt(totalRollos)
+    const declaradoKilos = totalKilos.trim() === '' ? null : parseFloat(totalKilos)
+
+    const cantidadCoincide =
+      declaradoRollos === null ||
+      Number.isNaN(declaradoRollos) ||
+      declaradoRollos === cantidadRollosReal
+
+    const kilosCoinciden =
+      declaradoKilos === null ||
+      Number.isNaN(declaradoKilos) ||
+      Math.abs(declaradoKilos - sumaKilosReal) < 0.01
+
+    return { cantidadCoincide, kilosCoinciden, declaradoRollos, declaradoKilos }
+  }, [totalRollos, totalKilos, cantidadRollosReal, sumaKilosReal])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -205,6 +226,22 @@ export default function EditarIngresoForm({
         </div>
       </div>
 
+      {(!validation.cantidadCoincide || !validation.kilosCoinciden) && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1 text-sm">
+          {!validation.cantidadCoincide && (
+            <p className="text-destructive">
+              ⚠ Declaraste {validation.declaradoRollos} rollos pero el ingreso
+              tiene {cantidadRollosReal} cargados. Ajustá el total o agregá los rollos faltantes desde el detalle.
+            </p>
+          )}
+          {!validation.kilosCoinciden && (
+            <p className="text-destructive">
+              ⚠ Declaraste {validation.declaradoKilos} kg pero la suma real es {sumaKilosReal.toFixed(2)} kg. Ajustá el total declarado o corregí los kilos por rollo.
+            </p>
+          )}
+        </div>
+      )}
+
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
@@ -217,7 +254,14 @@ export default function EditarIngresoForm({
         </button>
         <button
           type="submit"
-          disabled={submitting || !tintoreriaId || !articuloId || !fecha}
+          disabled={
+            submitting ||
+            !tintoreriaId ||
+            !articuloId ||
+            !fecha ||
+            !validation.cantidadCoincide ||
+            !validation.kilosCoinciden
+          }
           className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? 'Guardando...' : 'Guardar cambios'}
