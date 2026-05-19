@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { NotFoundException } from '@zxing/library'
 import { confirmarRollo } from './actions'
+import { extraerCodigoRollo } from '@/lib/scanner'
 
 type Rollo = { id: string; numero_pieza: string; estado: string }
 
@@ -55,7 +56,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
         (result, error) => {
           if (result && !procesandoRef.current && !pendingCode) {
             procesandoRef.current = true
-            setPendingCode(result.getText())
+            setPendingCode(extraerCodigoRollo(result.getText()))
           }
           // NotFoundException es el "no code found in frame" normal, se ignora
           if (error && !(error instanceof NotFoundException)) {
@@ -136,9 +137,10 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
 
   async function handleManual(e: React.FormEvent) {
     e.preventDefault()
-    if (!codigoManual.trim()) return
+    const codigo = extraerCodigoRollo(codigoManual)
+    if (!codigo) return
     setConfirmando(true)
-    const result = await confirmarRollo(ingresoId, codigoManual, ubicacion)
+    const result = await confirmarRollo(ingresoId, codigo, ubicacion)
     setConfirmando(false)
 
     if (!result.ok) {
@@ -148,7 +150,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
 
     setRollosLocales((prev) =>
       prev.map((r) =>
-        r.numero_pieza === codigoManual.trim() ? { ...r, estado: 'en_stock' } : r
+        r.numero_pieza === codigo ? { ...r, estado: 'en_stock' } : r
       )
     )
     setCodigoManual('')

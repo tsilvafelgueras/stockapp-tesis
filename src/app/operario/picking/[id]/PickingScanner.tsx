@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { NotFoundException } from '@zxing/library'
 import { pickearRollo } from './actions'
+import { extraerCodigoRollo } from '@/lib/scanner'
 
 export type PickRollo = {
   pedido_rollo_id: string
@@ -58,7 +59,7 @@ export default function PickingScanner({
         (result, error) => {
           if (result && !procesandoRef.current && !pendingCode) {
             procesandoRef.current = true
-            setPendingCode(result.getText())
+            setPendingCode(extraerCodigoRollo(result.getText()))
           }
           if (error && !(error instanceof NotFoundException)) {
             console.warn('Scanner error:', error)
@@ -144,8 +145,9 @@ export default function PickingScanner({
 
   async function handleManual(e: React.FormEvent) {
     e.preventDefault()
-    if (!codigoManual.trim()) return
-    const ok = await ejecutarPickeo(codigoManual.trim())
+    const codigo = extraerCodigoRollo(codigoManual)
+    if (!codigo) return
+    const ok = await ejecutarPickeo(codigo)
     if (ok) setCodigoManual('')
   }
 
