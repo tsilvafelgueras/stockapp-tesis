@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { NotFoundException } from '@zxing/library'
 import { confirmarRollo } from './actions'
@@ -39,6 +39,10 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
   const confirmados = rollosLocales.filter((r) => r.estado !== 'pendiente').length
   const total = rollosLocales.length
   const progresoPct = total > 0 ? Math.round((confirmados / total) * 100) : 0
+  const codigosRollos = useMemo(
+    () => rollosLocales.map((r) => r.numero_pieza),
+    [rollosLocales]
+  )
 
   const mostrarMensaje = useCallback((texto: string, tipo: Mensaje['tipo']) => {
     setMensaje({ texto, tipo })
@@ -56,7 +60,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
         (result, error) => {
           if (result && !procesandoRef.current && !pendingCode) {
             procesandoRef.current = true
-            setPendingCode(extraerCodigoRollo(result.getText()))
+            setPendingCode(extraerCodigoRollo(result.getText(), codigosRollos))
           }
           // NotFoundException es el "no code found in frame" normal, se ignora
           if (error && !(error instanceof NotFoundException)) {
@@ -75,7 +79,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
         console.error('Scanner init error:', e)
       }
     }
-  }, [pendingCode])
+  }, [pendingCode, codigosRollos])
 
   useEffect(() => {
     if (!modoManual) {
@@ -137,7 +141,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
 
   async function handleManual(e: React.FormEvent) {
     e.preventDefault()
-    const codigo = extraerCodigoRollo(codigoManual)
+    const codigo = extraerCodigoRollo(codigoManual, codigosRollos)
     if (!codigo) return
     setConfirmando(true)
     const result = await confirmarRollo(ingresoId, codigo, ubicacion)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { BrowserMultiFormatReader } from '@zxing/browser'
@@ -47,6 +47,10 @@ export default function PickingScanner({
   const total = itemsLocales.length
   const progresoPct = total > 0 ? Math.round((pickeados / total) * 100) : 0
   const completo = pendientes.length === 0
+  const codigosRollos = useMemo(
+    () => itemsLocales.map((r) => r.numero_pieza),
+    [itemsLocales]
+  )
 
   const iniciarScanner = useCallback(async () => {
     if (!videoRef.current) return
@@ -59,7 +63,7 @@ export default function PickingScanner({
         (result, error) => {
           if (result && !procesandoRef.current && !pendingCode) {
             procesandoRef.current = true
-            setPendingCode(extraerCodigoRollo(result.getText()))
+            setPendingCode(extraerCodigoRollo(result.getText(), codigosRollos))
           }
           if (error && !(error instanceof NotFoundException)) {
             console.warn('Scanner error:', error)
@@ -77,7 +81,7 @@ export default function PickingScanner({
         console.error('Scanner init error:', e)
       }
     }
-  }, [pendingCode])
+  }, [pendingCode, codigosRollos])
 
   useEffect(() => {
     if (!modoManual && !completo) {
@@ -145,7 +149,7 @@ export default function PickingScanner({
 
   async function handleManual(e: React.FormEvent) {
     e.preventDefault()
-    const codigo = extraerCodigoRollo(codigoManual)
+    const codigo = extraerCodigoRollo(codigoManual, codigosRollos)
     if (!codigo) return
     const ok = await ejecutarPickeo(codigo)
     if (ok) setCodigoManual('')
