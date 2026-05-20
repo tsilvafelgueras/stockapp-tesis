@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { ArrowLeft, Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function RecoverPage() {
@@ -26,33 +27,40 @@ export default function RecoverPage() {
     setLoading(false)
 
     if (rpError) {
-      // No filtrar si el email existe o no, por seguridad. Mensaje genérico.
       console.error(rpError)
     }
     setEnviado(true)
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-zinc-50">
-      <div className="w-full max-w-sm space-y-6 rounded-xl bg-white p-8 shadow-sm border">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Recuperar contraseña
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Te mandamos un link a tu email para crear una nueva
-          </p>
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md space-y-6 rounded-xl border bg-white p-6 shadow-sm sm:p-8">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-action font-heading text-lg font-bold text-action-foreground">
+              N
+            </div>
+            <p className="font-heading text-2xl font-bold">NUDO</p>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-normal">
+              Recuperar contraseña
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Te mandamos un link para crear una nueva.
+            </p>
+          </div>
         </div>
 
         {enviado ? (
-          <div className="rounded-md border border-success/30 bg-success/10 p-4 text-sm space-y-2">
+          <div className="space-y-2 rounded-md border border-success/30 bg-success/10 p-4 text-sm">
             <p className="font-medium text-success">Listo</p>
             <p className="text-foreground">
-              Si <strong>{email.trim()}</strong> está registrado, te llega un
-              email con instrucciones en los próximos minutos.
+              Si <strong>{email.trim()}</strong> esta registrado, te llega un
+              email con instrucciones en los proximos minutos.
             </p>
-            <p className="text-muted-foreground text-xs">
-              Revisá la carpeta de spam si no lo ves.
+            <p className="text-xs text-muted-foreground">
+              Revisa la carpeta de spam si no lo ves.
             </p>
           </div>
         ) : (
@@ -61,16 +69,19 @@ export default function RecoverPage() {
               <label htmlFor="email" className="text-sm font-medium">
                 Email
               </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="usuario@mail.com"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  placeholder="usuario@mail.com"
+                  className="w-full rounded-md border border-input bg-white py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground"
+                />
+              </div>
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -78,9 +89,9 @@ export default function RecoverPage() {
             <button
               type="submit"
               disabled={loading || !email.trim()}
-              className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-action px-4 text-sm font-semibold text-action-foreground transition-colors hover:bg-action/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? 'Enviando…' : 'Enviar link de recuperación'}
+              {loading ? 'Enviando...' : 'Enviar link de recuperacion'}
             </button>
           </form>
         )}
@@ -88,9 +99,10 @@ export default function RecoverPage() {
         <div className="text-center">
           <Link
             href="/login"
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
-            ← Volver al login
+            <ArrowLeft className="size-3.5" />
+            Volver al login
           </Link>
         </div>
       </div>

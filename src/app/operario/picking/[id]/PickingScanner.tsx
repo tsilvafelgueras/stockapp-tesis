@@ -85,6 +85,8 @@ export default function PickingScanner({
 
   useEffect(() => {
     if (!modoManual && !completo) {
+      // La camara es un sistema externo: se inicia cuando el visor entra en modo scanner.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       iniciarScanner()
     }
     return () => {

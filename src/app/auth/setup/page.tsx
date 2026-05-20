@@ -8,14 +8,7 @@ export default async function SetupPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Sin sesión → al login
   if (!user) redirect('/login')
-
-  // Si el usuario ya tiene contraseña fijada (no recién invitado),
-  // mandarlo al home, que el middleware lo redirija al dashboard.
-  // Heurística: en una invitación recién aceptada el campo `last_sign_in_at`
-  // es null o muy reciente. Para simplicidad, mostrar siempre el form.
-  // El usuario puede igualmente cambiar su contraseña desde acá.
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -24,14 +17,24 @@ export default async function SetupPage() {
     .single()
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-zinc-50">
-      <div className="w-full max-w-sm space-y-6 rounded-xl bg-white p-8 shadow-sm border">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">StockApp</h1>
-          <p className="text-sm text-muted-foreground">
-            Bienvenido{profile?.nombre ? `, ${profile.nombre}` : ''}. Definí tu
-            contraseña para empezar.
-          </p>
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md space-y-6 rounded-xl border bg-white p-6 shadow-sm sm:p-8">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-action font-heading text-lg font-bold text-action-foreground">
+              N
+            </div>
+            <p className="font-heading text-2xl font-bold">NUDO</p>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-normal">
+              Configura tu contraseña
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Bienvenido{profile?.nombre ? `, ${profile.nombre}` : ''}. Definila
+              para empezar a trabajar.
+            </p>
+          </div>
         </div>
         <SetupForm />
       </div>

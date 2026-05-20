@@ -1,79 +1,109 @@
 import Link from 'next/link'
+import {
+  ClipboardCheck,
+  PackagePlus,
+  ScanLine,
+  Scissors,
+  Search,
+  Truck,
+  type LucideIcon,
+} from 'lucide-react'
+
+const actions: {
+  href: string
+  title: string
+  description: string
+  icon: LucideIcon
+  primary?: boolean
+}[] = [
+  {
+    href: '/operario/ingresos/nuevo',
+    title: 'Cargar ingreso',
+    description: 'Subi la planilla o carga los rollos a mano cuando llega mercaderia.',
+    icon: PackagePlus,
+    primary: true,
+  },
+  {
+    href: '/operario/confirmar',
+    title: 'Escanear llegadas',
+    description: 'Confirmar rollos pendientes y asignarles ubicacion.',
+    icon: ScanLine,
+  },
+  {
+    href: '/stock',
+    title: 'Buscar stock',
+    description: 'Encontrar rollos disponibles y mover ubicaciones.',
+    icon: Search,
+  },
+  {
+    href: '/operario/picking',
+    title: 'Picking',
+    description: 'Preparar pedidos escaneando los rollos del deposito.',
+    icon: ClipboardCheck,
+  },
+  {
+    href: '/operario/ingresos',
+    title: 'Ver ingresos',
+    description: 'Listado de llegadas cargadas, auditadas y pendientes.',
+    icon: Truck,
+  },
+  {
+    href: '/operario/muestras',
+    title: 'Muestras',
+    description: 'Registrar entregas chicas que descuentan kilos del rollo.',
+    icon: Scissors,
+  },
+]
 
 export default function OperarioDashboard() {
   return (
-    <div className="max-w-lg mx-auto">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold">Depósito</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          ¿Qué vas a hacer hoy?
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-3xl flex-col px-4 py-5 sm:px-6 md:min-h-screen md:py-8">
+      <div className="mb-5 rounded-xl bg-sidebar p-5 text-white shadow-sm sm:p-6">
+        <p className="text-xs font-medium uppercase tracking-[0.08em] text-white/55">
+          Deposito
+        </p>
+        <h1 className="mt-2 text-2xl font-bold">¿Que vas a mover hoy?</h1>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-white/68">
+          Accesos grandes para trabajar rapido desde el celular, incluso con
+          guantes o en pasillos con poca luz.
         </p>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <Link
-          href="/operario/ingresos/nuevo"
-          className="w-full rounded-2xl border-2 border-primary bg-primary/5 p-6 text-left active:scale-95 transition-transform"
-        >
-          <span className="block text-lg font-semibold">Cargar ingreso</span>
-          <span className="block text-sm text-muted-foreground mt-1">
-            Subir planilla con IA o cargar a mano cuando llega mercadería
-          </span>
-        </Link>
-
-        <Link
-          href="/operario/ingresos"
-          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
-        >
-          <span className="block text-lg font-semibold">Ver ingresos</span>
-          <span className="block text-sm text-muted-foreground mt-1">
-            Listado de ingresos cargados y pendientes
-          </span>
-        </Link>
-
-        <Link
-          href="/stock"
-          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
-        >
-          <span className="block text-lg font-semibold">Ver stock</span>
-          <span className="block text-sm text-muted-foreground mt-1">
-            Buscar rollos disponibles y mover ubicaciones
-          </span>
-        </Link>
-
-        <Link
-          href="/operario/confirmar"
-          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
-        >
-          <span className="block text-lg font-semibold">
-            Confirmar llegada de rollos
-          </span>
-          <span className="block text-sm text-muted-foreground mt-1">
-            Escanear los rollos pendientes y asignarles ubicación
-          </span>
-        </Link>
-
-        <Link
-          href="/operario/picking"
-          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
-        >
-          <span className="block text-lg font-semibold">
-            Picking de pedidos
-          </span>
-          <span className="block text-sm text-muted-foreground mt-1">
-            Preparar pedidos pendientes escaneando los rollos
-          </span>
-        </Link>
-
-        <Link
-          href="/operario/muestras"
-          className="w-full rounded-2xl border-2 p-6 text-left active:scale-95 transition-transform hover:bg-zinc-50"
-        >
-          <span className="block text-lg font-semibold">Muestras</span>
-          <span className="block text-sm text-muted-foreground mt-1">
-            Registrar entregas chicas que se descuentan del rollo
-          </span>
-        </Link>
+      <div className="grid flex-1 gap-3 sm:grid-cols-2">
+        {actions.map((item) => {
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`group flex min-h-28 items-start gap-4 rounded-lg border bg-white p-4 shadow-sm transition-all active:scale-[0.99] ${
+                item.primary
+                  ? 'border-action bg-action text-action-foreground hover:bg-action/95'
+                  : 'hover:border-action/40 hover:shadow-md'
+              }`}
+            >
+              <span
+                className={`flex size-12 shrink-0 items-center justify-center rounded-md ${
+                  item.primary ? 'bg-white/16' : 'bg-accent text-action'
+                }`}
+              >
+                <Icon className="size-6" />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-heading text-lg font-semibold">
+                  {item.title}
+                </span>
+                <span
+                  className={`mt-1 block text-sm leading-5 ${
+                    item.primary ? 'text-white/78' : 'text-muted-foreground'
+                  }`}
+                >
+                  {item.description}
+                </span>
+              </span>
+            </Link>
+          )
+        })}
       </div>
     </div>
   )

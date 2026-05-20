@@ -70,6 +70,8 @@ export default function PedidoPendienteRow({
               className={`text-xs rounded-full px-2 py-0.5 ${
                 estadoResuelto
                   ? 'bg-success/15 text-success'
+                  : estadoCancelado
+                    ? 'bg-destructive/15 text-destructive'
                   : 'bg-zinc-100 text-zinc-600'
               }`}
             >

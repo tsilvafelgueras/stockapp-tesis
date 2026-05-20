@@ -82,10 +82,7 @@ export default async function ClienteDetailPage({
     )
   ).length
 
-  const dias = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(cliente.created_at).getTime()) / 86_400_000)
-  )
+  const fechaAlta = new Date(cliente.created_at).toLocaleDateString('es-AR')
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
@@ -106,7 +103,7 @@ export default async function ClienteDetailPage({
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Antigüedad" value={`${dias} ${dias === 1 ? 'día' : 'días'}`} />
+        <Stat label="Alta" value={fechaAlta} />
         <Stat label="Pedidos totales" value={String(pedidos.length)} />
         <Stat label="Entregados" value={String(entregados)} />
         <Stat label="En curso" value={String(enCurso)} />

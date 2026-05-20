@@ -52,7 +52,6 @@ export default async function ConfirmarIngresoPage({
   )?.nombre
 
   const pendientes = rollos?.filter((r) => r.estado === 'pendiente').length ?? 0
-  const totalRollos = rollos?.length ?? 0
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">

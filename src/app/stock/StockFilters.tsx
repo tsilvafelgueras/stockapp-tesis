@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
+import { RotateCcw, Search } from 'lucide-react'
 
 type Catalogo = { id: string; nombre: string }
 
@@ -54,13 +55,15 @@ export default function StockFilters({
   return (
     <form
       onSubmit={(e) => e.preventDefault()}
-      className="rounded-lg border bg-white p-4 shadow-sm space-y-3"
+      className="space-y-4 rounded-lg border bg-white p-4 shadow-sm"
     >
+      <div className="flex items-center gap-2">
+        <Search className="size-4 text-action" />
+        <h2 className="text-sm font-semibold">Filtros de stock</h2>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Buscar pieza
-          </label>
+        <Field label="Buscar pieza">
           <input
             type="text"
             defaultValue={current.q}
@@ -76,16 +79,13 @@ export default function StockFilters({
             placeholder="Ej. 12345"
             className="w-full rounded-md border px-3 py-2 text-sm"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Artículo
-          </label>
+        <Field label="Articulo">
           <select
             value={current.articulo}
             onChange={(e) => update('articulo', e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
           >
             <option value="">Todos</option>
             {articulos.map((a) => (
@@ -94,18 +94,14 @@ export default function StockFilters({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Color
-          </label>
+        <Field label="Color">
           <input
             type="text"
             defaultValue={current.color}
             onBlur={(e) => {
-              if (e.target.value !== current.color)
-                update('color', e.target.value)
+              if (e.target.value !== current.color) update('color', e.target.value)
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -116,16 +112,13 @@ export default function StockFilters({
             placeholder="Ej. Negro"
             className="w-full rounded-md border px-3 py-2 text-sm"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Tintorería
-          </label>
+        <Field label="Tintoreria">
           <select
             value={current.tintoreria}
             onChange={(e) => update('tintoreria', e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
           >
             <option value="">Todas</option>
             {tintorerias.map((t) => (
@@ -134,18 +127,16 @@ export default function StockFilters({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Ubicación
-          </label>
+        <Field label="Ubicacion">
           <input
             type="text"
             defaultValue={current.ubicacion}
             onBlur={(e) => {
-              if (e.target.value !== current.ubicacion)
+              if (e.target.value !== current.ubicacion) {
                 update('ubicacion', e.target.value)
+              }
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -156,16 +147,13 @@ export default function StockFilters({
             placeholder="Ej. A42"
             className="w-full rounded-md border px-3 py-2 text-sm"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Estado
-          </label>
+        <Field label="Estado">
           <select
             value={current.estado}
             onChange={(e) => update('estado', e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
           >
             <option value="en_stock">En stock</option>
             <option value="segunda">Segunda</option>
@@ -175,25 +163,41 @@ export default function StockFilters({
             <option value="baja">Baja</option>
             <option value="todos">Todos</option>
           </select>
-        </div>
+        </Field>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
           {pending
-            ? 'Aplicando filtros…'
-            : 'Los filtros se aplican al salir del campo o presionar Enter.'}
+            ? 'Aplicando filtros...'
+            : 'Se aplican al salir del campo o presionar Enter.'}
         </p>
         {hasFilters && (
           <button
             type="button"
             onClick={reset}
-            className="text-sm text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border bg-white px-3 text-sm font-medium text-muted-foreground transition-colors hover:border-action/40 hover:text-foreground"
           >
+            <RotateCcw className="size-4" />
             Limpiar filtros
           </button>
         )}
       </div>
     </form>
+  )
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
+    </div>
   )
 }

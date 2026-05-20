@@ -1,10 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
 });
 
@@ -14,13 +19,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StockApp",
-  description: "Sistema de gestión de stock de rollos textiles",
+  title: "NUDO",
+  description: "WMS ligero para PyMEs textiles argentinas",
 };
 
-// CRÍTICO para mobile: sin esto, los celulares renderizan la página al ancho
-// virtual de 980px y todo el CSS responsive se rompe. `width=device-width` le
-// dice al browser que use el ancho real del dispositivo.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -35,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="es-AR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${plusJakarta.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}

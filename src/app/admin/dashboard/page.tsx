@@ -1,5 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import {
+  AlertTriangle,
+  BarChart3,
+  Boxes,
+  ClipboardCheck,
+  Factory,
+  PackagePlus,
+  Search,
+  ShoppingCart,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
 
 type AlertaStockMinimo = {
   articuloId: string
@@ -44,144 +56,213 @@ async function getAlertasStockMinimo(
     }))
 }
 
+const cards: {
+  href: string
+  title: string
+  description: string
+  icon: LucideIcon
+  section: string
+}[] = [
+  {
+    href: '/operario/ingresos',
+    title: 'Ingresos',
+    description: 'Llegadas desde tintorerias, planillas y rollos pendientes.',
+    icon: PackagePlus,
+    section: 'Operacion',
+  },
+  {
+    href: '/stock',
+    title: 'Inventario',
+    description: 'Stock disponible, ubicaciones, reservas y bajas.',
+    icon: Search,
+    section: 'Operacion',
+  },
+  {
+    href: '/operario/picking',
+    title: 'Picking',
+    description: 'Preparacion de pedidos con scanner QR.',
+    icon: ClipboardCheck,
+    section: 'Operacion',
+  },
+  {
+    href: '/ventas/pedidos',
+    title: 'Pedidos',
+    description: 'Reservas, preparacion y confirmacion de ventas.',
+    icon: ShoppingCart,
+    section: 'Ventas',
+  },
+  {
+    href: '/admin/articulos',
+    title: 'Articulos',
+    description: 'Catalogo de telas y stock minimo por articulo.',
+    icon: Boxes,
+    section: 'Administracion',
+  },
+  {
+    href: '/admin/tintorerias',
+    title: 'Tintorerias',
+    description: 'Proveedores externos de teñido y acabado.',
+    icon: Factory,
+    section: 'Administracion',
+  },
+  {
+    href: '/admin/equipo',
+    title: 'Equipo',
+    description: 'Usuarios, roles e invitaciones de la empresa.',
+    icon: Users,
+    section: 'Administracion',
+  },
+  {
+    href: '/admin/reportes',
+    title: 'Reportes',
+    description: 'Movimientos, diferencias, antiguedad y CSV.',
+    icon: BarChart3,
+    section: 'Analisis',
+  },
+]
+
 export default async function AdminDashboard() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: profile }, alertas] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('nombre')
-      .eq('id', user!.id)
-      .single(),
-    getAlertasStockMinimo(supabase),
-  ])
+  const [{ data: profile }, alertas, { count: rollosEnStock }, { count: pendientes }] =
+    await Promise.all([
+      supabase
+        .from('profiles')
+        .select('nombre')
+        .eq('id', user!.id)
+        .single(),
+      getAlertasStockMinimo(supabase),
+      supabase
+        .from('rollos')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'en_stock'),
+      supabase
+        .from('rollos')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'pendiente'),
+    ])
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Panel de Administración</h1>
-        <p className="text-muted-foreground mt-1">
-          Bienvenida, {profile?.nombre ?? 'usuaria'}
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-5 sm:px-6 md:py-8">
+      <section className="rounded-xl bg-sidebar p-5 text-white shadow-sm sm:p-6">
+        <p className="text-xs font-medium uppercase tracking-[0.08em] text-white/55">
+          Dashboard de control
         </p>
-      </div>
+        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold sm:text-3xl">
+              Buen dia, {profile?.nombre ?? 'equipo'}
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/68">
+              Una vista rapida para entender que hay en deposito, que falta
+              verificar y donde conviene actuar primero.
+            </p>
+          </div>
+          <Link
+            href="/stock"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-action px-4 text-sm font-semibold text-action-foreground transition-colors hover:bg-action/90"
+          >
+            Ver inventario
+          </Link>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Metric label="Rollos en stock" value={rollosEnStock ?? 0} />
+        <Metric label="Pendientes de verificar" value={pendientes ?? 0} />
+        <Metric label="Alertas de stock" value={alertas.length} tone="warning" />
+      </section>
 
       {alertas.length > 0 && (
-        <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 space-y-2">
-          <p className="text-sm font-medium">
-            ⚠ Stock por debajo del mínimo configurado
-          </p>
-          <ul className="space-y-1">
-            {alertas.map((a) => (
-              <li key={a.articuloId} className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{a.nombre}</span>
-                {' — '}
-                {a.stockActualKg.toFixed(2)} kg actuales / {a.stockMinimoKg.toFixed(2)} kg mínimo
-              </li>
-            ))}
-          </ul>
-          <Link href="/stock" className="text-xs underline hover:no-underline">
-            Ver stock →
-          </Link>
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">
+                Stock por debajo del minimo configurado
+              </p>
+              <ul className="mt-2 space-y-1">
+                {alertas.map((a) => (
+                  <li key={a.articuloId} className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{a.nombre}</span>
+                    {' - '}
+                    {a.stockActualKg.toFixed(2)} kg actuales /{' '}
+                    {a.stockMinimoKg.toFixed(2)} kg minimo
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Operación
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card
-            href="/operario/ingresos"
-            title="Ingresos"
-            description="Llegadas de mercadería desde tintorerías"
-          />
-          <Card
-            href="/stock"
-            title="Stock"
-            description="Ver rollos disponibles, filtrar y dar de baja"
-          />
-          <Card
-            href="/ventas/dashboard"
-            title="Pedidos"
-            description="Gestión de pedidos de clientes"
-          />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Catálogos
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card
-            href="/admin/articulos"
-            title="Artículos"
-            description="Tipos de tela"
-          />
-          <Card
-            href="/admin/tintorerias"
-            title="Tintorerías"
-            description="Proveedores de teñido"
-          />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Equipo
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card
-            href="/admin/equipo"
-            title="Usuarios"
-            description="Invitar y listar usuarios de la empresa"
-          />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Análisis
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card
-            href="/admin/reportes"
-            title="Reportes"
-            description="Stock, movimientos del mes, diferencias y antigüedad"
-          />
-        </div>
-      </section>
+      {['Operacion', 'Ventas', 'Administracion', 'Analisis'].map((section) => (
+        <section key={section} className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {section}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {cards
+              .filter((card) => card.section === section)
+              .map((card) => (
+                <DashboardCard key={card.href} {...card} />
+              ))}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
 
-function Card({
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone?: 'warning'
+}) {
+  return (
+    <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={`mt-2 font-heading text-3xl font-bold tabular-nums ${
+          tone === 'warning' ? 'text-warning' : 'text-foreground'
+        }`}
+      >
+        {value.toLocaleString('es-AR')}
+      </p>
+    </div>
+  )
+}
+
+function DashboardCard({
   href,
   title,
   description,
-  disabled,
+  icon: Icon,
 }: {
-  href?: string
+  href: string
   title: string
   description: string
-  disabled?: boolean
+  icon: LucideIcon
 }) {
-  const content = (
-    <div
-      className={`rounded-lg border bg-white p-5 shadow-sm transition-all ${
-        disabled
-          ? 'opacity-50 cursor-not-allowed'
-          : 'hover:shadow-md hover:border-primary/30 cursor-pointer'
-      }`}
+  return (
+    <Link
+      href={href}
+      className="group rounded-lg border bg-white p-4 shadow-sm transition-all hover:border-action/40 hover:shadow-md"
     >
-      <h3 className="font-semibold">{title}</h3>
-      <p className="text-sm text-muted-foreground mt-1">{description}</p>
-    </div>
+      <span className="flex size-11 items-center justify-center rounded-md bg-accent text-action">
+        <Icon className="size-5" />
+      </span>
+      <h3 className="mt-4 font-heading text-base font-semibold">{title}</h3>
+      <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>
+    </Link>
   )
-
-  if (disabled || !href) return content
-  return <Link href={href}>{content}</Link>
 }

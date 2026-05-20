@@ -83,6 +83,8 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
 
   useEffect(() => {
     if (!modoManual) {
+      // La camara es un sistema externo: se inicia cuando el visor entra en modo scanner.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       iniciarScanner()
     }
     return () => {

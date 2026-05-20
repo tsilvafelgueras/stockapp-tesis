@@ -494,6 +494,7 @@ export default function NuevoIngresoForm({
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 rounded-md border bg-zinc-50 p-3">
                     {previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={previewUrl}
                         alt="Planilla"

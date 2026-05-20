@@ -1,3 +1,4 @@
+import { Boxes, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import StockFilters from './StockFilters'
 import StockList, { type StockRollo, type StockRole } from './StockList'
@@ -32,7 +33,6 @@ export default async function StockPage({
 
   const role = (profile?.role ?? 'ventas') as StockRole
 
-  // Catálogos para los dropdowns (solo activos)
   const [{ data: articulos }, { data: tintorerias }] = await Promise.all([
     supabase
       .from('articulos')
@@ -46,8 +46,6 @@ export default async function StockPage({
       .order('nombre'),
   ])
 
-  // Query principal con joins. !inner sobre ingresos para poder filtrar por
-  // tintoreria_id y color del ingreso.
   let query = supabase
     .from('rollos')
     .select(
@@ -85,24 +83,19 @@ export default async function StockPage({
 
   if (estado !== 'todos') query = query.eq('estado', estado)
   if (sp.articulo) query = query.eq('articulo_id', sp.articulo)
-  if (sp.tintoreria)
+  if (sp.tintoreria) {
     query = query.eq('ingresos.tintoreria_id', sp.tintoreria)
+  }
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
-  if (sp.ubicacion)
-    query = query.ilike('ubicacion', `%${sp.ubicacion.trim()}%`)
-  if (sp.color)
-    query = query.ilike('ingresos.color', `%${sp.color.trim()}%`)
+  if (sp.ubicacion) query = query.ilike('ubicacion', `%${sp.ubicacion.trim()}%`)
+  if (sp.color) query = query.ilike('ingresos.color', `%${sp.color.trim()}%`)
 
   const { data: rollosRaw, error } = await query
   const rollos = (rollosRaw ?? []) as unknown as StockRollo[]
 
-  // Resumen agregado: SIEMPRE sobre todo el en_stock (no respeta filtros).
-  // Es la métrica de "qué tengo en depósito ahora", no del subset filtrado.
   const { data: resumenRaw } = await supabase
     .from('rollos')
-    .select(
-      'kilos, articulos!inner ( nombre ), ingresos!inner ( color )'
-    )
+    .select('kilos, articulos!inner ( nombre ), ingresos!inner ( color )')
     .eq('estado', 'en_stock')
 
   type ResumenRow = {
@@ -122,8 +115,8 @@ export default async function StockPage({
     { articulo: string; color: string; kilos: number }
   >()
   for (const r of resumenRows) {
-    const articulo = r.articulos?.nombre ?? '—'
-    const color = r.ingresos?.color ?? '—'
+    const articulo = r.articulos?.nombre ?? '-'
+    const color = r.ingresos?.color ?? '-'
     const key = `${articulo}|||${color}`
     const prev = aggMap.get(key) ?? { articulo, color, kilos: 0 }
     prev.kilos += Number(r.kilos ?? 0)
@@ -134,34 +127,45 @@ export default async function StockPage({
     .slice(0, 5)
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Stock</h1>
-        <p className="text-sm text-muted-foreground">
-          Rollos disponibles en depósito
-        </p>
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 md:py-8">
+      <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-border sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Inventario
+            </p>
+            <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Stock</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Rollos disponibles en deposito, reservas y ubicaciones.
+            </p>
+          </div>
+          <div className="flex size-12 items-center justify-center rounded-lg bg-accent text-action">
+            <Search className="size-6" />
+          </div>
+        </div>
       </div>
 
-      {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_2fr]">
         <div className="rounded-lg border bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Total en stock
-          </p>
-          <p className="text-2xl font-bold mt-1 tabular-nums">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Total en stock
+            </p>
+            <Boxes className="size-4 text-action" />
+          </div>
+          <p className="mt-2 font-heading text-3xl font-bold tabular-nums">
             {totalKilos.toLocaleString('es-AR', {
               maximumFractionDigits: 2,
             })}{' '}
             kg
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {resumenRows.length}{' '}
-            {resumenRows.length === 1 ? 'rollo' : 'rollos'}
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {resumenRows.length} {resumenRows.length === 1 ? 'rollo' : 'rollos'}
           </p>
         </div>
         <div className="rounded-lg border bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Top 5 artículo + color (kilos)
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            Top 5 articulo + color (kilos)
           </p>
           {top5.length > 0 ? (
             <ul className="mt-2 space-y-1.5 text-sm">
@@ -172,12 +176,9 @@ export default async function StockPage({
                 >
                   <span className="truncate">
                     <span className="font-medium">{row.articulo}</span>
-                    <span className="text-muted-foreground">
-                      {' · '}
-                      {row.color}
-                    </span>
+                    <span className="text-muted-foreground"> - {row.color}</span>
                   </span>
-                  <span className="tabular-nums shrink-0">
+                  <span className="shrink-0 tabular-nums">
                     {row.kilos.toLocaleString('es-AR', {
                       maximumFractionDigits: 2,
                     })}{' '}
@@ -187,8 +188,8 @@ export default async function StockPage({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground mt-2">
-              Sin rollos en stock todavía.
+            <p className="mt-2 text-sm text-muted-foreground">
+              Sin rollos en stock todavia.
             </p>
           )}
         </div>

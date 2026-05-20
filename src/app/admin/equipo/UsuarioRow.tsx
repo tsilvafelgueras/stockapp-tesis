@@ -88,7 +88,6 @@ export default function UsuarioRow({
   }
 
   const actionsBlocked = esYo || esSuper
-  const showingConfirm = confirmandoDelete || confirmandoDisable || editandoRol
 
   return (
     <tr className={`border-b last:border-0 ${usuario.disabled ? 'opacity-60' : ''}`}>

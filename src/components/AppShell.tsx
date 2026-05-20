@@ -1,31 +1,44 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+import {
+  BarChart3,
+  Boxes,
+  Building2,
+  ClipboardCheck,
+  Clock3,
+  Factory,
+  History,
+  Home,
+  Menu,
+  PackagePlus,
+  ScanLine,
+  Scissors,
+  Search,
+  ShoppingCart,
+  Users,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import LogoutButton from './LogoutButton'
 
 export type NavItem = {
   href: string
   label: string
-  icon: string // emoji por simplicidad (Etapa 7 pasa a lucide-react)
-  /** Si está deshabilitado (feature futura), se muestra opaco y no es clickeable. */
+  icon: LucideIcon
   disabled?: boolean
-  /** Etiqueta opcional tipo "Etapa 4" para items deshabilitados. */
   comingSoon?: string
 }
 
 export type NavSection = {
-  /** Si es null/undefined, no se muestra título. */
   title?: string
   items: NavItem[]
 }
 
 type Role = 'operario' | 'ventas' | 'admin' | 'super'
 
-/**
- * Devuelve el link del "Home" para un rol (al que va el botón Home del header).
- */
 function homeHref(role: Role): string {
   switch (role) {
     case 'operario':
@@ -39,17 +52,11 @@ function homeHref(role: Role): string {
   }
 }
 
-/**
- * Construye la nav según el rol. Admin es superset funcional de operario y
- * ventas (filosofía PyMe: todos hacen de todo). Cada empresa-cliente tiene
- * un admin que también puede operar el depósito o crear pedidos cuando hace
- * falta, sin tener que cambiar de cuenta.
- */
 function navForRole(role: Role): NavSection[] {
   if (role === 'super') {
     return [
       {
-        items: [{ href: '/super', label: 'Empresas', icon: '🏢' }],
+        items: [{ href: '/super', label: 'Empresas', icon: Building2 }],
       },
     ]
   }
@@ -58,12 +65,12 @@ function navForRole(role: Role): NavSection[] {
     return [
       {
         items: [
-          { href: '/operario/dashboard', label: 'Inicio', icon: '🏠' },
-          { href: '/operario/ingresos', label: 'Ingresos', icon: '📦' },
-          { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: '🔍' },
-          { href: '/stock', label: 'Stock', icon: '🔎' },
-          { href: '/operario/picking', label: 'Picking', icon: '📋' },
-          { href: '/operario/muestras', label: 'Muestras', icon: '✂️' },
+          { href: '/operario/dashboard', label: 'Inicio', icon: Home },
+          { href: '/operario/ingresos', label: 'Ingresos', icon: PackagePlus },
+          { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
+          { href: '/stock', label: 'Stock', icon: Search },
+          { href: '/operario/picking', label: 'Picking', icon: ClipboardCheck },
+          { href: '/operario/muestras', label: 'Muestras', icon: Scissors },
         ],
       },
     ]
@@ -73,47 +80,46 @@ function navForRole(role: Role): NavSection[] {
     return [
       {
         items: [
-          { href: '/ventas/dashboard', label: 'Inicio', icon: '🏠' },
-          { href: '/stock', label: 'Stock', icon: '🔎' },
-          { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
-          { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: '⏳' },
-          { href: '/ventas/clientes', label: 'Clientes', icon: '👤' },
+          { href: '/ventas/dashboard', label: 'Inicio', icon: Home },
+          { href: '/stock', label: 'Stock', icon: Search },
+          { href: '/ventas/pedidos', label: 'Pedidos', icon: ShoppingCart },
+          { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: Clock3 },
+          { href: '/ventas/clientes', label: 'Clientes', icon: Users },
         ],
       },
     ]
   }
 
-  // admin: superset de operario + ventas + sus propias secciones
   return [
     {
-      items: [{ href: '/admin/dashboard', label: 'Inicio', icon: '🏠' }],
+      items: [{ href: '/admin/dashboard', label: 'Inicio', icon: Home }],
     },
     {
-      title: 'Operación',
+      title: 'Operacion',
       items: [
-        { href: '/operario/ingresos', label: 'Ingresos', icon: '📦' },
-        { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: '🔍' },
-        { href: '/operario/picking', label: 'Picking', icon: '📋' },
-        { href: '/operario/muestras', label: 'Muestras', icon: '✂️' },
+        { href: '/operario/ingresos', label: 'Ingresos', icon: PackagePlus },
+        { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
+        { href: '/operario/picking', label: 'Picking', icon: ClipboardCheck },
+        { href: '/operario/muestras', label: 'Muestras', icon: Scissors },
       ],
     },
     {
       title: 'Ventas',
       items: [
-        { href: '/stock', label: 'Stock', icon: '🔎' },
-        { href: '/ventas/pedidos', label: 'Pedidos', icon: '🛒' },
-        { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: '⏳' },
-        { href: '/ventas/clientes', label: 'Clientes', icon: '👤' },
+        { href: '/stock', label: 'Stock', icon: Search },
+        { href: '/ventas/pedidos', label: 'Pedidos', icon: ShoppingCart },
+        { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: Clock3 },
+        { href: '/ventas/clientes', label: 'Clientes', icon: Users },
       ],
     },
     {
-      title: 'Administración',
+      title: 'Administracion',
       items: [
-        { href: '/admin/articulos', label: 'Artículos', icon: '📋' },
-        { href: '/admin/tintorerias', label: 'Tintorerías', icon: '🏭' },
-        { href: '/admin/equipo', label: 'Equipo', icon: '👥' },
-        { href: '/admin/reportes', label: 'Reportes', icon: '📊' },
-        { href: '/admin/historial', label: 'Historial', icon: '🧾' },
+        { href: '/admin/articulos', label: 'Articulos', icon: Boxes },
+        { href: '/admin/tintorerias', label: 'Tintorerias', icon: Factory },
+        { href: '/admin/equipo', label: 'Equipo', icon: Users },
+        { href: '/admin/reportes', label: 'Reportes', icon: BarChart3 },
+        { href: '/admin/historial', label: 'Historial', icon: History },
       ],
     },
   ]
@@ -142,113 +148,49 @@ export default function AppShell({
   const home = homeHref(role)
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50 md:flex-row">
-      {/* Header solo en mobile (en desktop la nav está en el sidebar lateral) */}
-      <header className="md:hidden border-b bg-white px-3 py-3 flex items-center justify-between gap-2 sticky top-0 z-20">
+    <div className="min-h-screen bg-background md:grid md:grid-cols-[17rem_minmax(0,1fr)]">
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-sidebar px-3 text-sidebar-foreground shadow-sm md:hidden">
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          className="rounded-md p-2 hover:bg-zinc-100 active:bg-zinc-200"
-          aria-label="Abrir menú"
+          className="flex size-11 items-center justify-center rounded-md bg-white/10 active:bg-white/20"
+          aria-label="Abrir menu"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
+          <Menu className="size-5" />
         </button>
 
-        <Link
-          href={home}
-          className="flex-1 min-w-0 hover:text-primary"
-        >
-          <span className="block font-semibold text-sm truncate">
-            StockApp{empresaNombre ? ` · ${empresaNombre}` : ''}
-          </span>
-          <span className="block text-[11px] text-muted-foreground truncate">
-            {ROLE_LABEL[role]}
-          </span>
-        </Link>
-
-        <Link
-          href={home}
-          aria-label="Inicio"
-          className="rounded-md p-2 hover:bg-zinc-100 active:bg-zinc-200 shrink-0"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
+        <Link href={home} className="min-w-0 flex-1">
+          <BrandLockup empresaNombre={empresaNombre} compact />
         </Link>
       </header>
 
-      {/* Sidebar desktop (≥768px) */}
       <SidebarContent
         sections={sections}
         empresaNombre={empresaNombre}
         userName={userName}
         roleLabel={ROLE_LABEL[role]}
         home={home}
-        className="hidden md:flex flex-col w-60 lg:w-64 border-r bg-white shrink-0 sticky top-0 self-start max-h-screen"
+        className="sticky top-0 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
       />
 
-      {/* Drawer mobile (<768px) */}
       {drawerOpen && (
         <div
-          className="md:hidden fixed inset-0 z-30 bg-black/50"
+          className="fixed inset-0 z-40 bg-black/55 md:hidden"
           onClick={() => setDrawerOpen(false)}
         >
           <div
-            className="absolute top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl flex flex-col"
+            className="absolute inset-y-0 left-0 flex w-[18rem] max-w-[88vw] flex-col bg-sidebar text-sidebar-foreground shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <div className="min-w-0">
-                <p className="font-semibold text-sm truncate">
-                  StockApp{empresaNombre ? ` · ${empresaNombre}` : ''}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {ROLE_LABEL[role]}
-                </p>
-              </div>
+            <div className="flex items-center justify-between border-b border-sidebar-border px-4 py-4">
+              <BrandLockup empresaNombre={empresaNombre} />
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="rounded-md p-1.5 hover:bg-zinc-100 shrink-0"
-                aria-label="Cerrar menú"
+                className="flex size-10 items-center justify-center rounded-md bg-white/10 active:bg-white/20"
+                aria-label="Cerrar menu"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <X className="size-5" />
               </button>
             </div>
             <SidebarContent
@@ -258,15 +200,38 @@ export default function AppShell({
               roleLabel={ROLE_LABEL[role]}
               home={home}
               onItemClick={() => setDrawerOpen(false)}
-              className="flex flex-col flex-1 min-h-0"
+              className="flex min-h-0 flex-1 flex-col"
               hideHeader
             />
           </div>
         </div>
       )}
 
-      {/* Contenido */}
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="min-w-0 bg-background">{children}</main>
+    </div>
+  )
+}
+
+function BrandLockup({
+  empresaNombre,
+  compact,
+}: {
+  empresaNombre: string | null
+  compact?: boolean
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-action font-heading text-lg font-bold text-action-foreground shadow-sm">
+        N
+      </div>
+      <div className="min-w-0">
+        <p className="font-heading text-[1.375rem] font-bold leading-none tracking-normal">
+          NUDO
+        </p>
+        <p className="mt-1 truncate text-[11px] text-white/68">
+          {compact ? empresaNombre ?? 'Gestion textil' : empresaNombre ?? 'WMS textil'}
+        </p>
+      </div>
     </div>
   )
 }
@@ -295,71 +260,68 @@ function SidebarContent({
   return (
     <aside className={className}>
       {!hideHeader && (
-        <div className="px-4 py-4 border-b">
-          <Link
-            href={home}
-            className="block font-semibold text-sm hover:text-primary truncate"
-          >
-            StockApp{empresaNombre ? ` · ${empresaNombre}` : ''}
-          </Link>
-          <p className="text-xs text-muted-foreground truncate mt-0.5">
-            {roleLabel}
-          </p>
-        </div>
+        <Link href={home} className="border-b border-sidebar-border px-5 py-5">
+          <BrandLockup empresaNombre={empresaNombre} />
+        </Link>
       )}
 
-      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-        {sections.map((section, i) => (
-          <div key={i} className="space-y-1">
-            {section.title && (
-              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1 pb-1">
-                {section.title}
-              </p>
-            )}
-            {section.items.map((item) => {
-              const active =
-                pathname === item.href ||
-                (item.href !== home && pathname.startsWith(item.href + '/'))
-              if (item.disabled) {
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div className="space-y-5">
+          {sections.map((section, i) => (
+            <div key={i} className="space-y-1">
+              {section.title && (
+                <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/48">
+                  {section.title}
+                </p>
+              )}
+              {section.items.map((item) => {
+                const Icon = item.icon
+                const active =
+                  pathname === item.href ||
+                  (item.href !== home && pathname.startsWith(item.href + '/'))
+
+                if (item.disabled) {
+                  return (
+                    <div
+                      key={item.href}
+                      className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-white/35"
+                      title={item.comingSoon}
+                    >
+                      <Icon className="size-4" />
+                      <span className="flex-1 truncate">{item.label}</span>
+                    </div>
+                  )
+                }
+
                 return (
-                  <div
+                  <Link
                     key={item.href}
-                    className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground/60 cursor-not-allowed select-none"
-                    title={item.comingSoon}
+                    href={item.href}
+                    onClick={onItemClick}
+                    className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors ${
+                      active
+                        ? 'bg-action text-action-foreground shadow-sm'
+                        : 'text-white/78 hover:bg-white/10 hover:text-white'
+                    }`}
                   >
-                    <span className="text-base">{item.icon}</span>
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {item.comingSoon && (
-                      <span className="text-[10px] uppercase tracking-wide">
-                        {item.comingSoon}
-                      </span>
-                    )}
-                  </div>
+                    <Icon className="size-4" />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
                 )
-              }
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onItemClick}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-zinc-100 active:bg-zinc-200'
-                  }`}
-                >
-                  <span className="text-base">{item.icon}</span>
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              )
-            })}
-          </div>
-        ))}
+              })}
+            </div>
+          ))}
+        </div>
       </nav>
 
-      <div className="border-t px-4 py-3 space-y-2">
-        <p className="text-xs text-muted-foreground truncate">{userName}</p>
-        <LogoutButton />
+      <div className="border-t border-sidebar-border px-4 py-4">
+        <div className="rounded-lg bg-white/8 p-3">
+          <p className="truncate text-sm font-medium text-white">{userName}</p>
+          <p className="mt-0.5 text-xs text-white/55">{roleLabel}</p>
+          <div className="mt-3">
+            <LogoutButton />
+          </div>
+        </div>
       </div>
     </aside>
   )
