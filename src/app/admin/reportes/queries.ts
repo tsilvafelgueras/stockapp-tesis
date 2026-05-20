@@ -5,12 +5,29 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 export type ReportesFilters = {
   /** ID de tintorería para filtrar rollos por origen (stock, merma, diferencias, antigüedad). */
   tintoreriaId?: string
+  tintoreriaIds?: string[]
   /** ID de artículo. */
   articuloId?: string
+  articuloIds?: string[]
   /** Año en formato 4 dígitos. Solo aplica a Movimientos. */
   anio?: number
   /** Mes 1-12. Solo aplica a Movimientos. Si se omite y hay año → todo el año. */
   mes?: number
+  meses?: number[]
+}
+
+function listOrSingle(list?: string[], single?: string): string[] {
+  return list?.length ? list : single ? [single] : []
+}
+
+function monthList(filters: ReportesFilters): number[] {
+  if (filters.meses?.length) return filters.meses
+  return filters.mes ? [filters.mes] : []
+}
+
+function rowMatchesMonths(createdAt: string, meses: number[]): boolean {
+  if (meses.length === 0) return true
+  return meses.includes(new Date(createdAt).getMonth() + 1)
 }
 
 // ── Stock por artículo+color ───────────────────────────────
@@ -33,9 +50,14 @@ export async function reporteStock(
     )
     .eq('estado', 'en_stock')
 
-  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
-  if (filters.tintoreriaId) {
-    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  const articuloIds = listOrSingle(filters.articuloIds, filters.articuloId)
+  const tintoreriaIds = listOrSingle(filters.tintoreriaIds, filters.tintoreriaId)
+  if (articuloIds.length > 1) query = query.in('articulo_id', articuloIds)
+  else if (articuloIds.length === 1) query = query.eq('articulo_id', articuloIds[0])
+  if (tintoreriaIds.length > 1) {
+    query = query.in('ingresos.tintoreria_id', tintoreriaIds)
+  } else if (tintoreriaIds.length === 1) {
+    query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
   const { data } = await query
@@ -77,16 +99,21 @@ function rangoPeriodo(filters: ReportesFilters): {
   hasta: string
   label: string
 } {
-  if (filters.anio && filters.mes) {
-    const desde = new Date(filters.anio, filters.mes - 1, 1)
-    const hasta = new Date(filters.anio, filters.mes, 1)
+  const meses = monthList(filters).sort((a, b) => a - b)
+  if (filters.anio && meses.length > 0) {
+    const desde = new Date(filters.anio, meses[0] - 1, 1)
+    const hasta = new Date(filters.anio, meses[meses.length - 1], 1)
+    const label =
+      meses.length === 1
+        ? desde.toLocaleDateString('es-AR', {
+            month: 'long',
+            year: 'numeric',
+          })
+        : `${meses.length} meses de ${filters.anio}`
     return {
       desde: desde.toISOString(),
       hasta: hasta.toISOString(),
-      label: desde.toLocaleDateString('es-AR', {
-        month: 'long',
-        year: 'numeric',
-      }),
+      label,
     }
   }
   if (filters.anio) {
@@ -119,35 +146,47 @@ export async function reporteMovimientos(
   filters: ReportesFilters = {}
 ): Promise<MovimientosResult> {
   const { desde, hasta, label } = rangoPeriodo(filters)
+  const meses = monthList(filters)
+  const articuloIds = listOrSingle(filters.articuloIds, filters.articuloId)
+  const tintoreriaIds = listOrSingle(filters.tintoreriaIds, filters.tintoreriaId)
 
   // Ingresos: rollos creados en el período
   let qRollos = supabase
     .from('rollos')
-    .select('kilos, articulo_id, ingresos!inner ( tintoreria_id )')
+    .select('kilos, articulo_id, created_at, ingresos!inner ( tintoreria_id )')
     .gte('created_at', desde)
     .lt('created_at', hasta)
 
-  if (filters.articuloId) qRollos = qRollos.eq('articulo_id', filters.articuloId)
-  if (filters.tintoreriaId) {
-    qRollos = qRollos.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  if (articuloIds.length > 1) qRollos = qRollos.in('articulo_id', articuloIds)
+  else if (articuloIds.length === 1) qRollos = qRollos.eq('articulo_id', articuloIds[0])
+  if (tintoreriaIds.length > 1) {
+    qRollos = qRollos.in('ingresos.tintoreria_id', tintoreriaIds)
+  } else if (tintoreriaIds.length === 1) {
+    qRollos = qRollos.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
-  const { data: rollosMes } = await qRollos
+  const { data: rollosMesRaw } = await qRollos
+  const rollosMes = (rollosMesRaw ?? []).filter((r) =>
+    rowMatchesMonths(r.created_at, meses)
+  )
 
-  const ingresosRollos = rollosMes?.length ?? 0
-  const ingresosKilos =
-    rollosMes?.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0) ?? 0
+  const ingresosRollos = rollosMes.length
+  const ingresosKilos = rollosMes.reduce(
+    (acc, r) => acc + Number(r.kilos ?? 0),
+    0
+  )
 
   // Egresos: pedidos entregados en el período
   const { data: pedidosEntregadosRaw } = await supabase
     .from('pedidos')
-    .select(`id, pedido_rollos ( rollos ( kilos, articulo_id, ingreso_id ) )`)
+    .select(`id, created_at, pedido_rollos ( rollos ( kilos, articulo_id, ingreso_id ) )`)
     .eq('estado', 'entregada')
     .gte('created_at', desde)
     .lt('created_at', hasta)
 
   type PedRaw = {
     id: string
+    created_at: string
     pedido_rollos:
       | {
           rollos: {
@@ -158,12 +197,14 @@ export async function reporteMovimientos(
         }[]
       | null
   }
-  const pedidos = (pedidosEntregadosRaw ?? []) as unknown as PedRaw[]
+  const pedidos = ((pedidosEntregadosRaw ?? []) as unknown as PedRaw[]).filter(
+    (p) => rowMatchesMonths(p.created_at, meses)
+  )
 
   // Si hay filtros de articulo/tintoreria, los aplicamos en el lado client.
   // Para tintorería necesitamos lookup, lo hacemos abajo si hace falta.
   let tintoreriaRolloMap = new Map<string, string | null>()
-  if (filters.tintoreriaId) {
+  if (tintoreriaIds.length > 0) {
     const ingresoIds = new Set<string>()
     for (const p of pedidos)
       for (const pr of p.pedido_rollos ?? [])
@@ -188,13 +229,13 @@ export async function reporteMovimientos(
       const r = pr.rollos
       if (!r) continue
       if (
-        filters.articuloId &&
-        r.articulo_id !== filters.articuloId
+        articuloIds.length > 0 &&
+        !articuloIds.includes(r.articulo_id ?? '')
       )
         continue
       if (
-        filters.tintoreriaId &&
-        tintoreriaRolloMap.get(r.ingreso_id) !== filters.tintoreriaId
+        tintoreriaIds.length > 0 &&
+        !tintoreriaIds.includes(tintoreriaRolloMap.get(r.ingreso_id) ?? '')
       )
         continue
       egresosRollos += 1
@@ -240,9 +281,14 @@ export async function reporteDiferencias(
     .not('kilos_propios', 'is', null)
     .order('numero_pieza', { ascending: true })
 
-  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
-  if (filters.tintoreriaId) {
-    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  const articuloIds = listOrSingle(filters.articuloIds, filters.articuloId)
+  const tintoreriaIds = listOrSingle(filters.tintoreriaIds, filters.tintoreriaId)
+  if (articuloIds.length > 1) query = query.in('articulo_id', articuloIds)
+  else if (articuloIds.length === 1) query = query.eq('articulo_id', articuloIds[0])
+  if (tintoreriaIds.length > 1) {
+    query = query.in('ingresos.tintoreria_id', tintoreriaIds)
+  } else if (tintoreriaIds.length === 1) {
+    query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
   const { data } = await query
@@ -304,9 +350,14 @@ export async function reporteMerma(
     .not('kilos_propios', 'is', null)
     .not('kilos', 'is', null)
 
-  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
-  if (filters.tintoreriaId) {
-    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  const articuloIds = listOrSingle(filters.articuloIds, filters.articuloId)
+  const tintoreriaIds = listOrSingle(filters.tintoreriaIds, filters.tintoreriaId)
+  if (articuloIds.length > 1) query = query.in('articulo_id', articuloIds)
+  else if (articuloIds.length === 1) query = query.eq('articulo_id', articuloIds[0])
+  if (tintoreriaIds.length > 1) {
+    query = query.in('ingresos.tintoreria_id', tintoreriaIds)
+  } else if (tintoreriaIds.length === 1) {
+    query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
   const { data } = await query
@@ -392,10 +443,11 @@ export async function reporteTintorerias(
   const { desde, hasta } = aplicarPeriodo
     ? (() => {
         const r = (function () {
-          if (filters.anio && filters.mes) {
+          const mesesPeriodo = monthList(filters).sort((a, b) => a - b)
+          if (filters.anio && mesesPeriodo.length > 0) {
             return {
-              desde: new Date(filters.anio, filters.mes - 1, 1),
-              hasta: new Date(filters.anio, filters.mes, 1),
+              desde: new Date(filters.anio, mesesPeriodo[0] - 1, 1),
+              hasta: new Date(filters.anio, mesesPeriodo[mesesPeriodo.length - 1], 1),
             }
           }
           if (filters.anio) {
@@ -431,11 +483,18 @@ export async function reporteTintorerias(
     )
     .limit(5000)
 
-  if (filters.articuloId) {
-    query = query.eq('rollos.articulo_id', filters.articuloId)
+  const articuloIds = listOrSingle(filters.articuloIds, filters.articuloId)
+  const tintoreriaIds = listOrSingle(filters.tintoreriaIds, filters.tintoreriaId)
+  const meses = monthList(filters)
+  if (articuloIds.length > 1) {
+    query = query.in('rollos.articulo_id', articuloIds)
+  } else if (articuloIds.length === 1) {
+    query = query.eq('rollos.articulo_id', articuloIds[0])
   }
-  if (filters.tintoreriaId) {
-    query = query.eq('rollos.ingresos.tintoreria_id', filters.tintoreriaId)
+  if (tintoreriaIds.length > 1) {
+    query = query.in('rollos.ingresos.tintoreria_id', tintoreriaIds)
+  } else if (tintoreriaIds.length === 1) {
+    query = query.eq('rollos.ingresos.tintoreria_id', tintoreriaIds[0])
   }
   if (aplicarPeriodo && desde && hasta) {
     query = query.gte('pedidos.created_at', desde).lt('pedidos.created_at', hasta)
@@ -457,7 +516,9 @@ export async function reporteTintorerias(
       created_at: string
     } | null
   }
-  const rows = (data ?? []) as unknown as Raw[]
+  const rows = ((data ?? []) as unknown as Raw[]).filter((r) =>
+    r.pedidos ? rowMatchesMonths(r.pedidos.created_at, meses) : true
+  )
 
   // Agregar por tintoreria_id. Para contar pedidos distintos, llevamos
   // un Set de IDs por tintorería.
@@ -550,9 +611,14 @@ export async function reporteAntiguedad(
     .lt('created_at', limiteIso)
     .order('created_at', { ascending: true })
 
-  if (filters.articuloId) query = query.eq('articulo_id', filters.articuloId)
-  if (filters.tintoreriaId) {
-    query = query.eq('ingresos.tintoreria_id', filters.tintoreriaId)
+  const articuloIds = listOrSingle(filters.articuloIds, filters.articuloId)
+  const tintoreriaIds = listOrSingle(filters.tintoreriaIds, filters.tintoreriaId)
+  if (articuloIds.length > 1) query = query.in('articulo_id', articuloIds)
+  else if (articuloIds.length === 1) query = query.eq('articulo_id', articuloIds[0])
+  if (tintoreriaIds.length > 1) {
+    query = query.in('ingresos.tintoreria_id', tintoreriaIds)
+  } else if (tintoreriaIds.length === 1) {
+    query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
   const { data } = await query

@@ -3,7 +3,7 @@ import Image from 'next/image'
 export default function BrandMark({ className = '' }: { className?: string }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-action/70 bg-sidebar shadow-[0_0_0_1px_rgba(255,255,255,0.10),0_8px_24px_rgba(0,0,0,0.18)] ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-action/60 bg-sidebar shadow-[0_8px_22px_rgba(0,0,0,0.20)] ${className}`}
     >
       <Image
         src="/nudo-logo.svg"

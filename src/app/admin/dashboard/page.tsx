@@ -20,6 +20,16 @@ type AlertaStockMinimo = {
   stockMinimoKg: number
 }
 
+type ResumenDiario = {
+  ingresosRollos: number
+  ingresosKilos: number
+  pedidosCreados: number
+  pedidosEntregados: number
+  pedidosActivos: number
+  muestras: number
+  muestrasKilos: number
+}
+
 async function getAlertasStockMinimo(
   supabase: Awaited<ReturnType<typeof createClient>>
 ): Promise<AlertaStockMinimo[]> {
@@ -54,6 +64,66 @@ async function getAlertasStockMinimo(
       stockActualKg: stockMap.get(a.id) ?? 0,
       stockMinimoKg: Number(a.stock_minimo_kg),
     }))
+}
+
+async function getResumenDiario(
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<ResumenDiario> {
+  const inicio = new Date()
+  inicio.setHours(0, 0, 0, 0)
+  const fin = new Date(inicio)
+  fin.setDate(fin.getDate() + 1)
+  const desde = inicio.toISOString()
+  const hasta = fin.toISOString()
+
+  const [
+    { data: rollosHoy },
+    { count: pedidosCreados },
+    { count: pedidosEntregados },
+    { count: pedidosActivos },
+    { data: muestrasHoy },
+  ] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select('kilos')
+      .gte('created_at', desde)
+      .lt('created_at', hasta),
+    supabase
+      .from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', desde)
+      .lt('created_at', hasta),
+    supabase
+      .from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .eq('estado', 'entregada')
+      .gte('created_at', desde)
+      .lt('created_at', hasta),
+    supabase
+      .from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .in('estado', ['pendiente', 'en_preparacion', 'lista']),
+    supabase
+      .from('muestras')
+      .select('kilos_descontados')
+      .gte('created_at', desde)
+      .lt('created_at', hasta),
+  ])
+
+  return {
+    ingresosRollos: rollosHoy?.length ?? 0,
+    ingresosKilos:
+      rollosHoy?.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0) ?? 0,
+    pedidosCreados: pedidosCreados ?? 0,
+    pedidosEntregados: pedidosEntregados ?? 0,
+    pedidosActivos: pedidosActivos ?? 0,
+    muestras: muestrasHoy?.length ?? 0,
+    muestrasKilos:
+      muestrasHoy?.reduce(
+        (acc, m) => acc + Number(m.kilos_descontados ?? 0),
+        0
+      ) ?? 0,
+  }
 }
 
 const cards: {
@@ -115,7 +185,7 @@ const cards: {
   {
     href: '/admin/reportes',
     title: 'Reportes',
-    description: 'Movimientos, diferencias, antiguedad y CSV.',
+    description: 'Movimientos, diferencias, días en mano y CSV.',
     icon: BarChart3,
     section: 'Análisis',
   },
@@ -127,7 +197,13 @@ export default async function AdminDashboard() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: profile }, alertas, { count: rollosEnStock }, { count: pendientes }] =
+  const [
+    { data: profile },
+    alertas,
+    resumenDiario,
+    { count: rollosEnStock },
+    { count: pendientes },
+  ] =
     await Promise.all([
       supabase
         .from('profiles')
@@ -135,6 +211,7 @@ export default async function AdminDashboard() {
         .eq('id', user!.id)
         .single(),
       getAlertasStockMinimo(supabase),
+      getResumenDiario(supabase),
       supabase
         .from('rollos')
         .select('id', { count: 'exact', head: true })
@@ -174,6 +251,51 @@ export default async function AdminDashboard() {
         <Metric label="Rollos en stock" value={rollosEnStock ?? 0} />
         <Metric label="Pendientes de verificar" value={pendientes ?? 0} />
         <Metric label="Alertas de stock" value={alertas.length} tone="warning" />
+      </section>
+
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-heading text-lg font-semibold">
+              Resumen de hoy
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Actividad operativa registrada durante el día.
+            </p>
+          </div>
+          <Link
+            href="/admin/reportes"
+            className="text-sm font-medium text-action underline-offset-2 hover:underline"
+          >
+            Ver reportes
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryTile
+            label="Ingresos"
+            value={resumenDiario.ingresosRollos}
+            detail={`${resumenDiario.ingresosKilos.toLocaleString('es-AR', {
+              maximumFractionDigits: 2,
+            })} kg`}
+          />
+          <SummaryTile
+            label="Pedidos creados"
+            value={resumenDiario.pedidosCreados}
+            detail={`${resumenDiario.pedidosEntregados} entregados hoy`}
+          />
+          <SummaryTile
+            label="Pedidos activos"
+            value={resumenDiario.pedidosActivos}
+            detail="Pendientes, en preparación o listos"
+          />
+          <SummaryTile
+            label="Muestras"
+            value={resumenDiario.muestras}
+            detail={`${resumenDiario.muestrasKilos.toLocaleString('es-AR', {
+              maximumFractionDigits: 2,
+            })} kg descontados`}
+          />
+        </div>
       </section>
 
       {alertas.length > 0 && (
@@ -238,6 +360,28 @@ function Metric({
       >
         {value.toLocaleString('es-AR')}
       </p>
+    </div>
+  )
+}
+
+function SummaryTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string
+  value: number
+  detail: string
+}) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/35 p-4">
+      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 font-heading text-2xl font-bold tabular-nums">
+        {value.toLocaleString('es-AR')}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </div>
   )
 }

@@ -25,16 +25,31 @@ type SearchParams = {
   articulo?: string
 }
 
+function splitParam(value?: string): string[] {
+  return value?.split(',').map((v) => v.trim()).filter(Boolean) ?? []
+}
+
 function buildCsvHref(
   tipo: string,
   filters: ReportesFiltersType,
   extra?: Record<string, string | number>
 ): string {
   const sp = new URLSearchParams({ tipo })
-  if (filters.tintoreriaId) sp.set('tintoreria', filters.tintoreriaId)
-  if (filters.articuloId) sp.set('articulo', filters.articuloId)
+  const tintorerias = filters.tintoreriaIds?.length
+    ? filters.tintoreriaIds
+    : filters.tintoreriaId
+      ? [filters.tintoreriaId]
+      : []
+  const articulos = filters.articuloIds?.length
+    ? filters.articuloIds
+    : filters.articuloId
+      ? [filters.articuloId]
+      : []
+  const meses = filters.meses?.length ? filters.meses : filters.mes ? [filters.mes] : []
+  if (tintorerias.length) sp.set('tintoreria', tintorerias.join(','))
+  if (articulos.length) sp.set('articulo', articulos.join(','))
   if (filters.anio) sp.set('anio', String(filters.anio))
-  if (filters.mes) sp.set('mes', String(filters.mes))
+  if (meses.length) sp.set('mes', meses.join(','))
   if (extra) {
     for (const [k, v] of Object.entries(extra)) sp.set(k, String(v))
   }
@@ -48,12 +63,18 @@ export default async function ReportesPage({
 }) {
   const sp = await searchParams
   const dias = Number(sp.dias) > 0 ? Number(sp.dias) : 30
+  const anioActual = new Date().getFullYear()
+  const meses = splitParam(sp.mes)
+    .map(Number)
+    .filter((n) => n >= 1 && n <= 12)
+  const tintoreriaIds = splitParam(sp.tintoreria)
+  const articuloIds = splitParam(sp.articulo)
 
   const filters: ReportesFiltersType = {
-    tintoreriaId: sp.tintoreria || undefined,
-    articuloId: sp.articulo || undefined,
-    anio: sp.anio ? Number(sp.anio) : undefined,
-    mes: sp.mes ? Number(sp.mes) : undefined,
+    tintoreriaIds,
+    articuloIds,
+    anio: sp.anio ? Number(sp.anio) : anioActual,
+    meses,
   }
 
   const supabase = await createClient()
@@ -107,10 +128,10 @@ export default async function ReportesPage({
 
       <ReportesFilters
         current={{
-          anio: sp.anio ?? '',
-          mes: sp.mes ?? '',
-          tintoreria: sp.tintoreria ?? '',
-          articulo: sp.articulo ?? '',
+          anio: sp.anio ?? String(anioActual),
+          meses: splitParam(sp.mes),
+          tintorerias: tintoreriaIds,
+          articulos: articuloIds,
           dias: sp.dias ?? '30',
         }}
         tintorerias={tintorerias ?? []}
@@ -649,14 +670,14 @@ function SeccionAntiguedad({
   return (
     <section className="space-y-3">
       <SectionHeader
-        title={`Antigüedad de stock (>${dias} días sin moverse)`}
+        title={`Días en mano (>${dias} días sin moverse)`}
         description="El umbral se cambia desde el filtro de arriba"
         csvHref={csvHref}
       />
 
       {data.length === 0 ? (
         <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">
-          Sin rollos con más de {dias} días en stock.
+          Sin rollos con más de {dias} días en mano.
         </div>
       ) : (
         <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
@@ -670,7 +691,7 @@ function SeccionAntiguedad({
                   <th className="px-4 py-3 font-medium">Ubicación</th>
                   <th className="px-4 py-3 font-medium">Ingresó</th>
                   <th className="px-4 py-3 font-medium text-right">Kilos</th>
-                  <th className="px-4 py-3 font-medium text-right">Días</th>
+                  <th className="px-4 py-3 font-medium text-right">Días en mano</th>
                 </tr>
               </thead>
               <tbody>

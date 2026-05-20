@@ -7,14 +7,13 @@ type Catalogo = { id: string; nombre: string }
 
 export type ReportesFiltersState = {
   anio: string
-  mes: string
-  tintoreria: string
-  articulo: string
+  meses: string[]
+  tintorerias: string[]
+  articulos: string[]
   dias: string
 }
 
 const MESES = [
-  { value: '', label: 'Todo el año' },
   { value: '1', label: 'Enero' },
   { value: '2', label: 'Febrero' },
   { value: '3', label: 'Marzo' },
@@ -38,16 +37,16 @@ export default function ReportesFilters({
   current: ReportesFiltersState
   tintorerias: Catalogo[]
   articulos: Catalogo[]
-  /** Lista de años con datos para el dropdown de Movimientos. */
   anios: number[]
 }) {
   const router = useRouter()
   const sp = useSearchParams()
   const [pending, startTransition] = useTransition()
 
-  function update(field: string, value: string) {
+  function update(field: string, value: string | string[]) {
     const params = new URLSearchParams(sp.toString())
-    if (value) params.set(field, value)
+    const next = Array.isArray(value) ? value.filter(Boolean).join(',') : value
+    if (next) params.set(field, next)
     else params.delete(field)
     const qs = params.toString()
     startTransition(() => {
@@ -67,21 +66,21 @@ export default function ReportesFilters({
     : [anioActual, ...anios]
 
   const hasFilters =
-    !!current.anio ||
-    !!current.mes ||
-    !!current.tintoreria ||
-    !!current.articulo ||
+    current.anio !== String(anioActual) ||
+    current.meses.length > 0 ||
+    current.tintorerias.length > 0 ||
+    current.articulos.length > 0 ||
     (!!current.dias && current.dias !== '30')
 
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+    <div className="space-y-3 rounded-lg border bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Filtros</h2>
         {hasFilters && (
           <button
             type="button"
             onClick={reset}
-            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
           >
             Limpiar
           </button>
@@ -89,16 +88,12 @@ export default function ReportesFilters({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Año (Movimientos)
-          </label>
+        <Field label="Año">
           <select
             value={current.anio}
             onChange={(e) => update('anio', e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
           >
-            <option value="">Mes actual</option>
             {aniosOpciones
               .sort((a, b) => b - a)
               .map((a) => (
@@ -107,70 +102,37 @@ export default function ReportesFilters({
                 </option>
               ))}
           </select>
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Mes (Movimientos)
-          </label>
-          <select
-            value={current.mes}
-            onChange={(e) => update('mes', e.target.value)}
-            disabled={!current.anio}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white disabled:bg-zinc-50 disabled:cursor-not-allowed"
-          >
-            {MESES.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Field label="Meses">
+          <MultiSelect
+            values={current.meses}
+            options={MESES}
+            onChange={(values) => update('mes', values)}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Tintorería
-          </label>
-          <select
-            value={current.tintoreria}
-            onChange={(e) => update('tintoreria', e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white"
-          >
-            <option value="">Todas</option>
-            {tintorerias.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Field label="Tintorerías">
+          <MultiSelect
+            values={current.tintorerias}
+            options={tintorerias.map((t) => ({ value: t.id, label: t.nombre }))}
+            onChange={(values) => update('tintoreria', values)}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Artículo
-          </label>
-          <select
-            value={current.articulo}
-            onChange={(e) => update('articulo', e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white"
-          >
-            <option value="">Todos</option>
-            {articulos.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Field label="Artículos">
+          <MultiSelect
+            values={current.articulos}
+            options={articulos.map((a) => ({ value: a.id, label: a.nombre }))}
+            onChange={(values) => update('articulo', values)}
+          />
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Días antigüedad
-          </label>
+        <Field label="Días en mano">
           <select
             value={current.dias || '30'}
             onChange={(e) => update('dias', e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
           >
             {[7, 15, 30, 60, 90, 180].map((d) => (
               <option key={d} value={d}>
@@ -178,12 +140,66 @@ export default function ReportesFilters({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {pending ? 'Aplicando filtros…' : 'Los filtros se aplican al cambiar.'}
+        {pending
+          ? 'Aplicando filtros...'
+          : 'Podés combinar varios meses, tintorerías y artículos en el mismo reporte.'}
       </p>
+    </div>
+  )
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function MultiSelect({
+  values,
+  options,
+  onChange,
+}: {
+  values: string[]
+  options: { value: string; label: string }[]
+  onChange: (values: string[]) => void
+}) {
+  function toggle(value: string) {
+    if (values.includes(value)) {
+      onChange(values.filter((v) => v !== value))
+    } else {
+      onChange([...values, value])
+    }
+  }
+
+  return (
+    <div className="max-h-32 overflow-y-auto rounded-md border bg-white p-2">
+      {options.map((option) => (
+        <label
+          key={option.value}
+          className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-2 text-sm hover:bg-accent"
+        >
+          <input
+            type="checkbox"
+            checked={values.includes(option.value)}
+            onChange={() => toggle(option.value)}
+            className="size-4 accent-action"
+          />
+          <span className="min-w-0 truncate">{option.label}</span>
+        </label>
+      ))}
     </div>
   )
 }

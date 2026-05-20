@@ -149,7 +149,7 @@ export default function AppShell({
   const home = homeHref(role)
 
   return (
-    <div className="min-h-screen bg-background md:grid md:grid-cols-[17rem_minmax(0,1fr)]">
+    <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-sidebar px-3 text-sidebar-foreground shadow-sm md:hidden">
         <button
           type="button"
@@ -171,7 +171,7 @@ export default function AppShell({
         userName={userName}
         roleLabel={ROLE_LABEL[role]}
         home={home}
-        className="sticky top-0 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
+        className="fixed inset-y-0 left-0 z-30 hidden w-68 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
       />
 
       {drawerOpen && (
@@ -208,7 +208,7 @@ export default function AppShell({
         </div>
       )}
 
-      <main className="min-w-0 bg-background">{children}</main>
+      <main className="min-w-0 bg-background md:pl-68">{children}</main>
     </div>
   )
 }

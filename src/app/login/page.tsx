@@ -81,7 +81,7 @@ function LoginForm() {
             Stock real, sin vueltas
           </div>
           <h1 className="text-4xl font-bold leading-tight text-white">
-            Rollos, pedidos y tintorerias en un solo lugar.
+            Rollos, pedidos y tintorerías en un solo lugar.
           </h1>
           <p className="text-base leading-7 text-white/68">
             Diseñado para depósito y ventas: rápido en celular, claro en
@@ -89,7 +89,7 @@ function LoginForm() {
           </p>
         </div>
 
-        <p className="text-xs text-white/45">NUDO para equipos textiles</p>
+        <p className="text-xs text-white/45">Nudo para equipos textiles</p>
       </section>
 
       <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
@@ -104,7 +104,7 @@ function LoginForm() {
                 Entrar a la plataforma
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Ingresa con tu cuenta de trabajo.
+                Ingresá con tu cuenta de trabajo.
               </p>
             </div>
           </div>

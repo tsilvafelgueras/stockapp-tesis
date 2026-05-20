@@ -36,15 +36,19 @@ function toCSV(headers: string[], rows: unknown[][]): string {
 }
 
 function parseFilters(url: URL): ReportesFilters {
+  const split = (key: string) =>
+    url.searchParams.get(key)?.split(',').map((v) => v.trim()).filter(Boolean) ??
+    []
+  const meses = split('mes')
+    .map(Number)
+    .filter((n) => n >= 1 && n <= 12)
   return {
-    tintoreriaId: url.searchParams.get('tintoreria') ?? undefined,
-    articuloId: url.searchParams.get('articulo') ?? undefined,
+    tintoreriaIds: split('tintoreria'),
+    articuloIds: split('articulo'),
     anio: url.searchParams.get('anio')
       ? Number(url.searchParams.get('anio'))
       : undefined,
-    mes: url.searchParams.get('mes')
-      ? Number(url.searchParams.get('mes'))
-      : undefined,
+    meses,
   }
 }
 
@@ -178,7 +182,7 @@ export async function GET(request: Request) {
         'Ubicación',
         'Ingresó',
         'Kilos',
-        'Días',
+        'Días en mano',
       ],
       data.map((r) => [
         r.numero_pieza,
@@ -190,7 +194,7 @@ export async function GET(request: Request) {
         r.dias,
       ])
     )
-    filename = `reporte-antiguedad-${dias}d.csv`
+    filename = `reporte-dias-en-mano-${dias}d.csv`
   }
 
   return new NextResponse(csv, {
