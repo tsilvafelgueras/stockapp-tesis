@@ -57,7 +57,7 @@ const actions: {
 
 export default function OperarioDashboard() {
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-3xl flex-col px-4 py-5 sm:px-6 md:min-h-screen md:py-8">
+    <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-3xl flex-col px-4 py-5 sm:px-6 md:min-h-dvh md:py-8">
       <div className="mb-5 rounded-xl bg-sidebar p-5 text-white shadow-sm sm:p-6">
         <p className="text-xs font-medium uppercase tracking-[0.08em] text-white/55">
           Deposito
@@ -76,28 +76,20 @@ export default function OperarioDashboard() {
             <Link
               key={item.href}
               href={item.href}
-              className={`group flex min-h-28 items-start gap-4 rounded-lg border bg-white p-4 shadow-sm transition-all active:scale-[0.99] ${
+              className={`group flex min-h-28 items-start gap-4 rounded-lg border bg-white p-4 text-foreground shadow-sm transition-all hover:border-action hover:bg-action hover:text-action-foreground hover:shadow-md active:scale-[0.99] ${
                 item.primary
-                  ? 'border-action bg-action text-action-foreground hover:bg-action/95'
-                  : 'hover:border-action/40 hover:shadow-md'
+                  ? 'border-action/60 ring-1 ring-action/10'
+                  : 'border-border'
               }`}
             >
-              <span
-                className={`flex size-12 shrink-0 items-center justify-center rounded-md ${
-                  item.primary ? 'bg-white/16' : 'bg-accent text-action'
-                }`}
-              >
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-accent text-action transition-colors group-hover:bg-white/16 group-hover:text-white">
                 <Icon className="size-6" />
               </span>
               <span className="min-w-0">
                 <span className="block font-heading text-lg font-semibold">
                   {item.title}
                 </span>
-                <span
-                  className={`mt-1 block text-sm leading-5 ${
-                    item.primary ? 'text-white/78' : 'text-muted-foreground'
-                  }`}
-                >
+                <span className="mt-1 block text-sm leading-5 text-muted-foreground transition-colors group-hover:text-white/78">
                   {item.description}
                 </span>
               </span>

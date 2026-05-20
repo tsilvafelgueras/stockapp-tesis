@@ -140,11 +140,18 @@
   html {
     @apply font-sans;
     text-size-adjust: 100%;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   body {
     @apply bg-background text-foreground;
-    font-size: 15px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    font-size: 16px;
   }
 
   h1,
@@ -174,7 +181,7 @@
   input,
   select,
   textarea {
-    @apply min-h-11 rounded-md border-input bg-white text-[15px] shadow-none transition-colors;
+    @apply min-h-11 rounded-md border-input bg-white text-[16px] shadow-none transition-colors;
   }
 
   input:focus-visible,
@@ -189,5 +196,10 @@
 
   thead {
     @apply text-muted-foreground;
+  }
+
+  main {
+    min-width: 0;
+    max-width: 100vw;
   }
 }
