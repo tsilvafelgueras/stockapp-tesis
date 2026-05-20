@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import {
   BarChart3,
@@ -133,6 +134,8 @@ const ROLE_LABEL: Record<Role, string> = {
   ventas: 'Ventas',
 }
 
+const DESKTOP_SIDEBAR_WIDTH = '17rem'
+
 export default function AppShell({
   role,
   userName,
@@ -171,7 +174,14 @@ export default function AppShell({
         userName={userName}
         roleLabel={ROLE_LABEL[role]}
         home={home}
-        className="fixed inset-y-0 left-0 z-30 hidden w-68 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
+        className="z-30 hidden flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
+        style={{
+          position: 'fixed',
+          insetBlock: 0,
+          insetInlineStart: 0,
+          width: DESKTOP_SIDEBAR_WIDTH,
+          height: '100dvh',
+        }}
       />
 
       {drawerOpen && (
@@ -208,7 +218,16 @@ export default function AppShell({
         </div>
       )}
 
-      <main className="min-w-0 bg-background md:pl-68">{children}</main>
+      <main
+        className="min-w-0 bg-background"
+        style={
+          {
+            '--desktop-sidebar-width': DESKTOP_SIDEBAR_WIDTH,
+          } as CSSProperties
+        }
+      >
+        <div className="md:ml-[var(--desktop-sidebar-width)]">{children}</div>
+      </main>
     </div>
   )
 }
@@ -242,6 +261,7 @@ function SidebarContent({
   roleLabel,
   home,
   className,
+  style,
   hideHeader,
   onItemClick,
 }: {
@@ -251,13 +271,14 @@ function SidebarContent({
   roleLabel: string
   home: string
   className?: string
+  style?: CSSProperties
   hideHeader?: boolean
   onItemClick?: () => void
 }) {
   const pathname = usePathname()
 
   return (
-    <aside className={className}>
+    <aside className={className} style={style}>
       {!hideHeader && (
         <Link href={home} className="border-b border-sidebar-border px-5 py-5">
           <BrandLockup empresaNombre={empresaNombre} />
