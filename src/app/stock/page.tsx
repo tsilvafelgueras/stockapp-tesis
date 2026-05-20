@@ -136,7 +136,7 @@ export default async function StockPage({
             </p>
             <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Stock</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Rollos disponibles en deposito, reservas y ubicaciones.
+              Rollos disponibles en depósito, reservas y ubicaciones.
             </p>
           </div>
           <div className="flex size-12 items-center justify-center rounded-lg bg-accent text-action">
@@ -189,7 +189,7 @@ export default async function StockPage({
             </ul>
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">
-              Sin rollos en stock todavia.
+              Sin rollos en stock todavía.
             </p>
           )}
         </div>

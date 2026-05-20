@@ -18,13 +18,13 @@ const actions: {
   {
     href: '/operario/ingresos/nuevo',
     title: 'Cargar ingreso',
-    description: 'Subi la planilla o carga los rollos a mano cuando llega mercaderia.',
+    description: 'Subí la planilla o cargá los rollos a mano cuando llega mercadería.',
     icon: PackagePlus,
   },
   {
     href: '/operario/confirmar',
     title: 'Escanear llegadas',
-    description: 'Confirmar rollos pendientes y asignarles ubicacion.',
+    description: 'Confirmar rollos pendientes y asignarles ubicación.',
     icon: ScanLine,
   },
   {
@@ -36,7 +36,7 @@ const actions: {
   {
     href: '/operario/picking',
     title: 'Picking',
-    description: 'Preparar pedidos escaneando los rollos del deposito.',
+    description: 'Preparar pedidos escaneando los rollos del depósito.',
     icon: ClipboardCheck,
   },
   {

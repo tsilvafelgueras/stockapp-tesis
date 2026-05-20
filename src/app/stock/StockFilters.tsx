@@ -81,7 +81,7 @@ export default function StockFilters({
           />
         </Field>
 
-        <Field label="Articulo">
+        <Field label="Artículo">
           <select
             value={current.articulo}
             onChange={(e) => update('articulo', e.target.value)}
@@ -114,7 +114,7 @@ export default function StockFilters({
           />
         </Field>
 
-        <Field label="Tintoreria">
+        <Field label="Tintorería">
           <select
             value={current.tintoreria}
             onChange={(e) => update('tintoreria', e.target.value)}
@@ -129,7 +129,7 @@ export default function StockFilters({
           </select>
         </Field>
 
-        <Field label="Ubicacion">
+        <Field label="Ubicación">
           <input
             type="text"
             defaultValue={current.ubicacion}

@@ -78,7 +78,7 @@ export default function NuevaEmpresaForm() {
           value={empresaNombre}
           onChange={(e) => setEmpresaNombre(e.target.value)}
           required
-          placeholder="Ej: Textil Dakuba"
+          placeholder="Ej: Textil X"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
@@ -102,7 +102,7 @@ export default function NuevaEmpresaForm() {
             value={adminEmail}
             onChange={(e) => setAdminEmail(e.target.value)}
             required
-            placeholder="juan@dakuba.com"
+            placeholder="juan@textil.com"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>

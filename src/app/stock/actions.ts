@@ -25,7 +25,7 @@ export async function moverUbicacion(
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
     return {
       ok: false,
-      error: 'Solo el operario o el admin pueden mover ubicación.',
+      error: 'Solo el operario o el administrador pueden mover ubicación.',
     }
   }
 
@@ -138,7 +138,7 @@ export async function confirmarRolloManual(
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
     return {
       ok: false,
-      error: 'Solo el operario o el admin pueden confirmar rollos.',
+      error: 'Solo el operario o el administrador pueden confirmar rollos.',
     }
   }
 
@@ -213,7 +213,7 @@ export async function auditarRollo(
     .single()
 
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
-    return { ok: false, error: 'Solo el operario o el admin pueden auditar rollos.' }
+    return { ok: false, error: 'Solo el operario o el administrador pueden auditar rollos.' }
   }
 
   const { data: rollo, error: fetchError } = await supabase
@@ -264,7 +264,7 @@ export async function marcarComoSegunda(
     .single()
 
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
-    return { ok: false, error: 'Solo el operario o el admin pueden marcar rollos.' }
+    return { ok: false, error: 'Solo el operario o el administrador pueden marcar rollos.' }
   }
 
   const { data: rollo, error: fetchError } = await supabase

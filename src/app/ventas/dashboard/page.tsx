@@ -12,20 +12,20 @@ const actions: {
   {
     href: '/stock',
     title: 'Buscar stock',
-    description: 'Filtra por articulo, color, ubicacion o tintoreria.',
+    description: 'Filtrá por artículo, color, ubicación o tintorería.',
     icon: Search,
     primary: true,
   },
   {
     href: '/ventas/pedidos/nuevo',
     title: 'Nuevo pedido',
-    description: 'Reserva rollos concretos para un cliente.',
+    description: 'Reservá rollos concretos para un cliente.',
     icon: ShoppingCart,
   },
   {
     href: '/ventas/pedidos',
     title: 'Pedidos abiertos',
-    description: 'Segui pendientes, preparacion y ventas confirmadas.',
+    description: 'Seguí pendientes, preparación y ventas confirmadas.',
     icon: Clock3,
   },
   {
@@ -69,8 +69,8 @@ export default async function VentasDashboard() {
           Stock disponible para vender
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Bienvenida, {profile?.nombre ?? 'usuaria'}. Busca disponibilidad real,
-          reserva rollos y evita prometer mercaderia que ya esta comprometida.
+          Bienvenida, {profile?.nombre ?? 'usuaria'}. Buscá disponibilidad real,
+          reserva rollos y evita prometer mercadería que ya está comprometida.
         </p>
       </div>
 

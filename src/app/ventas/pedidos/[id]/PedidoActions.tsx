@@ -164,7 +164,7 @@ export default function PedidoActions({
         <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
           <p className="text-sm">
             Confirmás que la venta se cerró. El pedido pasa a estado{' '}
-            <strong>&ldquo;Venta confirmada&rdquo;</strong> y admin va a poder
+            <strong>&ldquo;Venta confirmada&rdquo;</strong> y administración va a poder
             entregarlo.
           </p>
           <div className="flex gap-2 justify-end">

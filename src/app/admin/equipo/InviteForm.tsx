@@ -74,7 +74,7 @@ export default function InviteForm() {
           >
             <option value="operario">Operario (depósito)</option>
             <option value="ventas">Ventas</option>
-            <option value="admin">Admin (dueño)</option>
+            <option value="admin">Administrador (dueño)</option>
           </select>
         </div>
       </div>

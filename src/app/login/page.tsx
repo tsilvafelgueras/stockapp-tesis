@@ -84,7 +84,7 @@ function LoginForm() {
             Rollos, pedidos y tintorerias en un solo lugar.
           </h1>
           <p className="text-base leading-7 text-white/68">
-            Diseñado para deposito y ventas: rapido en celular, claro en
+            Diseñado para depósito y ventas: rápido en celular, claro en
             escritorio y preparado para el ritmo de una PyME textil argentina.
           </p>
         </div>
@@ -111,7 +111,7 @@ function LoginForm() {
 
           {empresaPausada && (
             <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-foreground">
-              <p className="font-medium text-warning">Tu empresa esta pausada</p>
+              <p className="font-medium text-warning">Tu empresa está pausada</p>
               <p className="mt-0.5 text-muted-foreground">
                 Contacta al administrador de la plataforma para reactivarla.
               </p>

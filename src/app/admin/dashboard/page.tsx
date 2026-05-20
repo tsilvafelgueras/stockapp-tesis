@@ -66,58 +66,58 @@ const cards: {
   {
     href: '/operario/ingresos',
     title: 'Ingresos',
-    description: 'Llegadas desde tintorerias, planillas y rollos pendientes.',
+    description: 'Llegadas desde tintorerías, planillas y rollos pendientes.',
     icon: PackagePlus,
-    section: 'Operacion',
+    section: 'Operación',
   },
   {
     href: '/stock',
     title: 'Inventario',
     description: 'Stock disponible, ubicaciones, reservas y bajas.',
     icon: Search,
-    section: 'Operacion',
+    section: 'Operación',
   },
   {
     href: '/operario/picking',
     title: 'Picking',
-    description: 'Preparacion de pedidos con scanner QR.',
+    description: 'Preparación de pedidos con scanner QR.',
     icon: ClipboardCheck,
-    section: 'Operacion',
+    section: 'Operación',
   },
   {
     href: '/ventas/pedidos',
     title: 'Pedidos',
-    description: 'Reservas, preparacion y confirmacion de ventas.',
+    description: 'Reservas, preparación y confirmación de ventas.',
     icon: ShoppingCart,
     section: 'Ventas',
   },
   {
     href: '/admin/articulos',
-    title: 'Articulos',
-    description: 'Catalogo de telas y stock minimo por articulo.',
+    title: 'Artículos',
+    description: 'Catálogo de telas y stock mínimo por artículo.',
     icon: Boxes,
-    section: 'Administracion',
+    section: 'Administración',
   },
   {
     href: '/admin/tintorerias',
-    title: 'Tintorerias',
+    title: 'Tintorerías',
     description: 'Proveedores externos de teñido y acabado.',
     icon: Factory,
-    section: 'Administracion',
+    section: 'Administración',
   },
   {
     href: '/admin/equipo',
     title: 'Equipo',
     description: 'Usuarios, roles e invitaciones de la empresa.',
     icon: Users,
-    section: 'Administracion',
+    section: 'Administración',
   },
   {
     href: '/admin/reportes',
     title: 'Reportes',
     description: 'Movimientos, diferencias, antiguedad y CSV.',
     icon: BarChart3,
-    section: 'Analisis',
+    section: 'Análisis',
   },
 ]
 
@@ -199,7 +199,7 @@ export default async function AdminDashboard() {
         </div>
       )}
 
-      {['Operacion', 'Ventas', 'Administracion', 'Analisis'].map((section) => (
+      {['Operación', 'Ventas', 'Administración', 'Análisis'].map((section) => (
         <section key={section} className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {section}

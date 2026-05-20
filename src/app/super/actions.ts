@@ -60,8 +60,8 @@ export async function createEmpresaConAdmin(input: {
   const admin_email = input.admin_email.trim()
 
   if (!empresa_nombre) return { error: 'El nombre de la empresa es obligatorio.' }
-  if (!admin_nombre) return { error: 'El nombre del admin es obligatorio.' }
-  if (!admin_email) return { error: 'El email del admin es obligatorio.' }
+  if (!admin_nombre) return { error: 'El nombre del administrador es obligatorio.' }
+  if (!admin_email) return { error: 'El email del administrador es obligatorio.' }
 
   const admin = createAdminClient()
 
