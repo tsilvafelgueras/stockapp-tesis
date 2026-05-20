@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, Boxes } from 'lucide-react'
+import BrandMark from '@/components/BrandMark'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
@@ -67,9 +68,7 @@ function LoginForm() {
     <main className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,1fr)]">
       <section className="hidden bg-sidebar text-sidebar-foreground lg:flex lg:flex-col lg:justify-between lg:p-10">
         <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-lg bg-action font-heading text-xl font-bold text-action-foreground">
-            N
-          </div>
+          <BrandMark className="size-11" />
           <div>
             <p className="font-heading text-2xl font-bold leading-none">NUDO</p>
             <p className="mt-1 text-xs text-white/60">WMS textil</p>
@@ -97,9 +96,7 @@ function LoginForm() {
         <div className="w-full max-w-md space-y-6 rounded-xl border bg-white p-6 shadow-sm sm:p-8">
           <div className="space-y-2">
             <div className="flex items-center gap-3 lg:hidden">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-action font-heading text-lg font-bold text-action-foreground">
-                N
-              </div>
+              <BrandMark className="size-10" />
               <p className="font-heading text-2xl font-bold">NUDO</p>
             </div>
             <div>

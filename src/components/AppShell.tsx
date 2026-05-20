@@ -22,6 +22,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
+import BrandMark from './BrandMark'
 import LogoutButton from './LogoutButton'
 
 export type NavItem = {
@@ -221,9 +222,7 @@ function BrandLockup({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-action font-heading text-lg font-bold text-action-foreground shadow-sm">
-        N
-      </div>
+      <BrandMark className="size-10 shadow-sm" />
       <div className="min-w-0">
         <p className="font-heading text-[1.375rem] font-bold leading-none tracking-normal">
           NUDO
