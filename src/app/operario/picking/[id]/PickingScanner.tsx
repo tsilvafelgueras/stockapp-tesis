@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
+import { extraerCodigoRollo } from '@/lib/scanner'
 import { pickearRollo } from './actions'
 
 export type PickRollo = {
@@ -35,10 +36,14 @@ export default function PickingScanner({
   const total = itemsLocales.length
   const progresoPct = total > 0 ? Math.round((pickeados / total) * 100) : 0
   const completo = pendientes.length === 0
+  const codigosRollos = useMemo(
+    () => itemsLocales.map((r) => r.numero_pieza),
+    [itemsLocales]
+  )
 
   const handleLectura = useCallback((result: CodeScannerResult) => {
-    setPendingCode(result.texto)
-  }, [])
+    setPendingCode(extraerCodigoRollo(result.texto, codigosRollos))
+  }, [codigosRollos])
 
   function cancelarModal() {
     setPendingCode(null)

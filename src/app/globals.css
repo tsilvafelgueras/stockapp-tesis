@@ -204,7 +204,10 @@
   }
 
   .scan-success {
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--success) 72%, transparent));
+  }
+
+  .scan-success .scanner-corner {
     border-color: var(--success) !important;
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 28%, transparent);
   }
 }

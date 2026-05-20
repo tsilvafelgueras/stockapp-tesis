@@ -277,19 +277,24 @@ export default function CodeScanner({
           />
         ) : (
           <div className="mt-3 overflow-hidden rounded-lg bg-black">
-            <div className="relative aspect-video w-full">
+            <div className="relative aspect-[4/3] w-full">
               <video
                 ref={videoRef}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover"
                 playsInline
                 muted
               />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                 <div
-                  className={`h-full max-h-52 w-full max-w-72 rounded-lg border-4 border-white/90 transition-colors ${
+                  className={`relative size-52 max-h-[70vw] max-w-[70vw] transition-colors ${
                     scanSuccess ? 'scan-success' : ''
                   }`}
-                />
+                >
+                  <div className="scanner-corner absolute left-0 top-0 size-10 rounded-tl border-l-4 border-t-4 border-white/80" />
+                  <div className="scanner-corner absolute right-0 top-0 size-10 rounded-tr border-r-4 border-t-4 border-white/80" />
+                  <div className="scanner-corner absolute bottom-0 left-0 size-10 rounded-bl border-b-4 border-l-4 border-white/80" />
+                  <div className="scanner-corner absolute bottom-0 right-0 size-10 rounded-br border-b-4 border-r-4 border-white/80" />
+                </div>
               </div>
 
               {status === 'starting' && (

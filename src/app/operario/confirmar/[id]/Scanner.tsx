@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
+import { extraerCodigoRollo } from '@/lib/scanner'
 import { confirmarRollo } from './actions'
 
 type Rollo = { id: string; numero_pieza: string; estado: string }
@@ -30,6 +31,10 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
   const total = rollosLocales.length
   const progresoPct = total > 0 ? Math.round((confirmados / total) * 100) : 0
   const completo = pendientes.length === 0
+  const codigosRollos = useMemo(
+    () => rollosLocales.map((r) => r.numero_pieza),
+    [rollosLocales]
+  )
 
   const mostrarMensaje = useCallback((texto: string, tipo: Mensaje['tipo']) => {
     setMensaje({ texto, tipo })
@@ -37,8 +42,8 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
   }, [])
 
   const handleLectura = useCallback((result: CodeScannerResult) => {
-    setPendingCode(result.texto)
-  }, [])
+    setPendingCode(extraerCodigoRollo(result.texto, codigosRollos))
+  }, [codigosRollos])
 
   function cancelarModal() {
     setPendingCode(null)
