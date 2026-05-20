@@ -7,14 +7,12 @@ const actions: {
   title: string
   description: string
   icon: LucideIcon
-  primary?: boolean
 }[] = [
   {
     href: '/stock',
     title: 'Buscar stock',
     description: 'Filtrá por artículo, color, ubicación o tintorería.',
     icon: Search,
-    primary: true,
   },
   {
     href: '/ventas/pedidos/nuevo',
@@ -81,25 +79,13 @@ export default async function VentasDashboard() {
             <Link
               key={item.href}
               href={item.href}
-              className={`rounded-lg border p-4 shadow-sm transition-all hover:shadow-md ${
-                item.primary
-                  ? 'border-action bg-action text-action-foreground hover:bg-action/95'
-                  : 'bg-white hover:border-action/40'
-              }`}
+              className="rounded-lg border bg-white p-4 shadow-sm transition-all hover:border-action/40 hover:shadow-md"
             >
-              <span
-                className={`flex size-11 items-center justify-center rounded-md ${
-                  item.primary ? 'bg-white/16' : 'bg-accent text-action'
-                }`}
-              >
+              <span className="flex size-11 items-center justify-center rounded-md bg-accent text-action">
                 <Icon className="size-5" />
               </span>
               <h2 className="mt-4 font-heading text-lg font-semibold">{item.title}</h2>
-              <p
-                className={`mt-1 text-sm leading-5 ${
-                  item.primary ? 'text-white/78' : 'text-muted-foreground'
-                }`}
-              >
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">
                 {item.description}
               </p>
             </Link>

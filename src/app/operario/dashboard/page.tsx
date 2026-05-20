@@ -74,16 +74,16 @@ export default function OperarioDashboard() {
             <Link
               key={item.href}
               href={item.href}
-              className="group flex min-h-28 items-start gap-4 rounded-lg border border-transparent bg-white p-4 text-foreground shadow-sm outline-none transition-all hover:border-action hover:bg-action hover:text-action-foreground hover:shadow-md focus-visible:border-action focus-visible:ring-2 focus-visible:ring-action/30 active:scale-[0.99]"
+              className="group flex min-h-28 items-start gap-4 rounded-lg border bg-white p-4 text-foreground shadow-sm outline-none transition-all hover:border-action/40 hover:shadow-md focus-visible:border-action focus-visible:ring-2 focus-visible:ring-action/30 active:scale-[0.99]"
             >
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-accent text-action transition-colors group-hover:bg-white/16 group-hover:text-white">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-accent text-action">
                 <Icon className="size-6" />
               </span>
               <span className="min-w-0">
                 <span className="block font-heading text-lg font-semibold">
                   {item.title}
                 </span>
-                <span className="mt-1 block text-sm leading-5 text-muted-foreground transition-colors group-hover:text-white/78">
+                <span className="mt-1 block text-sm leading-5 text-muted-foreground">
                   {item.description}
                 </span>
               </span>
