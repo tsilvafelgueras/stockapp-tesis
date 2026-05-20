@@ -31,6 +31,10 @@ type TorchConstraint = MediaTrackConstraintSet & {
   torch?: boolean
 }
 
+type ScannerVideoConstraints = MediaTrackConstraints & {
+  focusMode?: ConstrainDOMString
+}
+
 declare global {
   interface Window {
     ImageCapture?: ImageCaptureConstructor
@@ -48,6 +52,9 @@ const SUPPORTED_FORMATS = [
 
 const SCAN_COOLDOWN_MS = 2000
 const SUCCESS_MS = 800
+const SCAN_INTERVAL_MS = 120
+const CANVAS_WIDTH = 640
+const CANVAS_HEIGHT = 480
 
 export default function CodeScanner({
   onRead,
@@ -67,12 +74,13 @@ export default function CodeScanner({
   className?: string
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const readerRef = useRef<BrowserMultiFormatReader | null>(null)
-  const controlsRef = useRef<{ stop: () => void } | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const onReadRef = useRef(onRead)
   const lastReadRef = useRef<{ texto: string; at: number } | null>(null)
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [status, setStatus] = useState<ScannerStatus>('idle')
   const [manualValue, setManualValue] = useState('')
@@ -84,8 +92,10 @@ export default function CodeScanner({
   }, [onRead])
 
   const releaseScanner = useCallback(() => {
-    controlsRef.current?.stop()
-    controlsRef.current = null
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current)
+      scanTimeoutRef.current = null
+    }
 
     const readerWithReset = readerRef.current as
       | (BrowserMultiFormatReader & { reset?: () => void })
@@ -107,7 +117,7 @@ export default function CodeScanner({
   }, [releaseScanner])
 
   const emitRead = useCallback((result: CodeScannerResult) => {
-    const texto = result.texto.trim()
+    const texto = normalizeDecodedText(result.texto)
     if (!texto) return
 
     const now = Date.now()
@@ -157,38 +167,48 @@ export default function CodeScanner({
       readerRef.current = reader
 
       try {
-        const controls = await reader.decodeFromConstraints(
-          {
-            video: {
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-            audio: false,
-          },
-          videoRef.current,
-          (result, error) => {
-            if (result) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            focusMode: { ideal: 'continuous' },
+          } as ScannerVideoConstraints,
+          audio: false,
+        })
+
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
+        streamRef.current = stream
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+
+        setStatus('ready')
+
+        const scanFrame = () => {
+          if (cancelled || !videoRef.current || !canvasRef.current) return
+
+          if (preprocessFrame(videoRef.current, canvasRef.current)) {
+            try {
+              const result = reader.decodeFromCanvas(canvasRef.current)
               emitRead({
                 texto: result.getText(),
                 formato: result.getBarcodeFormat(),
               })
-            }
-
-            if (error && !(error instanceof NotFoundException)) {
-              console.warn('Scanner error:', error)
+            } catch (error) {
+              if (error && !(error instanceof NotFoundException)) {
+                console.warn('Scanner error:', error)
+              }
             }
           }
-        )
 
-        if (cancelled) {
-          controls.stop()
-          return
+          scanTimeoutRef.current = setTimeout(scanFrame, SCAN_INTERVAL_MS)
         }
 
-        controlsRef.current = controls
-        streamRef.current = videoRef.current?.srcObject as MediaStream | null
-        setStatus('ready')
+        scanFrame()
       } catch (error) {
         if (cancelled) return
         releaseScanner()
@@ -284,6 +304,7 @@ export default function CodeScanner({
                 playsInline
                 muted
               />
+              <canvas ref={canvasRef} className="hidden" aria-hidden />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                 <div
                   className={`relative size-52 max-h-[70vw] max-w-[70vw] transition-colors ${
@@ -363,6 +384,58 @@ function CameraMessage({ title, text }: { title: string; text: string }) {
       <p className="mt-1 text-muted-foreground">{text}</p>
     </div>
   )
+}
+
+function normalizeDecodedText(value: string): string | null {
+  const texto = value.trim()
+  if (!texto) return null
+  if (/^https?:\/\//i.test(texto)) return null
+  if (texto.length > 50) return null
+  return texto
+}
+
+function preprocessFrame(
+  videoEl: HTMLVideoElement,
+  canvasEl: HTMLCanvasElement
+): boolean {
+  if (!videoEl.videoWidth || !videoEl.videoHeight) return false
+
+  if (canvasEl.width !== CANVAS_WIDTH) canvasEl.width = CANVAS_WIDTH
+  if (canvasEl.height !== CANVAS_HEIGHT) canvasEl.height = CANVAS_HEIGHT
+
+  const ctx = canvasEl.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return false
+
+  const roiX = videoEl.videoWidth * 0.1
+  const roiY = videoEl.videoHeight * 0.1
+  const roiW = videoEl.videoWidth * 0.8
+  const roiH = videoEl.videoHeight * 0.8
+
+  ctx.drawImage(
+    videoEl,
+    roiX,
+    roiY,
+    roiW,
+    roiH,
+    0,
+    0,
+    canvasEl.width,
+    canvasEl.height
+  )
+
+  const imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height)
+  const data = imageData.data
+
+  for (let i = 0; i < data.length; i += 4) {
+    const avg = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
+    const val = avg > 128 ? 255 : 0
+    data[i] = val
+    data[i + 1] = val
+    data[i + 2] = val
+  }
+
+  ctx.putImageData(imageData, 0, 0)
+  return true
 }
 
 function beep() {
