@@ -60,9 +60,9 @@ export default function OperarioDashboard() {
         <p className="text-xs font-medium uppercase tracking-[0.08em] text-white/55">
           Deposito
         </p>
-        <h1 className="mt-2 text-2xl font-bold">Que vas a mover hoy</h1>
+        <h1 className="mt-2 text-2xl font-bold">¿Qué vas a mover hoy?</h1>
         <p className="mt-2 max-w-xl text-sm leading-6 text-white/68">
-          Accesos grandes para trabajar rapido desde el celular, incluso con
+          Accesos grandes para trabajar rápido desde el celular, incluso con
           guantes o en pasillos con poca luz.
         </p>
       </div>

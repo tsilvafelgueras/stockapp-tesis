@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { BrowserMultiFormatReader } from '@zxing/browser'
-import { NotFoundException } from '@zxing/library'
+import { useCallback, useState } from 'react'
+import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
 import { confirmarRollo } from './actions'
-import { extraerCodigoRollo } from '@/lib/scanner'
 
 type Rollo = { id: string; numero_pieza: string; estado: string }
 
@@ -20,151 +18,60 @@ type Mensaje = {
 }
 
 export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null)
-  const controlsRef = useRef<{ stop: () => void } | null>(null)
-  const procesandoRef = useRef(false)
-
-  const [permiso, setPermiso] = useState<'solicitando' | 'concedido' | 'denegado'>('solicitando')
   const [rollosLocales, setRollosLocales] = useState<Rollo[]>(rollos)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [ubicacion, setUbicacion] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [mensaje, setMensaje] = useState<Mensaje | null>(null)
-  const [modoManual, setModoManual] = useState(false)
-  const [codigoManual, setCodigoManual] = useState('')
   const [mostrarPendientes, setMostrarPendientes] = useState(false)
 
   const pendientes = rollosLocales.filter((r) => r.estado === 'pendiente')
   const confirmados = rollosLocales.filter((r) => r.estado !== 'pendiente').length
   const total = rollosLocales.length
   const progresoPct = total > 0 ? Math.round((confirmados / total) * 100) : 0
-  const codigosRollos = useMemo(
-    () => rollosLocales.map((r) => r.numero_pieza),
-    [rollosLocales]
-  )
+  const completo = pendientes.length === 0
 
   const mostrarMensaje = useCallback((texto: string, tipo: Mensaje['tipo']) => {
     setMensaje({ texto, tipo })
     setTimeout(() => setMensaje(null), 4000)
   }, [])
 
-  const iniciarScanner = useCallback(async () => {
-    if (!videoRef.current) return
-    try {
-      const reader = new BrowserMultiFormatReader()
-      readerRef.current = reader
-      const controls = await reader.decodeFromVideoDevice(
-        undefined,
-        videoRef.current,
-        (result, error) => {
-          if (result && !procesandoRef.current && !pendingCode) {
-            procesandoRef.current = true
-            setPendingCode(extraerCodigoRollo(result.getText(), codigosRollos))
-          }
-          // NotFoundException es el "no code found in frame" normal, se ignora
-          if (error && !(error instanceof NotFoundException)) {
-            console.warn('Scanner error:', error)
-          }
-        }
-      )
-      controlsRef.current = controls
-      setPermiso('concedido')
-    } catch (e) {
-      const msg = (e as Error).message ?? ''
-      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
-        setPermiso('denegado')
-      } else {
-        setPermiso('denegado')
-        console.error('Scanner init error:', e)
-      }
-    }
-  }, [pendingCode, codigosRollos])
-
-  useEffect(() => {
-    if (!modoManual) {
-      // La camara es un sistema externo: se inicia cuando el visor entra en modo scanner.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      iniciarScanner()
-    }
-    return () => {
-      controlsRef.current?.stop()
-    }
-  }, [modoManual]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Cuando se detecta un código, pausamos el scanner hasta que se resuelva el modal
-  useEffect(() => {
-    if (pendingCode) {
-      controlsRef.current?.stop()
-    }
-  }, [pendingCode])
+  const handleLectura = useCallback((result: CodeScannerResult) => {
+    setPendingCode(result.texto)
+  }, [])
 
   function cancelarModal() {
     setPendingCode(null)
     setUbicacion('')
-    procesandoRef.current = false
-    // Reiniciar scanner
-    iniciarScanner()
   }
 
-  async function handleConfirmar(numeroPieza: string) {
+  async function handleConfirmar(textoEscaneado: string) {
     setConfirmando(true)
-    const result = await confirmarRollo(ingresoId, numeroPieza, ubicacion)
+    const result = await confirmarRollo(ingresoId, textoEscaneado, ubicacion)
     setConfirmando(false)
 
     if (!result.ok) {
-      mostrarMensaje(result.error, result.codigo === 'YA_CONFIRMADO' ? 'warning' : 'error')
+      mostrarMensaje(
+        result.error,
+        result.codigo === 'YA_CONFIRMADO' ? 'warning' : 'error'
+      )
       setPendingCode(null)
       setUbicacion('')
-      procesandoRef.current = false
-      iniciarScanner()
       return
     }
 
-    // Actualizar estado local del rollo confirmado
     setRollosLocales((prev) =>
       prev.map((r) =>
-        r.numero_pieza === numeroPieza ? { ...r, estado: 'en_stock' } : r
+        r.numero_pieza === result.rollo.numero_pieza
+          ? { ...r, estado: 'en_stock' }
+          : r
       )
     )
     setPendingCode(null)
     setUbicacion('')
-    procesandoRef.current = false
 
     if (result.ingresoCompleto) {
       mostrarMensaje('¡Todos los rollos confirmados! Ingreso cerrado.', 'success')
-      // No reiniciamos scanner, el ingreso está completo
-      return
-    }
-
-    mostrarMensaje(`Rollo ${result.rollo.numero_pieza} confirmado.`, 'success')
-    iniciarScanner()
-  }
-
-  async function handleManual(e: React.FormEvent) {
-    e.preventDefault()
-    const codigo = extraerCodigoRollo(codigoManual, codigosRollos)
-    if (!codigo) return
-    setConfirmando(true)
-    const result = await confirmarRollo(ingresoId, codigo, ubicacion)
-    setConfirmando(false)
-
-    if (!result.ok) {
-      mostrarMensaje(result.error, result.codigo === 'YA_CONFIRMADO' ? 'warning' : 'error')
-      return
-    }
-
-    setRollosLocales((prev) =>
-      prev.map((r) =>
-        r.numero_pieza === codigo ? { ...r, estado: 'en_stock' } : r
-      )
-    )
-    setCodigoManual('')
-    setUbicacion('')
-
-    if (result.ingresoCompleto) {
-      mostrarMensaje('¡Todos los rollos confirmados! Ingreso cerrado.', 'success')
-      setModoManual(false)
       return
     }
 
@@ -173,8 +80,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Barra de progreso */}
-      <div className="rounded-lg border bg-white p-4 shadow-sm space-y-2">
+      <div className="space-y-2 rounded-lg border bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium">
             {confirmados} de {total} rollos confirmados
@@ -184,11 +90,11 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
               Planilla declara {totalDeclarado}
             </span>
           )}
-          <span className="text-muted-foreground text-xs">{progresoPct}%</span>
+          <span className="text-xs text-muted-foreground">{progresoPct}%</span>
         </div>
-        <div className="w-full bg-zinc-100 rounded-full h-2">
+        <div className="h-2 w-full rounded-full bg-zinc-100">
           <div
-            className="bg-primary h-2 rounded-full transition-all duration-500"
+            className="h-2 rounded-full bg-primary transition-all duration-500"
             style={{ width: `${progresoPct}%` }}
           />
         </div>
@@ -197,7 +103,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
           <button
             type="button"
             onClick={() => setMostrarPendientes((v) => !v)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             {mostrarPendientes ? 'Ocultar' : 'Ver'} pendientes ({pendientes.length})
           </button>
@@ -208,7 +114,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
             {pendientes.map((r) => (
               <span
                 key={r.id}
-                className="text-[11px] rounded bg-warning/10 text-warning px-1.5 py-0.5 font-mono"
+                className="rounded bg-warning/10 px-1.5 py-0.5 font-mono text-[11px] text-warning"
               >
                 {r.numero_pieza}
               </span>
@@ -217,140 +123,50 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
         )}
       </div>
 
-      {/* Mensaje flotante */}
       {mensaje && (
         <div
           className={`rounded-lg px-4 py-3 text-sm font-medium ${
             mensaje.tipo === 'success'
-              ? 'bg-success/10 border border-success/30 text-success'
+              ? 'border border-success/30 bg-success/10 text-success'
               : mensaje.tipo === 'warning'
-                ? 'bg-warning/10 border border-warning/30 text-warning'
-                : 'bg-destructive/10 border border-destructive/30 text-destructive'
+                ? 'border border-warning/30 bg-warning/10 text-warning'
+                : 'border border-destructive/30 bg-destructive/10 text-destructive'
           }`}
         >
           {mensaje.texto}
         </div>
       )}
 
-      {/* Toggle scanner / manual */}
-      <div className="flex rounded-lg border bg-white overflow-hidden shadow-sm">
-        <button
-          type="button"
-          onClick={() => setModoManual(false)}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-            !modoManual ? 'bg-primary text-primary-foreground' : 'hover:bg-zinc-50'
-          }`}
-        >
-          Escanear QR
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            controlsRef.current?.stop()
-            setModoManual(true)
-            setPendingCode(null)
-            procesandoRef.current = false
-          }}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-            modoManual ? 'bg-primary text-primary-foreground' : 'hover:bg-zinc-50'
-          }`}
-        >
-          Ingresar a mano
-        </button>
-      </div>
-
-      {/* Modo manual */}
-      {modoManual && (
-        <form
-          onSubmit={handleManual}
-          className="rounded-lg border bg-white p-4 shadow-sm space-y-3"
-        >
-          <h3 className="font-medium text-sm">Confirmar rollo manualmente</h3>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Número de pieza *</label>
-            <input
-              value={codigoManual}
-              onChange={(e) => setCodigoManual(e.target.value)}
-              required
-              placeholder="Ej: 204021911"
-              inputMode="numeric"
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">
-              Ubicación <span className="text-muted-foreground">(opcional)</span>
-            </label>
-            <input
-              value={ubicacion}
-              onChange={(e) => setUbicacion(e.target.value)}
-              placeholder="Ej: A42"
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={confirmando || !codigoManual.trim()}
-            className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            {confirmando ? 'Confirmando...' : 'Confirmar rollo'}
-          </button>
-        </form>
-      )}
-
-      {/* Modo scanner */}
-      {!modoManual && (
-        <div className="rounded-lg border bg-black overflow-hidden shadow-sm relative">
-          {permiso === 'denegado' ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-white px-6 text-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <p className="font-medium">Sin acceso a la cámara</p>
-              <p className="text-sm text-zinc-400">
-                Permitir el acceso a la cámara desde la configuración del navegador, o usá el modo manual.
-              </p>
-            </div>
-          ) : (
-            <>
-              <video
-                ref={videoRef}
-                className="w-full aspect-[4/3] object-cover"
-                playsInline
-                muted
-              />
-              {/* Visor de escaneo */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-48 relative">
-                  <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl" />
-                  <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr" />
-                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl" />
-                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br" />
-                </div>
-              </div>
-              {permiso === 'solicitando' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                  <p className="text-white text-sm">Iniciando cámara...</p>
-                </div>
-              )}
-            </>
-          )}
+      {completo ? (
+        <div className="rounded-lg border border-success/30 bg-success/10 p-5 text-center text-sm text-success">
+          Todos los rollos de este ingreso ya fueron confirmados.
         </div>
+      ) : (
+        <CodeScanner
+          onRead={handleLectura}
+          paused={Boolean(pendingCode) || confirmando}
+          title="Escanear QR o código de barras"
+          manualLabel="Ingresar código manualmente"
+          manualPlaceholder="Ej: 204021911"
+        />
       )}
 
-      {/* Modal de confirmación cuando se detecta un código */}
       {pendingCode && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm space-y-4 p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
+          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl">
             <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Código detectado
               </p>
-              <p className="font-mono text-lg font-bold mt-0.5">{pendingCode}</p>
+              <p className="mt-0.5 break-all font-mono text-lg font-bold">
+                {pendingCode}
+              </p>
             </div>
 
             <div className="space-y-1">
               <label className="text-sm font-medium">
-                Ubicación <span className="text-muted-foreground text-xs">(opcional)</span>
+                Ubicación{' '}
+                <span className="text-xs text-muted-foreground">(opcional)</span>
               </label>
               <input
                 value={ubicacion}
@@ -365,7 +181,8 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
               <button
                 type="button"
                 onClick={cancelarModal}
-                className="flex-1 rounded-md border px-4 py-2.5 text-sm hover:bg-zinc-50 transition-colors"
+                disabled={confirmando}
+                className="flex-1 rounded-md border px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -373,7 +190,7 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
                 type="button"
                 onClick={() => handleConfirmar(pendingCode)}
                 disabled={confirmando}
-                className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 {confirmando ? 'Guardando...' : 'Confirmar'}
               </button>

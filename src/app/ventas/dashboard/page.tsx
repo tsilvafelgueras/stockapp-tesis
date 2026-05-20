@@ -29,7 +29,7 @@ const actions: {
   {
     href: '/ventas/clientes',
     title: 'Clientes',
-    description: 'Consulta historial, datos de contacto y pedidos.',
+    description: 'Consultá historial, datos de contacto y pedidos.',
     icon: Users,
   },
 ]

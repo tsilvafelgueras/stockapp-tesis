@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+import { extraerCodigoRollo } from '@/lib/scanner'
 
 export type ConfirmarRolloResult =
   | {
@@ -17,19 +18,32 @@ export type ConfirmarRolloResult =
 
 export async function confirmarRollo(
   ingresoId: string,
-  numeroPieza: string,
+  textoEscaneado: string,
   ubicacion: string
 ): Promise<ConfirmarRolloResult> {
   const supabase = await createClient()
 
-  const { data: rollo, error: fetchError } = await supabase
+  const { data: rollos, error: fetchError } = await supabase
     .from('rollos')
     .select('id, numero_pieza, estado')
     .eq('ingreso_id', ingresoId)
-    .eq('numero_pieza', numeroPieza.trim())
-    .single()
+    .order('numero_pieza')
 
-  if (fetchError || !rollo) {
+  if (fetchError || !rollos?.length) {
+    return {
+      ok: false,
+      error: 'Este código no pertenece a este ingreso.',
+      codigo: 'NO_MATCH',
+    }
+  }
+
+  const numeroPieza = extraerCodigoRollo(
+    textoEscaneado,
+    rollos.map((r) => r.numero_pieza)
+  )
+  const rollo = rollos.find((r) => r.numero_pieza === numeroPieza)
+
+  if (!rollo) {
     return {
       ok: false,
       error: 'Este código no pertenece a este ingreso.',
@@ -54,7 +68,6 @@ export async function confirmarRollo(
     return { ok: false, error: updateError.message, codigo: 'DB_ERROR' }
   }
 
-  // Si no quedan rollos pendientes, cerrar el ingreso
   const { count } = await supabase
     .from('rollos')
     .select('id', { count: 'exact', head: true })
@@ -73,5 +86,9 @@ export async function confirmarRollo(
   revalidatePath(`/operario/confirmar/${ingresoId}`)
   revalidatePath('/operario/confirmar')
 
-  return { ok: true, rollo: { id: rollo.id, numero_pieza: rollo.numero_pieza }, ingresoCompleto }
+  return {
+    ok: true,
+    rollo: { id: rollo.id, numero_pieza: rollo.numero_pieza },
+    ingresoCompleto,
+  }
 }

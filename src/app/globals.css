@@ -202,4 +202,9 @@
     min-width: 0;
     max-width: 100vw;
   }
+
+  .scan-success {
+    border-color: var(--success) !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 28%, transparent);
+  }
 }
