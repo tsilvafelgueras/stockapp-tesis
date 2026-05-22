@@ -133,6 +133,7 @@ export default function CodeScanner({
       const scanner = new Html5Qrcode(scannerElementId, {
         formatsToSupport: SUPPORTED_FORMATS,
         useBarCodeDetectorIfSupported: true,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         verbose: false,
       })
       scannerRef.current = scanner
@@ -141,9 +142,13 @@ export default function CodeScanner({
         await scanner.start(
           { facingMode: 'environment' },
           {
-            fps: 15,
-            aspectRatio: 4 / 3,
+            fps: 20,
             disableFlip: false,
+            videoConstraints: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
           },
           (decodedText: string, decodedResult: Html5QrcodeResult) => {
             const formato = decodedResult?.result?.format?.formatName ?? null
@@ -268,7 +273,7 @@ export default function CodeScanner({
               <div
                 id={scannerElementId}
                 ref={containerRef}
-                className="absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
+                className="absolute inset-0 [&_video]:!absolute [&_video]:!inset-0 [&_video]:!h-full [&_video]:!w-full [&_video]:!max-w-none [&_video]:!object-cover"
               />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                 <div
