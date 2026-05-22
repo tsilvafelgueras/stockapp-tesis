@@ -125,13 +125,15 @@ export async function updateSession(request: NextRequest) {
       pathname.startsWith('/pedidos-pendientes') ||
       pathname.startsWith('/clientes')
     const isStock = pathname.startsWith('/stock')
+    const isNotificaciones = pathname.startsWith('/notificaciones')
     const isTenantArea =
       pathname.startsWith('/admin') ||
       pathname.startsWith('/ventas') ||
       pathname.startsWith('/operario') ||
       isOperacion ||
       isComercial ||
-      isStock
+      isStock ||
+      isNotificaciones
 
     // Super-admin no puede entrar a rutas de empresa-cliente
     // (no tiene empresa_id, vería datos cruzados/raros)
@@ -161,6 +163,9 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
     if (isComercial && role !== 'ventas' && role !== 'admin') {
+      return NextResponse.redirect(new URL(dest, request.url))
+    }
+    if (isNotificaciones && role !== 'ventas' && role !== 'admin') {
       return NextResponse.redirect(new URL(dest, request.url))
     }
   }

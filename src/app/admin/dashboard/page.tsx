@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import {
-  AlertTriangle,
   BarChart3,
   Boxes,
   ClipboardCheck,
@@ -12,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import NotificationBanner from '@/components/NotificationBanner'
 
 type AlertaStockMinimo = {
   articuloId: string
@@ -298,28 +298,7 @@ export default async function AdminDashboard() {
         </div>
       </section>
 
-      {alertas.length > 0 && (
-        <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">
-                Stock por debajo del minimo configurado
-              </p>
-              <ul className="mt-2 space-y-1">
-                {alertas.map((a) => (
-                  <li key={a.articuloId} className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{a.nombre}</span>
-                    {' - '}
-                    {a.stockActualKg.toFixed(2)} kg actuales /{' '}
-                    {a.stockMinimoKg.toFixed(2)} kg minimo
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
+      <NotificationBanner />
 
       {['Operación', 'Ventas', 'Administración', 'Análisis'].map((section) => (
         <section key={section} className="space-y-3">

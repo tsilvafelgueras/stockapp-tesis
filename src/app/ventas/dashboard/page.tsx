@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft, Clock3, Search, ShoppingCart, Users, type LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import NotificationBanner from '@/components/NotificationBanner'
 
 const actions: {
   href: string
@@ -71,6 +72,8 @@ export default async function VentasDashboard() {
           reserva rollos y evita prometer mercadería que ya está comprometida.
         </p>
       </div>
+
+      <NotificationBanner />
 
       <div className="grid gap-3 sm:grid-cols-2">
         {actions.map((item) => {

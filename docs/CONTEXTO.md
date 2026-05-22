@@ -192,6 +192,12 @@ src/
 │   │       ├── page.tsx
 │   │       └── HistorialFilters.tsx
 │   │
+│   ├── notificaciones/           # Ruta neutra para admin+ventas (mig 024)
+│   │   ├── layout.tsx                   # Guard: admin|ventas
+│   │   ├── page.tsx                     # Activas + Resueltas (historial)
+│   │   ├── MarcarTodasButton.tsx
+│   │   └── actions.ts                   # marcarLeida, marcarTodasLeidas
+│   │
 │   ├── operario/                 # Solo dashboard del operario
 │   │   ├── layout.tsx
 │   │   └── dashboard/page.tsx
@@ -275,11 +281,15 @@ src/
 │
 ├── components/
 │   ├── ui/button.tsx             # Único componente shadcn instalado
-│   ├── LogoutButton.tsx
+│   ├── LogoutButton.tsx          # (en desuso post 10.10 — UserMenu lo absorbió, pero queda por si lo importa algo viejo)
 │   ├── BackButton.tsx            # Botón "← Volver" reutilizable (con href explícito)
 │   ├── DashboardBackButton.tsx   # "Volver al inicio" — Server Component que arma el href según el rol REAL del user logueado
-│   ├── AppShell.tsx              # Sidebar fija + drawer mobile + header (los layouts lo usan)
-│   ├── BrandMark.tsx             # Logo + texto "Nudo" (sidebar + auth pages)
+│   ├── AppShell.tsx              # Server Component wrapper — carga notificaciones y delega a AppShellClient
+│   ├── AppShellClient.tsx        # Client Component — topbar + sidebar colapsable + drawer mobile
+│   ├── BrandMark.tsx             # Logo + texto "Nudo" (topbar + auth pages)
+│   ├── NotificationBell.tsx      # Campanita en topbar con badge + dropdown (admin+ventas, mig 024)
+│   ├── NotificationBanner.tsx    # Banner reusable de alertas activas para dashboards (Server, mig 024)
+│   ├── UserMenu.tsx              # Avatar + nombre/rol en topbar con dropdown de logout
 │   ├── CodeScanner.tsx           # Wrapper genérico de @zxing/browser (cámara + manual fallback)
 │   └── ExcelFilter.tsx           # Chip con search + checkboxes (filtros tipo Excel)
 │
@@ -328,6 +338,7 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 021 | **Historial inborrable** (iteración 2026-05-19). Tabla `movimientos` (entidad, entidad_id, accion, usuario_id, detalle JSONB) con RLS lectura solo admin/super, sin policies de INSERT/UPDATE/DELETE expuestas. Helper `log_movimiento` SECURITY DEFINER. Triggers AFTER INSERT/UPDATE/DELETE en `rollos`/`pedidos`/`ingresos`/`pedido_rollos`/`muestras` capturan cambios (con viejo→nuevo en JSONB). |
 | 022 | **Clientes** (iteración 2026-05-19). Tabla `clientes` (nombre UNIQUE por empresa, contacto, email, telefono, direccion, notas, activo). Agrega `pedidos.cliente_id` UUID FK nullable. Reescritura de RPC `crear_pedido`: ahora toma `p_cliente_id UUID` (en lugar de `p_cliente TEXT`) y autocompleta `pedidos.cliente` desde el catálogo. |
 | 023 | **Patrones de extracción de código de pieza** (iteración 2026-05-22). Tabla `tintoreria_codigo_patrones`: regex con prioridad por tintorería (o `tintoreria_id NULL` = patrón "interno" de fábrica que aplica a toda la empresa). El scanner consulta esta tabla en cada lectura para extraer el `numero_pieza` del payload del QR. Si ningún patrón matchea → scan rechazado (cero fallback peligroso). Seed inicial por empresa con `\b(\d{9})\b`. RLS: read para autenticados de la empresa, write solo admin. Trigger `set_empresa_id` reutilizado. |
+| 024 | **Notificaciones in-app** (iteración 2026-05-22). Tabla `notificaciones` (id, empresa_id, tipo TEXT CHECK IN ('stock_minimo'), titulo, mensaje, articulo_id, leida_at, resuelta_at, created_at). UNIQUE parcial sobre (empresa_id, tipo, articulo_id) WHERE resuelta_at IS NULL → dedupe sin spam. Triggers en `rollos` (INSERT/UPDATE de kilos/estado/articulo_id/DELETE) y `articulos` (UPDATE de stock_minimo_kg) que llaman al helper `procesar_notificacion_stock_minimo(p_articulo_id)`. Helper recalcula stock vs mínimo y: crea notificación si cruza hacia abajo, o marca `resuelta_at = NOW()` si vuelve sobre el mínimo (auto-resolve). RLS: read+update solo admin+ventas (operario no las ve). INSERT exclusivo de los triggers (SECURITY DEFINER). Seed: la propia migración recorre artículos con mínimo configurado y crea las notificaciones iniciales. |
 
 **Schema canónico**: ✅ `supabase/schema.sql` refleja migraciones 001..011 (regenerado en Etapa 7D).
 Las migraciones **012..023** (iteraciones mayo 2026) NO están incluidas en `schema.sql` todavía — para DB nueva: correr `schema.sql` y después las migraciones `009`..`023` en orden.
@@ -1275,6 +1286,142 @@ Redirect**, así que:
 - 10 pantallas con reemplazo de `BackButton` → `DashboardBackButton`
 - ~26 archivos con hrefs/redirects/revalidatePath actualizados
 - `docs/CONTEXTO.md` (esta sección + Sección 7)
+
+---
+
+## 10.10. Iteración 2026-05-22 — Notificaciones, topbar y sidebar colapsable
+
+Tres mejoras pedidas por el cliente en la misma vuelta:
+
+1. **Sistema de notificaciones in-app** con campanita en el topbar.
+2. **Topbar** con perfil + logout (movidos desde el footer del sidebar).
+3. **Sidebar colapsable** (icon-only) para liberar espacio en pantalla.
+
+### Bloque A — Notificaciones (migración 024)
+
+**Modelo**: tabla `notificaciones` genérica con `tipo` extensible. En la
+primera iteración hay un solo tipo (`stock_minimo`) que se dispara
+automáticamente vía triggers Postgres.
+
+**Cómo funciona**:
+- Helper `procesar_notificacion_stock_minimo(p_articulo_id)` (SECURITY DEFINER)
+  recalcula el stock del artículo sumando rollos en `en_stock` y compara
+  contra `articulos.stock_minimo_kg`.
+- Si **cruza hacia abajo**: INSERT (con UNIQUE parcial sobre `(empresa_id,
+  tipo, articulo_id) WHERE resuelta_at IS NULL` → dedupe automático, cero
+  spam).
+- Si **vuelve sobre el mínimo**: UPDATE `resuelta_at = NOW()` → la
+  notificación desaparece del badge sin acción manual.
+- Triggers en `rollos` (INSERT/UPDATE de kilos/estado/articulo_id, DELETE)
+  y `articulos` (UPDATE de stock_minimo_kg) llaman al helper.
+- Seed inicial en la propia migración: recorre artículos con mínimo
+  configurado y crea las notificaciones del estado actual.
+
+**RLS**: visible solo para `admin` + `ventas` de la empresa. Operario no
+las ve (no es su problema). INSERT exclusivo de los triggers
+(SECURITY DEFINER) — no hay policy de INSERT expuesta.
+
+**Campos clave**:
+- `leida_at` — lo setea el usuario al marcar la notificación leída desde
+  la campanita. Reduce el contador del badge.
+- `resuelta_at` — lo setea el trigger automáticamente. Quita la notificación
+  de `getNotificacionesActivas()` (banner del dashboard).
+- Las dos columnas son **independientes**: una alerta puede ser leída pero
+  seguir activa (sigue en el banner), o ser resuelta sin haber sido leída
+  (desaparece de los dos).
+
+### Bloque B — UI: NotificationBell + NotificationBanner
+
+- **`src/lib/notificaciones.ts`** — queries:
+  `getNotificacionesNoLeidas()`, `getNotificacionesActivas()`,
+  `getNotificacionesHistorial()`.
+- **`src/app/notificaciones/actions.ts`** — server actions:
+  `marcarLeida(id)`, `marcarTodasLeidas()`.
+- **`src/components/NotificationBell.tsx`** — Client. Botón con badge
+  contador (1..9, "9+" si más). Click → dropdown con la lista, cada item
+  tiene botón "marcar leída" (check) y hay "marcar todas" arriba. Link al
+  pie hacia `/notificaciones` para el historial completo. Cierra con click
+  afuera o Escape.
+- **`src/components/NotificationBanner.tsx`** — Server. Banner que va al
+  tope de los dashboards (admin + ventas) con las primeras 3 alertas
+  activas + link "Ver todas". Si no hay alertas, no renderea nada
+  (auto-hide). Reemplaza el banner ad-hoc viejo del dashboard de admin
+  que listaba stock bajo el mínimo.
+- **`/notificaciones`** — vista de historial completo, dividida en
+  "Activas" (no resueltas, requieren atención) y "Resueltas" (ya no
+  vigentes, solo histórico). Botón "Marcar todas leídas" arriba si hay
+  no leídas pendientes. Guard `admin|ventas` en layout + middleware.
+
+### Bloque C — Refactor del shell: Topbar + sidebar colapsable
+
+**Antes**: el `AppShell` era un único Client Component. Brand + usuario +
+logout vivían al pie del sidebar. En mobile había un header con
+hamburger, en desktop solo el sidebar fijo.
+
+**Ahora**: el shell se partió en dos archivos:
+
+- **`src/components/AppShell.tsx`** — Server Component thin. Si el rol es
+  admin/ventas, carga las notificaciones no leídas y se las pasa al
+  client. Si es operario/super, pasa array vacío (no muestran campanita).
+- **`src/components/AppShellClient.tsx`** — Client Component con todo el
+  JSX y el state interno.
+
+**Topbar** (`<header>` fijo arriba, ancho completo, altura 4rem):
+- Brand a la izquierda (logo Nudo + nombre de empresa).
+- En mobile: hamburger antes del brand para abrir el drawer.
+- A la derecha: `<NotificationBell />` (solo admin+ventas) +
+  `<UserMenu />` (todos los roles).
+- El bloque de usuario que estaba al pie del sidebar desapareció.
+
+**`UserMenu.tsx`** — avatar circular con iniciales (calculadas del
+nombre), label con nombre + rol al lado (oculto en mobile chico). Click →
+dropdown con nombre completo + rol + empresa + botón "Cerrar sesión".
+
+**Sidebar colapsable** (desktop, debajo del topbar):
+- Estado `collapsed` persistido en `localStorage` (`nudo:sidebar-collapsed`).
+- Ancho: 17rem expandido, 4.5rem colapsado.
+- Cuando colapsado: solo iconos centrados (los labels desaparecen, los
+  títulos de sección se reemplazan por separadores horizontales).
+- Botón "Colapsar" / chevron al pie del sidebar.
+- Transición de 200ms sobre el width.
+- El primer render usa transition: 0 hasta hidratar (`hydrated` state)
+  para evitar el flash inicial.
+- Mobile: el drawer sigue funcionando igual, no es colapsable (siempre
+  expandido cuando abierto, oculto cuando cerrado).
+
+### Pendiente para que esto funcione en producción
+
+1. **Aplicar migración 024 en Supabase SQL Editor**. Idempotente.
+   - La migración corre el seed inicial: recorre todos los artículos con
+     `stock_minimo_kg` configurado y crea las notificaciones que
+     correspondan al stock actual. Es seguro re-correrla.
+2. **Smoke test** post-deploy:
+   - Login como admin → ver campanita en topbar.
+   - Si hay artículos bajo mínimo: badge con número + banner en
+     `/admin/dashboard`.
+   - Click campanita → dropdown con lista → marcar una leída → desaparece
+     del dropdown pero sigue en el banner (porque sigue activa).
+   - Click "Ver historial completo" → `/notificaciones` con secciones
+     "Activas" / "Resueltas".
+   - Toggle del sidebar (botón "Colapsar" al pie) → queda colapsado +
+     persiste tras reload (localStorage).
+   - Operario logueado → no ve campanita, no ve banner en su dashboard.
+3. **Commit + push a `main`** — Vercel redeploya automático.
+
+### Archivos tocados en esta iteración
+
+**Nuevos** (9):
+- `supabase/migrations/024_notificaciones.sql`
+- `src/lib/notificaciones.ts`
+- `src/app/notificaciones/{layout,page,actions,MarcarTodasButton}.tsx`
+- `src/components/{NotificationBell,NotificationBanner,UserMenu,AppShellClient}.tsx`
+
+**Modificados** (~5):
+- `src/components/AppShell.tsx` (ahora Server, delega al client)
+- `src/lib/supabase/middleware.ts` (guard `/notificaciones`)
+- `src/app/admin/dashboard/page.tsx` (reemplaza banner ad-hoc por NotificationBanner)
+- `src/app/ventas/dashboard/page.tsx` (suma NotificationBanner)
+- `docs/CONTEXTO.md` (esta sección + Sección 7 + migración 024)
 
 ---
 
