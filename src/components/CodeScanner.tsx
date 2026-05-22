@@ -1,16 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { BrowserMultiFormatReader } from '@zxing/browser'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import {
-  BarcodeFormat,
-  DecodeHintType,
-  NotFoundException,
-} from '@zxing/library'
+  Html5Qrcode,
+  Html5QrcodeSupportedFormats,
+  type Html5QrcodeResult,
+} from 'html5-qrcode'
 
 export type CodeScannerResult = {
   texto: string
-  formato: BarcodeFormat | null
+  formato: string | null
 }
 
 type ScannerStatus =
@@ -39,11 +38,11 @@ declare global {
 }
 
 const SUPPORTED_FORMATS = [
-  BarcodeFormat.QR_CODE,
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.EAN_13,
-  BarcodeFormat.EAN_8,
-  BarcodeFormat.UPC_A,
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
 ]
 
 const SCAN_COOLDOWN_MS = 2000
@@ -66,10 +65,11 @@ export default function CodeScanner({
   variant?: 'standalone' | 'embedded'
   className?: string
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null)
-  const controlsRef = useRef<{ stop: () => void } | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const reactId = useId()
+  const scannerElementId = `code-scanner-${reactId.replace(/:/g, '')}`
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const scannerRef = useRef<Html5Qrcode | null>(null)
   const onReadRef = useRef(onRead)
   const lastReadRef = useRef<{ texto: string; at: number } | null>(null)
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -83,28 +83,19 @@ export default function CodeScanner({
     onReadRef.current = onRead
   }, [onRead])
 
-  const releaseScanner = useCallback(() => {
-    controlsRef.current?.stop()
-    controlsRef.current = null
-
-    const readerWithReset = readerRef.current as
-      | (BrowserMultiFormatReader & { reset?: () => void })
-      | null
-    readerWithReset?.reset?.()
-    readerRef.current = null
-
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    streamRef.current = null
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
+  const releaseScanner = useCallback(async () => {
+    const scanner = scannerRef.current
+    if (!scanner) return
+    scannerRef.current = null
+    try {
+      if (scanner.isScanning) {
+        await scanner.stop()
+      }
+      scanner.clear()
+    } catch {
+      // best-effort cleanup
     }
   }, [])
-
-  const stopScanner = useCallback((resetTorchState = false) => {
-    releaseScanner()
-    if (resetTorchState) setTorchOn(false)
-  }, [releaseScanner])
 
   const emitRead = useCallback((result: CodeScannerResult) => {
     const texto = result.texto.trim()
@@ -127,15 +118,6 @@ export default function CodeScanner({
   }, [])
 
   useEffect(() => {
-    if (paused) {
-      releaseScanner()
-      queueMicrotask(() => {
-        setStatus('idle')
-        setTorchOn(false)
-      })
-      return
-    }
-
     if (!navigator.mediaDevices?.getUserMedia) {
       queueMicrotask(() => setStatus('unsupported'))
       return
@@ -144,57 +126,52 @@ export default function CodeScanner({
     let cancelled = false
 
     async function startScanner() {
-      if (!videoRef.current) return
+      if (!containerRef.current) return
 
-      releaseScanner()
       setStatus('starting')
 
-      const hints = new Map<DecodeHintType, unknown>()
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, SUPPORTED_FORMATS)
-      hints.set(DecodeHintType.TRY_HARDER, true)
-
-      const reader = new BrowserMultiFormatReader(hints)
-      readerRef.current = reader
+      const scanner = new Html5Qrcode(scannerElementId, {
+        formatsToSupport: SUPPORTED_FORMATS,
+        useBarCodeDetectorIfSupported: true,
+        verbose: false,
+      })
+      scannerRef.current = scanner
 
       try {
-        const controls = await reader.decodeFromConstraints(
+        await scanner.start(
+          { facingMode: 'environment' },
           {
-            video: {
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-            audio: false,
+            fps: 15,
+            aspectRatio: 4 / 3,
+            disableFlip: false,
           },
-          videoRef.current,
-          (result, error) => {
-            if (result) {
-              emitRead({
-                texto: result.getText(),
-                formato: result.getBarcodeFormat(),
-              })
-            }
-
-            if (error && !(error instanceof NotFoundException)) {
-              console.warn('Scanner error:', error)
-            }
+          (decodedText: string, decodedResult: Html5QrcodeResult) => {
+            const formato = decodedResult?.result?.format?.formatName ?? null
+            emitRead({ texto: decodedText, formato })
+          },
+          () => {
+            // per-frame errors are normal when no code is in view
           }
         )
 
         if (cancelled) {
-          controls.stop()
+          void releaseScanner()
           return
         }
 
-        controlsRef.current = controls
-        streamRef.current = videoRef.current?.srcObject as MediaStream | null
         setStatus('ready')
       } catch (error) {
         if (cancelled) return
-        releaseScanner()
+        void releaseScanner()
 
-        const name = error instanceof Error ? error.name : ''
-        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        const message =
+          error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : String(error)
+
+        if (
+          /NotAllowedError|Permission|denied/i.test(message)
+        ) {
           setStatus('permission-denied')
           return
         }
@@ -204,23 +181,33 @@ export default function CodeScanner({
       }
     }
 
-    void startScanner()
+    if (paused) {
+      void releaseScanner().then(() => {
+        if (!cancelled) {
+          setStatus('idle')
+          setTorchOn(false)
+        }
+      })
+    } else {
+      void startScanner()
+    }
 
     return () => {
       cancelled = true
-      releaseScanner()
+      void releaseScanner()
     }
-  }, [emitRead, paused, releaseScanner])
+  }, [emitRead, paused, releaseScanner, scannerElementId])
 
   useEffect(() => {
     return () => {
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
-      stopScanner()
     }
-  }, [stopScanner])
+  }, [])
 
   async function toggleTorch() {
-    const track = streamRef.current?.getVideoTracks()[0]
+    const video = containerRef.current?.querySelector('video')
+    const stream = video?.srcObject as MediaStream | null | undefined
+    const track = stream?.getVideoTracks()[0]
     if (!track) return
 
     try {
@@ -278,11 +265,10 @@ export default function CodeScanner({
         ) : (
           <div className="mt-3 overflow-hidden rounded-lg bg-black">
             <div className="relative aspect-[4/3] w-full">
-              <video
-                ref={videoRef}
-                className="h-full w-full object-cover"
-                playsInline
-                muted
+              <div
+                id={scannerElementId}
+                ref={containerRef}
+                className="absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
               />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                 <div
