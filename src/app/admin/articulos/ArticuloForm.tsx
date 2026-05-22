@@ -9,12 +9,31 @@ type Articulo = {
   id: string
   nombre: string
   descripcion: string | null
+  color: string | null
   stock_minimo_kg: number | null
 }
 
-export function NuevoArticuloForm() {
+const COLOR_DATALIST_ID = 'articulos-colores-sugeridos'
+
+function ColoresDatalist({ colores }: { colores: string[] }) {
+  if (colores.length === 0) return null
+  return (
+    <datalist id={COLOR_DATALIST_ID}>
+      {colores.map((c) => (
+        <option key={c} value={c} />
+      ))}
+    </datalist>
+  )
+}
+
+export function NuevoArticuloForm({
+  coloresExistentes = [],
+}: {
+  coloresExistentes?: string[]
+}) {
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
+  const [color, setColor] = useState('')
   const [stockMinimo, setStockMinimo] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,6 +45,7 @@ export function NuevoArticuloForm() {
     const result = await createArticulo({
       nombre,
       descripcion,
+      color,
       stock_minimo_kg: stockMinimo,
     })
     if (result.error) {
@@ -33,6 +53,7 @@ export function NuevoArticuloForm() {
     } else {
       setNombre('')
       setDescripcion('')
+      setColor('')
       setStockMinimo('')
     }
     setLoading(false)
@@ -45,7 +66,9 @@ export function NuevoArticuloForm() {
     >
       <h2 className="font-semibold">Nuevo artículo</h2>
 
-      <div className="grid sm:grid-cols-3 gap-3">
+      <ColoresDatalist colores={coloresExistentes} />
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1">
           <label htmlFor="nombre" className="text-sm font-medium">
             Nombre *
@@ -69,6 +92,20 @@ export function NuevoArticuloForm() {
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Opcional"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label htmlFor="color" className="text-sm font-medium">
+            Color
+          </label>
+          <input
+            id="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            list={COLOR_DATALIST_ID}
+            placeholder="Ej: Blanco"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
@@ -108,15 +145,17 @@ export function EditArticuloRow({
   articulo,
   forzarEdicion = false,
   onEliminado,
+  coloresExistentes = [],
 }: {
   articulo: Articulo
   forzarEdicion?: boolean
   onEliminado?: (id: string) => void
+  coloresExistentes?: string[]
 }) {
-  const [editingLocal, setEditingLocal] = useState(false)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [nombre, setNombre] = useState(articulo.nombre)
   const [descripcion, setDescripcion] = useState(articulo.descripcion ?? '')
+  const [color, setColor] = useState(articulo.color ?? '')
   const [stockMinimo, setStockMinimo] = useState(
     articulo.stock_minimo_kg != null ? String(articulo.stock_minimo_kg) : ''
   )
@@ -124,7 +163,9 @@ export function EditArticuloRow({
   const [error, setError] = useState<string | null>(null)
   const [eliminandoPending, startEliminar] = useTransition()
 
-  const editing = forzarEdicion || editingLocal
+  // El edit individual se elimino: solo se entra en modo edicion via el
+  // toggle "Editar todo" global en ArticulosTabla.
+  const editing = forzarEdicion
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -133,26 +174,16 @@ export function EditArticuloRow({
     const result = await updateArticulo(articulo.id, {
       nombre,
       descripcion,
+      color,
       stock_minimo_kg: stockMinimo,
     })
     if (result.error) {
       setError(result.error)
       toast.error(result.error)
     } else {
-      setEditingLocal(false)
       toast.success(`"${nombre}" actualizado.`)
     }
     setLoading(false)
-  }
-
-  function handleCancelarEdicion() {
-    setEditingLocal(false)
-    setNombre(articulo.nombre)
-    setDescripcion(articulo.descripcion ?? '')
-    setStockMinimo(
-      articulo.stock_minimo_kg != null ? String(articulo.stock_minimo_kg) : ''
-    )
-    setError(null)
   }
 
   function handleConfirmarEliminar() {
@@ -172,7 +203,7 @@ export function EditArticuloRow({
   if (confirmandoEliminar) {
     return (
       <tr className="border-b last:border-0 bg-destructive/5">
-        <td colSpan={4} className="px-4 py-3">
+        <td colSpan={5} className="px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">
               ¿Dar de baja{' '}
@@ -204,7 +235,7 @@ export function EditArticuloRow({
     )
   }
 
-  // Modo edición (individual o masiva)
+  // Modo edición masiva
   if (editing) {
     return (
       <tr className="border-b last:border-0 bg-zinc-50/50 align-top">
@@ -222,6 +253,16 @@ export function EditArticuloRow({
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Opcional"
+            className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <ColoresDatalist colores={coloresExistentes} />
+          <input
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            list={COLOR_DATALIST_ID}
+            placeholder="Color"
             className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </td>
@@ -249,15 +290,6 @@ export function EditArticuloRow({
             >
               {loading ? 'Guardando…' : 'Guardar'}
             </button>
-            {!forzarEdicion && (
-              <button
-                type="button"
-                onClick={handleCancelarEdicion}
-                className="rounded-md border px-3 py-1.5 text-xs hover:bg-zinc-100 transition-colors"
-              >
-                Cancelar
-              </button>
-            )}
             <button
               type="button"
               onClick={() => setConfirmandoEliminar(true)}
@@ -280,6 +312,9 @@ export function EditArticuloRow({
       <td className="px-4 py-3 text-muted-foreground">
         {articulo.descripcion || '—'}
       </td>
+      <td className="px-4 py-3 text-muted-foreground">
+        {articulo.color || '—'}
+      </td>
       <td className="px-4 py-3 text-muted-foreground tabular-nums">
         {articulo.stock_minimo_kg != null
           ? `${articulo.stock_minimo_kg} kg`
@@ -287,12 +322,6 @@ export function EditArticuloRow({
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
-          <button
-            onClick={() => setEditingLocal(true)}
-            className="rounded-md px-2 py-1 text-xs font-medium text-action transition-colors hover:bg-action/10"
-          >
-            Editar
-          </button>
           <button
             type="button"
             onClick={() => setConfirmandoEliminar(true)}

@@ -3,11 +3,28 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function createArticulo(formData: {
+type ArticuloFormData = {
   nombre: string
   descripcion: string
+  color?: string
   stock_minimo_kg?: string
-}) {
+}
+
+/**
+ * Sentence case: trim + primera letra mayúscula, resto minúscula.
+ * "BLANCO" → "Blanco"
+ * "  blanco  " → "Blanco"
+ * "AZUL MARINO" → "Azul marino"
+ * Devuelve null si el input queda vacío después del trim.
+ */
+function normalizarColor(raw: string | undefined | null): string | null {
+  if (!raw) return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
+}
+
+export async function createArticulo(formData: ArticuloFormData) {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
@@ -16,6 +33,7 @@ export async function createArticulo(formData: {
   const { error } = await supabase.from('articulos').insert({
     nombre,
     descripcion: formData.descripcion.trim() || null,
+    color: normalizarColor(formData.color),
     stock_minimo_kg: formData.stock_minimo_kg
       ? parseFloat(formData.stock_minimo_kg)
       : null,
@@ -27,10 +45,7 @@ export async function createArticulo(formData: {
   return { success: true }
 }
 
-export async function updateArticulo(
-  id: string,
-  formData: { nombre: string; descripcion: string; stock_minimo_kg?: string }
-) {
+export async function updateArticulo(id: string, formData: ArticuloFormData) {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
@@ -41,6 +56,7 @@ export async function updateArticulo(
     .update({
       nombre,
       descripcion: formData.descripcion.trim() || null,
+      color: normalizarColor(formData.color),
       stock_minimo_kg: formData.stock_minimo_kg
         ? parseFloat(formData.stock_minimo_kg)
         : null,

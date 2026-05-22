@@ -8,9 +8,20 @@ export default async function ArticulosPage() {
 
   const { data: articulos } = await supabase
     .from('articulos')
-    .select('id, nombre, descripcion, stock_minimo_kg')
+    .select('id, nombre, descripcion, color, stock_minimo_kg')
     .eq('activo', true)
     .order('created_at', { ascending: false })
+
+  // Lista de colores únicos ya usados en la empresa, para sugerir en el
+  // datalist del form (evita que el usuario tipee "Blanco" cuando ya
+  // existe el mismo color).
+  const coloresExistentes = Array.from(
+    new Set(
+      (articulos ?? [])
+        .map((a) => a.color)
+        .filter((c): c is string => Boolean(c))
+    )
+  ).sort((a, b) => a.localeCompare(b, 'es'))
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -24,9 +35,12 @@ export default async function ArticulosPage() {
         </div>
       </div>
 
-      <NuevoArticuloForm />
+      <NuevoArticuloForm coloresExistentes={coloresExistentes} />
 
-      <ArticulosTabla articulos={articulos ?? []} />
+      <ArticulosTabla
+        articulos={articulos ?? []}
+        coloresExistentes={coloresExistentes}
+      />
     </div>
   )
 }

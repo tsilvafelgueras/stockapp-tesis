@@ -8,13 +8,16 @@ type Articulo = {
   id: string
   nombre: string
   descripcion: string | null
+  color: string | null
   stock_minimo_kg: number | null
 }
 
 export default function ArticulosTabla({
   articulos: initial,
+  coloresExistentes,
 }: {
   articulos: Articulo[]
+  coloresExistentes: string[]
 }) {
   const [articulos, setArticulos] = useState<Articulo[]>(initial)
   const [modoMasivo, setModoMasivo] = useState(false)
@@ -39,12 +42,12 @@ export default function ArticulosTabla({
                 ? 'border-action bg-action text-action-foreground hover:bg-action/90'
                 : 'border-action/40 text-action hover:bg-action/5'
             }`}
-            title={modoMasivo ? 'Listo' : 'Editar todos los campos'}
+            title={modoMasivo ? 'Guardar' : 'Editar todos los campos'}
           >
             {modoMasivo ? (
               <>
                 <X className="size-3.5" />
-                Listo
+                Guardar
               </>
             ) : (
               <>
@@ -61,6 +64,7 @@ export default function ArticulosTabla({
           <tr className="text-left">
             <th className="px-4 py-3 font-medium">Nombre</th>
             <th className="px-4 py-3 font-medium">Descripción</th>
+            <th className="px-4 py-3 font-medium">Color</th>
             <th className="px-4 py-3 font-medium">Stock mínimo</th>
             <th className="px-4 py-3 font-medium text-right">Acciones</th>
           </tr>
@@ -73,12 +77,13 @@ export default function ArticulosTabla({
                 articulo={a}
                 forzarEdicion={modoMasivo}
                 onEliminado={handleEliminar}
+                coloresExistentes={coloresExistentes}
               />
             ))
           ) : (
             <tr>
               <td
-                colSpan={4}
+                colSpan={5}
                 className="px-4 py-8 text-center text-sm text-muted-foreground"
               >
                 Todavía no cargaste ningún artículo.
