@@ -52,3 +52,23 @@ export async function updateArticulo(
   revalidatePath('/admin/articulos')
   return { success: true }
 }
+
+/**
+ * Soft-delete: marca el artículo como inactivo. No borra la fila para
+ * preservar referencias históricas (rollos, ingresos, pedidos lo siguen
+ * apuntando). La lista principal filtra por activo=true, así desaparece
+ * de la UI sin perder trazabilidad.
+ */
+export async function deleteArticulo(id: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('articulos')
+    .update({ activo: false })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/articulos')
+  return { success: true }
+}

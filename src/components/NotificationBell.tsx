@@ -95,7 +95,11 @@ export default function NotificationBell({
       {open && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-full z-50 mt-2 w-[22rem] max-w-[90vw] overflow-hidden rounded-lg border bg-white text-foreground shadow-xl"
+          className="
+            z-50 overflow-hidden rounded-lg border bg-white text-foreground shadow-xl
+            fixed inset-x-3 top-[calc(var(--topbar-height,4rem)+0.5rem)]
+            md:absolute md:inset-x-auto md:right-0 md:top-full md:mt-2 md:w-[22rem] md:max-w-[90vw]
+          "
           role="dialog"
           aria-label="Notificaciones"
         >

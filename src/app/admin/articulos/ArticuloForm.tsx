@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { createArticulo, updateArticulo } from './actions'
+import { useState, useTransition } from 'react'
+import { Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { createArticulo, updateArticulo, deleteArticulo } from './actions'
 
 type Articulo = {
   id: string
@@ -102,8 +104,17 @@ export function NuevoArticuloForm() {
   )
 }
 
-export function EditArticuloRow({ articulo }: { articulo: Articulo }) {
-  const [editing, setEditing] = useState(false)
+export function EditArticuloRow({
+  articulo,
+  forzarEdicion = false,
+  onEliminado,
+}: {
+  articulo: Articulo
+  forzarEdicion?: boolean
+  onEliminado?: (id: string) => void
+}) {
+  const [editingLocal, setEditingLocal] = useState(false)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [nombre, setNombre] = useState(articulo.nombre)
   const [descripcion, setDescripcion] = useState(articulo.descripcion ?? '')
   const [stockMinimo, setStockMinimo] = useState(
@@ -111,6 +122,9 @@ export function EditArticuloRow({ articulo }: { articulo: Articulo }) {
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [eliminandoPending, startEliminar] = useTransition()
+
+  const editing = forzarEdicion || editingLocal
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -123,99 +137,172 @@ export function EditArticuloRow({ articulo }: { articulo: Articulo }) {
     })
     if (result.error) {
       setError(result.error)
+      toast.error(result.error)
     } else {
-      setEditing(false)
+      setEditingLocal(false)
+      toast.success(`"${nombre}" actualizado.`)
     }
     setLoading(false)
   }
 
-  if (!editing) {
+  function handleCancelarEdicion() {
+    setEditingLocal(false)
+    setNombre(articulo.nombre)
+    setDescripcion(articulo.descripcion ?? '')
+    setStockMinimo(
+      articulo.stock_minimo_kg != null ? String(articulo.stock_minimo_kg) : ''
+    )
+    setError(null)
+  }
+
+  function handleConfirmarEliminar() {
+    startEliminar(async () => {
+      const result = await deleteArticulo(articulo.id)
+      if (result.error) {
+        toast.error(result.error)
+        setConfirmandoEliminar(false)
+        return
+      }
+      toast.success(`"${articulo.nombre}" dado de baja.`)
+      onEliminado?.(articulo.id)
+    })
+  }
+
+  // Modo confirmación de baja: ocupa toda la fila
+  if (confirmandoEliminar) {
     return (
-      <tr className="border-b last:border-0">
-        <td className="px-4 py-3 font-medium">{articulo.nombre}</td>
-        <td className="px-4 py-3 text-muted-foreground">
-          {articulo.descripcion || '—'}
-        </td>
-        <td className="px-4 py-3 text-muted-foreground tabular-nums">
-          {articulo.stock_minimo_kg != null
-            ? `${articulo.stock_minimo_kg} kg`
-            : '—'}
-        </td>
-        <td className="px-4 py-3">
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs text-primary hover:underline"
-          >
-            Editar
-          </button>
+      <tr className="border-b last:border-0 bg-destructive/5">
+        <td colSpan={4} className="px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm">
+              ¿Dar de baja{' '}
+              <strong className="font-semibold">{articulo.nombre}</strong>? El
+              artículo se ocultará de la lista pero los rollos y pedidos que lo
+              usan siguen accesibles.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmandoEliminar(false)}
+                disabled={eliminandoPending}
+                className="rounded-md border px-3 py-1.5 text-xs hover:bg-zinc-100 disabled:opacity-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarEliminar}
+                disabled={eliminandoPending}
+                className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+              >
+                {eliminandoPending ? 'Dando de baja…' : 'Sí, dar de baja'}
+              </button>
+            </div>
+          </div>
         </td>
       </tr>
     )
   }
 
-  return (
-    <tr className="border-b last:border-0 bg-zinc-50">
-      <td colSpan={4} className="px-4 py-3">
-        <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 items-end">
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Nombre *</label>
-            <input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              required
-              className="rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Descripción</label>
-            <input
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Opcional"
-              className="rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Stock mínimo (kg)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              inputMode="decimal"
-              value={stockMinimo}
-              onChange={(e) => setStockMinimo(e.target.value)}
-              placeholder="Sin límite"
-              className="w-28 rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
-          {error && <p className="w-full text-xs text-destructive">{error}</p>}
-          <div className="flex gap-2">
+  // Modo edición (individual o masiva)
+  if (editing) {
+    return (
+      <tr className="border-b last:border-0 bg-zinc-50/50 align-top">
+        <td className="px-4 py-3">
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            required
+            placeholder="Nombre *"
+            className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <input
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            placeholder="Opcional"
+            className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            value={stockMinimo}
+            onChange={(e) => setStockMinimo(e.target.value)}
+            placeholder="Sin límite"
+            className="w-28 rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <form onSubmit={handleSubmit} className="flex items-center justify-end gap-1">
+            {error && (
+              <span className="mr-2 text-[11px] text-destructive">{error}</span>
+            )}
             <button
               type="submit"
               disabled={loading}
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="rounded-md bg-action px-3 py-1.5 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50 transition-colors"
             >
-              {loading ? 'Guardando...' : 'Guardar'}
+              {loading ? 'Guardando…' : 'Guardar'}
             </button>
+            {!forzarEdicion && (
+              <button
+                type="button"
+                onClick={handleCancelarEdicion}
+                className="rounded-md border px-3 py-1.5 text-xs hover:bg-zinc-100 transition-colors"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => {
-                setEditing(false)
-                setNombre(articulo.nombre)
-                setDescripcion(articulo.descripcion ?? '')
-                setStockMinimo(
-                  articulo.stock_minimo_kg != null
-                    ? String(articulo.stock_minimo_kg)
-                    : ''
-                )
-                setError(null)
-              }}
-              className="rounded-md border px-3 py-1.5 text-xs hover:bg-zinc-100 transition-colors"
+              onClick={() => setConfirmandoEliminar(true)}
+              className="flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
+              aria-label={`Dar de baja ${articulo.nombre}`}
+              title="Dar de baja"
             >
-              Cancelar
+              <Trash2 className="size-4" />
             </button>
-          </div>
-        </form>
+          </form>
+        </td>
+      </tr>
+    )
+  }
+
+  // Modo vista
+  return (
+    <tr className="border-b last:border-0">
+      <td className="px-4 py-3 font-medium">{articulo.nombre}</td>
+      <td className="px-4 py-3 text-muted-foreground">
+        {articulo.descripcion || '—'}
+      </td>
+      <td className="px-4 py-3 text-muted-foreground tabular-nums">
+        {articulo.stock_minimo_kg != null
+          ? `${articulo.stock_minimo_kg} kg`
+          : '—'}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={() => setEditingLocal(true)}
+            className="rounded-md px-2 py-1 text-xs font-medium text-action transition-colors hover:bg-action/10"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmandoEliminar(true)}
+            className="flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
+            aria-label={`Dar de baja ${articulo.nombre}`}
+            title="Dar de baja"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
       </td>
     </tr>
   )

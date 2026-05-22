@@ -8,7 +8,6 @@ import {
   Boxes,
   Building2,
   ChevronLeft,
-  ChevronRight,
   ClipboardCheck,
   Clock3,
   Factory,
@@ -237,24 +236,23 @@ export default function AppShellClient({
           collapsed={collapsed}
           onItemClick={undefined}
         />
-        <div className="border-t border-sidebar-border p-2">
+        <div
+          className={`border-t border-sidebar-border p-2 ${
+            collapsed ? 'flex justify-center' : 'flex justify-end'
+          }`}
+        >
           <button
             type="button"
             onClick={toggleCollapsed}
-            className={`flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-white/72 transition-colors hover:bg-white/10 hover:text-white ${
-              collapsed ? 'justify-center px-2' : ''
-            }`}
+            className="flex size-8 items-center justify-center rounded-md text-white/55 transition-colors hover:bg-white/10 hover:text-white"
             aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
             title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
           >
-            {collapsed ? (
-              <ChevronRight className="size-4" />
-            ) : (
-              <>
-                <ChevronLeft className="size-4" />
-                <span>Colapsar</span>
-              </>
-            )}
+            <ChevronLeft
+              className={`size-4 transition-transform duration-200 ${
+                collapsed ? 'rotate-180' : ''
+              }`}
+            />
           </button>
         </div>
       </aside>
@@ -295,7 +293,10 @@ export default function AppShellClient({
         className="min-w-0 bg-background"
         style={{ paddingTop: TOPBAR_HEIGHT }}
       >
-        <div className="md:ml-[var(--sidebar-width)]" style={{ transition: hydrated ? 'margin-left 200ms ease-out' : 'none' }}>
+        <div
+          className="app-shell-main"
+          style={{ transition: hydrated ? undefined : 'none' }}
+        >
           {children}
         </div>
       </main>

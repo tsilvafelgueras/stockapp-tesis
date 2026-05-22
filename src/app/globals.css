@@ -210,4 +210,17 @@
   .scan-success .scanner-corner {
     border-color: var(--success) !important;
   }
+
+  /* Main del AppShell: en desktop tiene un margen izquierdo igual al ancho
+     de la sidebar (que cambia al colapsar). En mobile, sin margen.
+     La variable --sidebar-width la setea AppShellClient en su wrapper. */
+  .app-shell-main {
+    transition: margin-left 200ms ease-out;
+  }
+
+  @media (min-width: 768px) {
+    .app-shell-main {
+      margin-left: var(--sidebar-width, 17rem);
+    }
+  }
 }
