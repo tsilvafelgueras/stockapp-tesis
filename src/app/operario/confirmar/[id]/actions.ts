@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { extraerCodigoRollo } from '@/lib/scanner'
 
 export type ConfirmarRolloResult =
   | {
@@ -37,10 +36,7 @@ export async function confirmarRollo(
     }
   }
 
-  const numeroPieza = extraerCodigoRollo(
-    textoEscaneado,
-    rollos.map((r) => r.numero_pieza)
-  )
+  const numeroPieza = textoEscaneado.trim()
   const rollo = rollos.find((r) => r.numero_pieza === numeroPieza)
 
   if (!rollo) {

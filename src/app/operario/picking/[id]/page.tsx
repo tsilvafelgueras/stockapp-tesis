@@ -45,7 +45,7 @@ export default async function PickingDetailPage({
           ubicacion,
           kilos,
           articulos ( nombre ),
-          ingresos ( color )
+          ingresos ( color, tintoreria_id )
         )
       `
     )
@@ -60,10 +60,33 @@ export default async function PickingDetailPage({
       ubicacion: string | null
       kilos: number | null
       articulos: { nombre: string } | null
-      ingresos: { color: string | null } | null
+      ingresos: { color: string | null; tintoreria_id: string | null } | null
     } | null
   }
   const rows = (prRaw ?? []) as unknown as RolloRow[]
+
+  const tintoreriaIds = Array.from(
+    new Set(
+      rows
+        .map((r) => r.rollos?.ingresos?.tintoreria_id)
+        .filter((v): v is string => Boolean(v))
+    )
+  )
+
+  const patronesQuery = supabase
+    .from('tintoreria_codigo_patrones')
+    .select('pattern, capture_group, prioridad')
+    .eq('activo', true)
+    .order('prioridad', { ascending: true })
+
+  const { data: patronesData } =
+    tintoreriaIds.length > 0
+      ? await patronesQuery.or(
+          `tintoreria_id.in.(${tintoreriaIds.join(',')}),tintoreria_id.is.null`
+        )
+      : await patronesQuery.is('tintoreria_id', null)
+
+  const patrones = patronesData ?? []
 
   const items: PickRollo[] = rows
     .filter((r) => r.rollos != null)
@@ -114,7 +137,7 @@ export default async function PickingDetailPage({
           </p>
         </div>
       ) : (
-        <PickingScanner pedidoId={id} items={items} />
+        <PickingScanner pedidoId={id} items={items} patrones={patrones} />
       )}
     </div>
   )

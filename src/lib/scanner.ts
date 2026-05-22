@@ -1,47 +1,64 @@
 /**
- * Extrae el codigo de pieza del texto que devolvio el lector de QR/barcode.
+ * Extrae el número de pieza del payload de un QR/código de barras
+ * usando una lista de patrones regex configurados por tintorería.
  *
- * Cuando la pantalla conoce los codigos posibles, se prioriza un match exacto
- * dentro del payload completo del QR. Esto evita tomar otro numero del remito,
- * OT, kilos u otros datos cuando el QR trae mas informacion que la pieza.
+ * Cada patrón se prueba en orden de prioridad ascendente. El primer
+ * patrón que extrae un candidato presente en `codigosEsperados`
+ * gana. Si ningún patrón matchea, se devuelve { ok: false } — nunca
+ * se cae a un fallback genérico que pueda levantar basura.
  */
-export function extraerCodigoRollo(
-  raw: string,
-  codigosEsperados: string[] = []
-): string {
-  const texto = normalizarTexto(raw)
-  if (!texto) return ''
 
-  const esperado = buscarCodigoEsperado(texto, codigosEsperados)
-  if (esperado) return esperado
-
-  return texto.split(/\s+/)[0] ?? ''
+export type PatronCodigo = {
+  pattern: string
+  capture_group: number
+  prioridad: number
 }
 
-function buscarCodigoEsperado(
-  texto: string,
-  codigosEsperados: string[]
-): string | null {
-  const textoComparacion = texto.toUpperCase()
-  const codigos = codigosEsperados
-    .map((codigo) => normalizarTexto(codigo))
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length)
+export type ResultadoExtraccion =
+  | { ok: true; codigo: string; patronUsado: string }
+  | { ok: false; razon: 'sin_match' | 'sin_patrones' }
 
-  for (const codigo of codigos) {
-    const patron = new RegExp(
-      `(^|[^A-Z0-9])${escapeRegExp(codigo.toUpperCase())}(?=$|[^A-Z0-9])`
-    )
-    if (patron.test(textoComparacion)) return codigo
+export function extraerCodigoRollo(
+  raw: string,
+  patrones: PatronCodigo[],
+  codigosEsperados: string[]
+): ResultadoExtraccion {
+  const texto = normalizarTexto(raw)
+  if (!texto) return { ok: false, razon: 'sin_match' }
+  if (patrones.length === 0) return { ok: false, razon: 'sin_patrones' }
+
+  const esperadosNorm = new Set(
+    codigosEsperados
+      .map((c) => normalizarTexto(c).toUpperCase())
+      .filter(Boolean)
+  )
+
+  const ordenados = [...patrones].sort((a, b) => a.prioridad - b.prioridad)
+
+  for (const p of ordenados) {
+    let regex: RegExp
+    try {
+      regex = new RegExp(p.pattern, 'i')
+    } catch {
+      continue
+    }
+
+    const match = regex.exec(texto)
+    if (!match) continue
+
+    const grupo = p.capture_group ?? 0
+    const candidato = match[grupo]
+    if (!candidato) continue
+
+    const candidatoLimpio = candidato.trim()
+    if (esperadosNorm.has(candidatoLimpio.toUpperCase())) {
+      return { ok: true, codigo: candidatoLimpio, patronUsado: p.pattern }
+    }
   }
 
-  return null
+  return { ok: false, razon: 'sin_match' }
 }
 
 function normalizarTexto(value: string): string {
   return value.trim().replace(/\s+/g, ' ')
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

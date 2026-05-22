@@ -236,9 +236,10 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 020 | **Confirmación de venta post-picking** (iteración 2026-05-19). Nuevo estado `confirmada_venta` en pedidos (CHECK extendido) + columnas `confirmada_venta_at`/`confirmada_venta_por`. Nueva RPC `confirmar_venta_pedido`. `entregar_pedido` ahora requiere `confirmada_venta` en lugar de `lista`. `cancelar_pedido` acepta cancelar también desde `confirmada_venta`. |
 | 021 | **Historial inborrable** (iteración 2026-05-19). Tabla `movimientos` (entidad, entidad_id, accion, usuario_id, detalle JSONB) con RLS lectura solo admin/super, sin policies de INSERT/UPDATE/DELETE expuestas. Helper `log_movimiento` SECURITY DEFINER. Triggers AFTER INSERT/UPDATE/DELETE en `rollos`/`pedidos`/`ingresos`/`pedido_rollos`/`muestras` capturan cambios (con viejo→nuevo en JSONB). |
 | 022 | **Clientes** (iteración 2026-05-19). Tabla `clientes` (nombre UNIQUE por empresa, contacto, email, telefono, direccion, notas, activo). Agrega `pedidos.cliente_id` UUID FK nullable. Reescritura de RPC `crear_pedido`: ahora toma `p_cliente_id UUID` (en lugar de `p_cliente TEXT`) y autocompleta `pedidos.cliente` desde el catálogo. |
+| 023 | **Patrones de extracción de código de pieza** (iteración 2026-05-22). Tabla `tintoreria_codigo_patrones`: regex con prioridad por tintorería (o `tintoreria_id NULL` = patrón "interno" de fábrica que aplica a toda la empresa). El scanner consulta esta tabla en cada lectura para extraer el `numero_pieza` del payload del QR. Si ningún patrón matchea → scan rechazado (cero fallback peligroso). Seed inicial por empresa con `\b(\d{9})\b`. RLS: read para autenticados de la empresa, write solo admin. Trigger `set_empresa_id` reutilizado. |
 
 **Schema canónico**: ✅ `supabase/schema.sql` refleja migraciones 001..011 (regenerado en Etapa 7D).
-Las migraciones **012..022** (iteraciones mayo 2026) NO están incluidas en `schema.sql` todavía — para DB nueva: correr `schema.sql` y después las migraciones `009`..`022` en orden.
+Las migraciones **012..023** (iteraciones mayo 2026) NO están incluidas en `schema.sql` todavía — para DB nueva: correr `schema.sql` y después las migraciones `009`..`023` en orden.
 
 ---
 
@@ -934,6 +935,163 @@ donde más hacía falta.
 
 ---
 
+## 10.8. Iteración 2026-05-22 — Scanner robusto + polish UI
+
+Tercera ronda post-MVP. Dos focos: (a) **certeza dura del scanner**
+QR/barcode (el cliente no tolera que se levante un código erróneo o se
+muestre el payload completo en el modal de "Código detectado"), y (b)
+**polish UI acumulado** de varios sprints previos (logo, sidebar sticky,
+rediseño de dashboards, filtros de reportes).
+
+### Bloque A — Refactor del scanner a componente compartido
+
+Antes: `Scanner.tsx` (confirmar) y `PickingScanner.tsx` (picking)
+duplicaban ~250 líneas cada uno con la lógica de ZXing (cámara, formats,
+debounce, beep, vibrate, linterna, permission errors, fallback manual).
+
+- **Nuevo `src/components/CodeScanner.tsx`** — Client Component genérico
+  que envuelve `@zxing/browser`. Maneja:
+  - Cámara con `getUserMedia` (constraints `facingMode: 'environment'`,
+    1280×720 ideal).
+  - Formats soportados: `QR_CODE`, `CODE_128`, `EAN_13`, `EAN_8`, `UPC_A`
+    + `TRY_HARDER`.
+  - Debounce de 2s para evitar relecturas del mismo código.
+  - Beep (Web Audio API a 1200 Hz) + `navigator.vibrate(100)` en cada
+    lectura.
+  - Toggle linterna (`ImageCapture` API, best-effort).
+  - Visor con esquinas blancas + animación `scan-success` (verde).
+  - Estados `unsupported` / `permission-denied` / `error` con overlays
+    distintos.
+  - Fallback manual: input + botón "Usar código".
+  - Solo expone `onRead({ texto, formato })` — no conoce nada de rollos.
+- **`Scanner.tsx` y `PickingScanner.tsx` quedan thin wrappers** que solo
+  manejan la lista de rollos esperados, el modal de confirmación con
+  ubicación y la llamada al server action.
+- **Nuevo helper `src/lib/scanner.ts`** con `extraerCodigoRollo` que
+  centraliza la lógica de extracción (antes vivía dispersa en ambos
+  wrappers).
+
+### Bloque B — Patrones regex por tintorería (migración 023)
+
+**Problema concreto**: el QR de la tintorería Musa trae el payload
+`204023686 MIC LY 40 TER FR MARINO 640014 21.75`. El fallback previo de
+`extraerCodigoRollo` (`texto.split(/\s+/)[0]`) "por suerte" agarraba el
+primer token correcto, pero **el modal mostraba el string completo** en
+"Código detectado", lo que se veía como un bug visual gigante.
+Peor: si otra tintorería pone número de OT (también 9 dígitos) antes
+del nro de pieza, el fallback levantaría la OT. El cliente exigió
+certeza absoluta.
+
+- **Migración 023** crea `tintoreria_codigo_patrones`:
+  - `empresa_id NOT NULL`, `tintoreria_id` nullable (NULL = patrón
+    "interno" de fábrica, aplica a toda la empresa sin importar la
+    tintorería original del rollo).
+  - `pattern TEXT` (regex JS-compatible), `capture_group INT DEFAULT 1`,
+    `prioridad INT DEFAULT 100` (menor primero), `activo BOOLEAN`,
+    `descripcion TEXT`.
+  - Index `(empresa_id, tintoreria_id, activo, prioridad)`.
+  - RLS estándar: read para autenticados de la empresa, write solo
+    admin. Trigger `set_empresa_id` reutilizado.
+- **Seed por empresa** (idempotente): un patrón `\b(\d{9})\b`
+  con prioridad 100, `tintoreria_id NULL`, descripción "9 dígitos
+  consecutivos".
+- **`extraerCodigoRollo` reescrito** con nueva firma:
+  `(raw, patrones, codigosEsperados) → { ok: true, codigo, patronUsado } | { ok: false, razon }`.
+  Itera por prioridad, ejecuta el regex case-insensitive, extrae
+  `match[capture_group]`, y solo devuelve `ok: true` si el candidato está
+  en `codigosEsperados`. **El fallback peligroso (`split(/\s+/)[0]`)
+  está eliminado**: si nada matchea, retorna `{ ok: false }` y los
+  wrappers muestran error sin abrir el modal.
+- **Page de `/operario/confirmar/[id]`** ahora selecta `tintoreria_id` del
+  ingreso y carga patrones con `tintoreria_id = X OR tintoreria_id IS NULL`.
+- **Page de `/operario/picking/[id]`** deriva el set de `tintoreria_id`
+  haciendo join `pedido_rollos → rollos → ingresos`. Carga patrones de
+  esas tintorerías + los internos (en picking pueden convivir etiquetas
+  originales del proveedor y etiquetas internas que pega la fábrica al
+  ingresar al depósito — decidido con el cliente).
+- **Server actions simplificadas**: el cliente manda el código limpio
+  (los 9 dígitos), el server solo hace `rollos.find(r => r.numero_pieza === codigo)`.
+  La responsabilidad de extraer queda 100% en cliente.
+
+#### Cómo agregar un patrón específico para una tintorería
+
+Cuando aparezca un formato que el regex global no cubra (ej. la
+tintorería pone una OT de 9 dígitos antes del nro de pieza, lo que haría
+que el global agarre la OT), se carga un patrón específico con prioridad
+menor (más alta):
+
+```sql
+INSERT INTO tintoreria_codigo_patrones
+  (empresa_id, tintoreria_id, pattern, capture_group, prioridad, descripcion)
+VALUES
+  ('<empresa_uuid>', '<tintoreria_uuid>',
+   'PIEZA\s+(\d{9})', 1, 50,
+   'Tintorería XYZ: nro de pieza después del literal PIEZA');
+```
+
+No hay admin UI todavía — los patrones se cargan por SQL. Si crece la
+demanda, en una iteración futura se construye `/admin/patrones`.
+
+### Bloque C — Polish UI acumulado (varios sprints previos)
+
+Cambios menores acumulados en commits previos al refactor del scanner
+(`c6664d8 front done?`, `51fd090 cambios con logo`, `3f59b00 cambios
+front chicos`, `5aa10c2 navbar/sidebar fija`, `be7f926 corrección
+tildes`, `64cd6e5 cambios2`, `db6e8ab cambio operario ingreso`,
+`ca4263e hovers`):
+
+- **Logo + BrandMark**: nuevo `public/nudo-logo.svg` + componente
+  `src/components/BrandMark.tsx`. Usado en header del sidebar y en las
+  pantallas de auth (login, recover, setup).
+- **Sidebar fija** (`AppShell.tsx`): en desktop queda sticky en la
+  izquierda, no scrollea con el contenido. Mejora UX en pantallas
+  largas (stock, historial, reportes).
+- **Dashboards rediseñados**: `/admin/dashboard`, `/operario/dashboard`,
+  `/ventas/dashboard` con cards visuales mejores, stats con iconos,
+  mejor jerarquía visual. El de admin sumó widgets de stock bajo y
+  demandas pendientes.
+- **Filtros de reportes ampliados** (`/admin/reportes`): `ReportesFilters`
+  acepta más combinaciones (año/mes + tintorería + artículo).
+- **Login + auth pages**: rediseño con paleta consistente, BrandMark,
+  espaciado más limpio.
+- **Correcciones ortográficas** en toda la app: tildes que faltaban en
+  varios componentes (`stock`, `pedidos`, `dashboards`, etc.).
+
+### Pendiente para que esto funcione en producción
+
+1. **Aplicar migración 023 en Supabase SQL Editor**. Idempotente.
+2. **Verificar el seed**: `SELECT * FROM tintoreria_codigo_patrones;`
+   debe tener al menos 1 fila por empresa con `pattern = '\b(\d{9})\b'`.
+3. **Smoke test E2E** en `/operario/confirmar/<id>`:
+   - Manual `204023686` → modal con `204023686`.
+   - Manual `204023686 MIC LY 40 TER FR MARINO 640014 21.75` → modal
+     con **solo** `204023686` (no el string completo).
+   - Manual `hola mundo` → mensaje de error, sin modal.
+4. Repetir en `/operario/picking/<id>` con un pedido multi-tintorería.
+5. **Commit + push a `main`** — Vercel redeploya automático.
+
+### Archivos tocados en esta iteración
+
+**Nuevos**:
+- `supabase/migrations/023_codigo_patrones.sql`
+- `src/components/CodeScanner.tsx` (refactor de scanner compartido)
+- `src/components/BrandMark.tsx` + `public/nudo-logo.svg` (de sprints
+  previos no documentados)
+
+**Modificados**:
+- `src/lib/scanner.ts` (reescritura completa, nueva firma de
+  `extraerCodigoRollo`)
+- `src/app/operario/confirmar/[id]/{page,Scanner,actions}.{tsx,ts}`
+- `src/app/operario/picking/[id]/{page,PickingScanner,actions}.{tsx,ts}`
+- `src/components/AppShell.tsx` (sidebar sticky)
+- Dashboards de `/admin`, `/operario`, `/ventas` (rediseño)
+- `src/app/admin/reportes/{page,ReportesFilters,queries,csv/route}.{ts,tsx}`
+- `src/app/login/page.tsx`, `src/app/auth/{recover,setup}/page.tsx`
+  (rediseño + BrandMark)
+- Múltiples archivos con correcciones de tildes
+
+---
+
 ## 11. Decisiones de dominio importantes
 
 Surgidas de leer el documento de tesis con entrevistas a Mariela (experta WMS), visita a Muter, charlas con Texcom, Dakuba e ingeniera SIGE.
@@ -1050,4 +1208,18 @@ Cuando otra persona del equipo (compañero, futuro contributor) toma una tarea:
 
 ### Lo que viene
 
-El detalle técnico de cada etapa está en la **Sección 10**. Etapas completadas: 0, 1, 2, multi-tenant, 3, 4. **Próxima: Etapa 5** (vista de stock con filtros — cualquier rol logueado puede browsear el stock disponible, filtrar por artículo/color/ubicación, ver fotos).
+El MVP de tesis está cerrado (Etapas 0..7 completas — ver Sección 10).
+Las últimas iteraciones (Secciones 10.6, 10.7 y 10.8) son extensiones
+post-MVP pedidas por el cliente durante el uso real: demandas
+pendientes, edición masiva tipo Excel, confirmación de venta
+post-picking, historial inborrable, clientes, refactor del scanner +
+patrones regex por tintorería.
+
+**Próximos candidatos** (cuando el cliente los pida o se decida agregarlos):
+- Admin UI para gestionar `tintoreria_codigo_patrones` (hoy solo SQL).
+- Login con username + alta sin email para operario/ventas (ver
+  Sección 10.5, "Login con username").
+- Setup Resend SMTP (bloqueante para onboarding masivo de empresas).
+- Regenerar `supabase/schema.sql` con migraciones 012..023.
+- Valorización del stock, control de calidad avanzado, módulo chofer,
+  multi-idioma (ver Sección 10.5, "Lo que NO está en el MVP").

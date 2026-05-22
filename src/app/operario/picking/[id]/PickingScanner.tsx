@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
-import { extraerCodigoRollo } from '@/lib/scanner'
+import { extraerCodigoRollo, type PatronCodigo } from '@/lib/scanner'
 import { pickearRollo } from './actions'
 
 export type PickRollo = {
@@ -21,9 +21,11 @@ export type PickRollo = {
 export default function PickingScanner({
   pedidoId,
   items,
+  patrones,
 }: {
   pedidoId: string
   items: PickRollo[]
+  patrones: PatronCodigo[]
 }) {
   const router = useRouter()
   const [itemsLocales, setItemsLocales] = useState<PickRollo[]>(items)
@@ -41,9 +43,19 @@ export default function PickingScanner({
     [itemsLocales]
   )
 
-  const handleLectura = useCallback((result: CodeScannerResult) => {
-    setPendingCode(extraerCodigoRollo(result.texto, codigosRollos))
-  }, [codigosRollos])
+  const handleLectura = useCallback(
+    (result: CodeScannerResult) => {
+      const extraido = extraerCodigoRollo(result.texto, patrones, codigosRollos)
+      if (!extraido.ok) {
+        toast.error(
+          'No reconocimos el código. Probá de nuevo o ingresalo manualmente.'
+        )
+        return
+      }
+      setPendingCode(extraido.codigo)
+    },
+    [codigosRollos, patrones]
+  )
 
   function cancelarModal() {
     setPendingCode(null)

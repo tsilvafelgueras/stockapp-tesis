@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
-import { extraerCodigoRollo } from '@/lib/scanner'
+import { extraerCodigoRollo, type PatronCodigo } from '@/lib/scanner'
 import { confirmarRollo } from './actions'
 
 type Rollo = { id: string; numero_pieza: string; estado: string }
@@ -11,6 +11,7 @@ type Props = {
   ingresoId: string
   rollos: Rollo[]
   totalDeclarado: number | null
+  patrones: PatronCodigo[]
 }
 
 type Mensaje = {
@@ -18,7 +19,7 @@ type Mensaje = {
   tipo: 'error' | 'success' | 'warning'
 }
 
-export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
+export default function Scanner({ ingresoId, rollos, totalDeclarado, patrones }: Props) {
   const [rollosLocales, setRollosLocales] = useState<Rollo[]>(rollos)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [ubicacion, setUbicacion] = useState('')
@@ -41,9 +42,20 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado }: Props) {
     setTimeout(() => setMensaje(null), 4000)
   }, [])
 
-  const handleLectura = useCallback((result: CodeScannerResult) => {
-    setPendingCode(extraerCodigoRollo(result.texto, codigosRollos))
-  }, [codigosRollos])
+  const handleLectura = useCallback(
+    (result: CodeScannerResult) => {
+      const extraido = extraerCodigoRollo(result.texto, patrones, codigosRollos)
+      if (!extraido.ok) {
+        mostrarMensaje(
+          'No reconocimos el código. Probá de nuevo o ingresalo manualmente.',
+          'error'
+        )
+        return
+      }
+      setPendingCode(extraido.codigo)
+    },
+    [codigosRollos, patrones, mostrarMensaje]
+  )
 
   function cancelarModal() {
     setPendingCode(null)

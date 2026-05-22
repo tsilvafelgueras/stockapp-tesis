@@ -15,6 +15,7 @@ export default async function ConfirmarIngresoPage({
     .from('ingresos')
     .select(`
       id, fecha_despacho, numero_remito, estado, total_rollos_declarado,
+      tintoreria_id,
       tintorerias ( nombre ),
       articulos ( nombre )
     `)
@@ -43,6 +44,19 @@ export default async function ConfirmarIngresoPage({
     .select('id, numero_pieza, estado')
     .eq('ingreso_id', id)
     .order('numero_pieza')
+
+  const { data: patronesData } = await supabase
+    .from('tintoreria_codigo_patrones')
+    .select('pattern, capture_group, prioridad')
+    .or(
+      ingreso.tintoreria_id
+        ? `tintoreria_id.eq.${ingreso.tintoreria_id},tintoreria_id.is.null`
+        : 'tintoreria_id.is.null'
+    )
+    .eq('activo', true)
+    .order('prioridad', { ascending: true })
+
+  const patrones = patronesData ?? []
 
   const tintoreria = (
     ingreso.tintorerias as unknown as { nombre: string } | null
@@ -76,6 +90,7 @@ export default async function ConfirmarIngresoPage({
           ingresoId={id}
           rollos={rollos ?? []}
           totalDeclarado={ingreso.total_rollos_declarado}
+          patrones={patrones}
         />
       )}
     </div>
