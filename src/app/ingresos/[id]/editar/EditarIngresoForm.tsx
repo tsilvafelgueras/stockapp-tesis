@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { editarIngreso } from '@/app/operario/ingresos/nuevo/actions'
+import { editarIngreso } from '@/app/ingresos/nuevo/actions'
 
 type Catalog = { id: string; nombre: string }
 

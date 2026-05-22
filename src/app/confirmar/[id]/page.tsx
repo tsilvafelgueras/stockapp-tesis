@@ -27,7 +27,7 @@ export default async function ConfirmarIngresoPage({
   if (ingreso.estado === 'confirmado') {
     return (
       <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
-        <BackButton href="/operario/confirmar" label="Volver a confirmaciones" />
+        <BackButton href="/confirmar" label="Volver a confirmaciones" />
         <div className="rounded-lg border bg-success/10 border-success/30 p-5 text-center space-y-2">
           <p className="text-2xl">✓</p>
           <p className="font-semibold text-success">Ingreso ya confirmado</p>
@@ -70,7 +70,7 @@ export default async function ConfirmarIngresoPage({
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
       <div>
-        <BackButton href="/operario/confirmar" label="Volver a confirmaciones" />
+        <BackButton href="/confirmar" label="Volver a confirmaciones" />
         <h1 className="text-xl font-bold mt-2">Confirmar llegadas</h1>
         <p className="text-sm text-muted-foreground">
           {tintoreria ?? '—'} · {ingreso.fecha_despacho}

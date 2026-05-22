@@ -87,7 +87,7 @@ export default async function ClienteDetailPage({
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       <div>
-        <BackButton href="/ventas/clientes" label="Volver a clientes" />
+        <BackButton href="/clientes" label="Volver a clientes" />
         <div className="flex flex-wrap items-center gap-2 mt-1">
           <h1 className="text-xl sm:text-2xl font-bold">{cliente.nombre}</h1>
           <span
@@ -178,7 +178,7 @@ export default async function ClienteDetailPage({
                       <tr key={p.id} className="border-b last:border-0 hover:bg-zinc-50">
                         <td className="px-4 py-3">
                           <Link
-                            href={`/ventas/pedidos/${p.id}`}
+                            href={`/pedidos/${p.id}`}
                             className="font-medium hover:underline"
                           >
                             {p.numero_pedido ?? '—'}

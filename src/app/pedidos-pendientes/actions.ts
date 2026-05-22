@@ -35,7 +35,7 @@ export async function crearPedidoPendiente(data: {
 
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/ventas/pedidos-pendientes')
+  revalidatePath('/pedidos-pendientes')
   revalidatePath('/ventas/dashboard')
   revalidatePath('/admin/dashboard')
   return { ok: true }
@@ -50,7 +50,7 @@ export async function resolverPedidoPendiente(id: string): Promise<SimpleResult>
 
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/ventas/pedidos-pendientes')
+  revalidatePath('/pedidos-pendientes')
   revalidatePath('/ventas/dashboard')
   revalidatePath('/admin/dashboard')
   return { ok: true }
@@ -65,7 +65,7 @@ export async function cancelarPedidoPendiente(id: string): Promise<SimpleResult>
 
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/ventas/pedidos-pendientes')
+  revalidatePath('/pedidos-pendientes')
   revalidatePath('/ventas/dashboard')
   revalidatePath('/admin/dashboard')
   return { ok: true }

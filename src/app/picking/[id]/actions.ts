@@ -43,8 +43,8 @@ export async function pickearRollo(
     pedido_completo: boolean
   }
 
-  revalidatePath(`/operario/picking/${pedidoId}`)
-  revalidatePath('/operario/picking')
+  revalidatePath(`/picking/${pedidoId}`)
+  revalidatePath('/picking')
 
   return {
     ok: true,

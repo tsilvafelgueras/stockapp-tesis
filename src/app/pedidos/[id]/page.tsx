@@ -123,7 +123,7 @@ export default async function PedidoDetailPage({
       )}
 
       <div>
-        <BackButton href="/ventas/pedidos" label="Volver a pedidos" />
+        <BackButton href="/pedidos" label="Volver a pedidos" />
         <div className="flex flex-wrap items-center gap-3 mt-1">
           <h1 className="text-xl sm:text-2xl font-bold">
             Pedido {pedido.numero_pedido ?? '—'}

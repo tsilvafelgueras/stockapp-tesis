@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import BackButton from '@/components/BackButton'
+import DashboardBackButton from '@/components/DashboardBackButton'
 import ClientesList, { type ClienteRow } from './ClientesList'
 
 export default async function ClientesPage() {
@@ -28,7 +28,7 @@ export default async function ClientesPage() {
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <BackButton href="/ventas/dashboard" />
+        <DashboardBackButton />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Clientes</h1>
         <p className="text-sm text-muted-foreground">
           Catálogo de clientes y resumen de actividad.

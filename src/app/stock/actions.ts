@@ -192,7 +192,7 @@ export async function confirmarRolloManual(
   }
 
   revalidatePath('/stock')
-  revalidatePath(`/operario/ingresos/${rollo.ingreso_id}`)
+  revalidatePath(`/ingresos/${rollo.ingreso_id}`)
   return { ok: true }
 }
 

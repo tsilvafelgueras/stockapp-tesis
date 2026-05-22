@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { crearPedido } from '../actions'
-import { crearCliente } from '@/app/ventas/clientes/actions'
+import { crearCliente } from '@/app/clientes/actions'
 
 export type Catalogo = { id: string; nombre: string }
 
@@ -71,13 +71,13 @@ export default function NuevoPedidoForm({
     else params.delete(field)
     const qs = params.toString()
     startFiltroTransition(() => {
-      router.replace(qs ? `/ventas/pedidos/nuevo?${qs}` : '/ventas/pedidos/nuevo')
+      router.replace(qs ? `/pedidos/nuevo?${qs}` : '/pedidos/nuevo')
     })
   }
 
   function resetFilters() {
     startFiltroTransition(() => {
-      router.replace('/ventas/pedidos/nuevo')
+      router.replace('/pedidos/nuevo')
     })
   }
 
@@ -128,7 +128,7 @@ export default function NuevoPedidoForm({
         return
       }
       toast.success(`Pedido creado con ${carrito.length} rollos reservados.`)
-      router.push(`/ventas/pedidos/${res.pedidoId}?creado=1`)
+      router.push(`/pedidos/${res.pedidoId}?creado=1`)
     })
   }
 

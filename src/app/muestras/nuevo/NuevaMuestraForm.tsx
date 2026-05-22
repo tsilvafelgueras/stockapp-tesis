@@ -87,7 +87,7 @@ export default function NuevaMuestraForm({
       toast.success(
         `Muestra de ${kilosNum.toFixed(2)} kg registrada para ${cliente.trim()}.`
       )
-      router.push('/operario/muestras')
+      router.push('/muestras')
     })
   }
 

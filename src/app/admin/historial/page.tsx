@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import BackButton from '@/components/BackButton'
+import DashboardBackButton from '@/components/DashboardBackButton'
 import HistorialFilters from './HistorialFilters'
 
 type SearchParams = {
@@ -101,7 +101,7 @@ export default async function HistorialPage({
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <BackButton href="/admin/dashboard" />
+        <DashboardBackButton />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">
           Historial de movimientos
         </h1>

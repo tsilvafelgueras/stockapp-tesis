@@ -109,7 +109,7 @@ export default async function IngresoDetailPage({
             ))}
           </ul>
           <a
-            href="/ventas/pedidos-pendientes"
+            href="/pedidos-pendientes"
             className="inline-block text-xs underline hover:no-underline mt-1"
           >
             Ver demandas pendientes →
@@ -118,7 +118,7 @@ export default async function IngresoDetailPage({
       )}
 
       <div>
-        <BackButton href="/operario/ingresos" label="Volver a ingresos" />
+        <BackButton href="/ingresos" label="Volver a ingresos" />
         <div className="flex flex-wrap items-center justify-between gap-3 mt-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-bold">
@@ -132,7 +132,7 @@ export default async function IngresoDetailPage({
           </div>
           {esAdmin && (
             <Link
-              href={`/operario/ingresos/${id}/editar`}
+              href={`/ingresos/${id}/editar`}
               className="rounded-md border px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors"
             >
               Editar

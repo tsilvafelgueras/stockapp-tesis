@@ -102,7 +102,7 @@ export default function ClientesList({
                     <tr key={c.id} className="border-b last:border-0 hover:bg-zinc-50">
                       <td className="px-4 py-3">
                         <Link
-                          href={`/ventas/clientes/${c.id}`}
+                          href={`/clientes/${c.id}`}
                           className="font-medium hover:underline"
                         >
                           {c.nombre}

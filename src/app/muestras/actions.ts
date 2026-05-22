@@ -32,7 +32,7 @@ export async function registrarMuestra(input: {
 
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/operario/muestras')
+  revalidatePath('/muestras')
   revalidatePath('/stock')
   return { ok: true, muestraId: data as string }
 }

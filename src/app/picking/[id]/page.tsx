@@ -110,7 +110,7 @@ export default async function PickingDetailPage({
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
       <div>
-        <BackButton href="/operario/picking" label="Volver a picking" />
+        <BackButton href="/picking" label="Volver a picking" />
         <div className="flex flex-wrap items-center gap-3 mt-1">
           <h1 className="text-xl sm:text-2xl font-bold">
             Picking · {pedido.cliente}

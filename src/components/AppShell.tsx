@@ -68,11 +68,11 @@ function navForRole(role: Role): NavSection[] {
       {
         items: [
           { href: '/operario/dashboard', label: 'Inicio', icon: Home },
-          { href: '/operario/ingresos', label: 'Ingresos', icon: PackagePlus },
-          { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
+          { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
+          { href: '/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
           { href: '/stock', label: 'Stock', icon: Search },
-          { href: '/operario/picking', label: 'Picking', icon: ClipboardCheck },
-          { href: '/operario/muestras', label: 'Muestras', icon: Scissors },
+          { href: '/picking', label: 'Picking', icon: ClipboardCheck },
+          { href: '/muestras', label: 'Muestras', icon: Scissors },
         ],
       },
     ]
@@ -84,9 +84,9 @@ function navForRole(role: Role): NavSection[] {
         items: [
           { href: '/ventas/dashboard', label: 'Inicio', icon: Home },
           { href: '/stock', label: 'Stock', icon: Search },
-          { href: '/ventas/pedidos', label: 'Pedidos', icon: ShoppingCart },
-          { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: Clock3 },
-          { href: '/ventas/clientes', label: 'Clientes', icon: Users },
+          { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
+          { href: '/pedidos-pendientes', label: 'Demandas', icon: Clock3 },
+          { href: '/clientes', label: 'Clientes', icon: Users },
         ],
       },
     ]
@@ -99,19 +99,19 @@ function navForRole(role: Role): NavSection[] {
     {
       title: 'Operacion',
       items: [
-        { href: '/operario/ingresos', label: 'Ingresos', icon: PackagePlus },
-        { href: '/operario/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
-        { href: '/operario/picking', label: 'Picking', icon: ClipboardCheck },
-        { href: '/operario/muestras', label: 'Muestras', icon: Scissors },
+        { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
+        { href: '/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
+        { href: '/picking', label: 'Picking', icon: ClipboardCheck },
+        { href: '/muestras', label: 'Muestras', icon: Scissors },
       ],
     },
     {
       title: 'Ventas',
       items: [
         { href: '/stock', label: 'Stock', icon: Search },
-        { href: '/ventas/pedidos', label: 'Pedidos', icon: ShoppingCart },
-        { href: '/ventas/pedidos-pendientes', label: 'Demandas', icon: Clock3 },
-        { href: '/ventas/clientes', label: 'Clientes', icon: Users },
+        { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
+        { href: '/pedidos-pendientes', label: 'Demandas', icon: Clock3 },
+        { href: '/clientes', label: 'Clientes', icon: Users },
       ],
     },
     {

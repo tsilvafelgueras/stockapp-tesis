@@ -16,13 +16,13 @@ const actions: {
   icon: LucideIcon
 }[] = [
   {
-    href: '/operario/ingresos/nuevo',
+    href: '/ingresos/nuevo',
     title: 'Cargar ingreso',
     description: 'Subí la planilla o cargá los rollos a mano cuando llega mercadería.',
     icon: PackagePlus,
   },
   {
-    href: '/operario/confirmar',
+    href: '/confirmar',
     title: 'Escanear llegadas',
     description: 'Confirmar rollos pendientes y asignarles ubicación.',
     icon: ScanLine,
@@ -34,19 +34,19 @@ const actions: {
     icon: Search,
   },
   {
-    href: '/operario/picking',
+    href: '/picking',
     title: 'Picking',
     description: 'Preparar pedidos escaneando los rollos del depósito.',
     icon: ClipboardCheck,
   },
   {
-    href: '/operario/ingresos',
+    href: '/ingresos',
     title: 'Ver ingresos',
     description: 'Listado de llegadas cargadas, auditadas y pendientes.',
     icon: Truck,
   },
   {
-    href: '/operario/muestras',
+    href: '/muestras',
     title: 'Muestras',
     description: 'Registrar entregas chicas que descuentan kilos del rollo.',
     icon: Scissors,
@@ -61,10 +61,10 @@ export default function OperarioDashboard() {
           Deposito
         </p>
         <h1 className="mt-2 text-2xl font-bold">¿Qué vas a mover hoy?</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-white/68">
+        {/* <p className="mt-2 max-w-xl text-sm leading-6 text-white/68">
           Accesos grandes para trabajar rápido desde el celular, incluso con
           guantes o en pasillos con poca luz.
-        </p>
+        </p> */}
       </div>
 
       <div className="grid flex-1 gap-3 sm:grid-cols-2">

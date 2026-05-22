@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import BackButton from '@/components/BackButton'
+import DashboardBackButton from '@/components/DashboardBackButton'
 
 export default async function TintoreriasPage() {
   const supabase = await createClient()
@@ -12,7 +12,7 @@ export default async function TintoreriasPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
-        <BackButton href="/admin/dashboard" />
+        <DashboardBackButton />
         <h1 className="text-2xl font-bold mt-1">Tintorerías</h1>
         <p className="text-sm text-muted-foreground">
           Proveedores que tiñen las telas

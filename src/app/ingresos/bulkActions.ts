@@ -119,7 +119,7 @@ export async function bulkEditRollos(
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/stock')
-  revalidatePath('/operario/ingresos')
+  revalidatePath('/ingresos')
 
   return { ok: true, afectados: rolloIds.length }
 }

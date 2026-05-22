@@ -21,7 +21,7 @@ export default async function EditarIngresoPage({
     .eq('id', user!.id)
     .single()
 
-  if (profile?.role !== 'admin') redirect(`/operario/ingresos/${id}`)
+  if (profile?.role !== 'admin') redirect(`/ingresos/${id}`)
 
   const [
     { data: ingreso },
@@ -48,7 +48,7 @@ export default async function EditarIngresoPage({
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       <div>
-        <BackButton href={`/operario/ingresos/${id}`} label="Volver al ingreso" />
+        <BackButton href={`/ingresos/${id}`} label="Volver al ingreso" />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Editar ingreso</h1>
         <p className="text-sm text-muted-foreground">
           Modificá los datos del encabezado. Los rollos no se editan aquí.

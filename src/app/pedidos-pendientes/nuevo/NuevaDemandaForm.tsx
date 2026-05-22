@@ -43,7 +43,7 @@ export default function NuevaDemandaForm({
       return
     }
 
-    router.push('/ventas/pedidos-pendientes')
+    router.push('/pedidos-pendientes')
   }
 
   return (
@@ -133,7 +133,7 @@ export default function NuevaDemandaForm({
       <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
         <button
           type="button"
-          onClick={() => router.push('/ventas/pedidos-pendientes')}
+          onClick={() => router.push('/pedidos-pendientes')}
           className="rounded-md border bg-white px-5 py-2.5 text-sm font-medium hover:bg-zinc-50 transition-colors"
         >
           Cancelar

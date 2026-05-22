@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import BackButton from '@/components/BackButton'
+import DashboardBackButton from '@/components/DashboardBackButton'
 import { NuevoArticuloForm, EditArticuloRow } from './ArticuloForm'
 
 export default async function ArticulosPage() {
@@ -14,7 +14,7 @@ export default async function ArticulosPage() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <BackButton href="/admin/dashboard" />
+          <DashboardBackButton />
           <h1 className="text-2xl font-bold mt-1">Artículos</h1>
           <p className="text-sm text-muted-foreground">
             Tipos de tela disponibles

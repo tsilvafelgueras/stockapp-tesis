@@ -15,19 +15,19 @@ const actions: {
     icon: Search,
   },
   {
-    href: '/ventas/pedidos/nuevo',
+    href: '/pedidos/nuevo',
     title: 'Nuevo pedido',
     description: 'Reservá rollos concretos para un cliente.',
     icon: ShoppingCart,
   },
   {
-    href: '/ventas/pedidos',
+    href: '/pedidos',
     title: 'Pedidos abiertos',
     description: 'Seguí pendientes, preparación y ventas confirmadas.',
     icon: Clock3,
   },
   {
-    href: '/ventas/clientes',
+    href: '/clientes',
     title: 'Clientes',
     description: 'Consultá historial, datos de contacto y pedidos.',
     icon: Users,

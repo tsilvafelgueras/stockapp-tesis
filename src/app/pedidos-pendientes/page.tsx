@@ -28,7 +28,7 @@ export default async function PedidosPendientesPage() {
           </p>
         </div>
         <Link
-          href="/ventas/pedidos-pendientes/nuevo"
+          href="/pedidos-pendientes/nuevo"
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors text-center"
         >
           + Nueva demanda

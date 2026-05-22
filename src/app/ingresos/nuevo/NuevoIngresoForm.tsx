@@ -971,7 +971,7 @@ export default function NuevoIngresoForm({
       <div className="flex flex-col-reverse sm:flex-row gap-3">
         <button
           type="button"
-          onClick={() => router.push('/operario/ingresos')}
+          onClick={() => router.push('/ingresos')}
           className="rounded-md border bg-white px-5 py-2.5 text-sm font-medium hover:bg-zinc-50 transition-colors"
         >
           Cancelar

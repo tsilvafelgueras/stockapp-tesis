@@ -134,16 +134,28 @@ Tablas principales:
 
 ## 7. Estructura del código
 
+> Refleja el estado del repo post-refactor 2026-05-22 (rutas neutras — ver
+> Sección 10.9). Carpetas y archivos enumerados son los que existen hoy; el
+> resto del árbol (estilos, `package.json`, etc.) se omite por brevedad.
+>
+> **Patrón de rutas**: las pantallas compartidas entre roles (operario+admin
+> o ventas+admin) viven al top-level **sin prefijo de rol** (`/picking`,
+> `/ingresos`, `/pedidos`, etc.). Esto evita la confusión de que un admin
+> entrando a `/operario/picking` "se siente" como operario. Lo único bajo
+> un prefijo de rol son los **dashboards rol-específicos** y las pantallas
+> **admin-only** (`/admin/articulos`, `/admin/equipo`, etc.).
+
 ```
 src/
 ├── app/                          # Next.js App Router
 │   ├── page.tsx                  # Root → redirige según rol
-│   ├── layout.tsx                # Root layout (metadata, fonts)
-│   ├── globals.css               # Tailwind + theme tokens (navy + naranja)
-│   ├── login/page.tsx            # Login email + password
+│   ├── layout.tsx                # Root layout (metadata, fonts, <Toaster /> de sonner)
+│   ├── globals.css               # Tailwind + theme tokens (navy + naranja) + animaciones scan
+│   ├── login/page.tsx            # Login email + password (rediseñado con BrandMark)
 │   │
 │   ├── auth/
 │   │   ├── confirm/route.ts      # Route handler que verifica token de invitación
+│   │   ├── recover/page.tsx      # Forgot password (resetPasswordForEmail)
 │   │   └── setup/                # Pantalla para que invitado defina contraseña
 │   │       ├── page.tsx
 │   │       └── SetupForm.tsx
@@ -152,58 +164,137 @@ src/
 │   │   ├── layout.tsx
 │   │   ├── page.tsx              # Lista empresas + form para crear nueva
 │   │   ├── NuevaEmpresaForm.tsx
-│   │   └── actions.ts            # createEmpresaConAdmin()
+│   │   ├── EmpresaActions.tsx    # Botones Pausar / Reactivar empresa (toast + confirm inline)
+│   │   └── actions.ts            # createEmpresaConAdmin(), setEmpresaActivo()
 │   │
-│   ├── admin/                    # Solo role='admin'
+│   ├── admin/                    # Solo role='admin' (pantallas admin-only)
 │   │   ├── layout.tsx
-│   │   ├── dashboard/page.tsx
-│   │   ├── articulos/            # CRUD de artículos
-│   │   ├── tintorerias/          # CRUD de tintorerías
-│   │   └── equipo/               # Lista usuarios + invita
+│   │   ├── dashboard/page.tsx    # Stats + widgets de stock bajo + demandas pendientes
+│   │   ├── articulos/            # CRUD + edición inline + stock_minimo_kg
+│   │   │   ├── page.tsx
+│   │   │   ├── ArticuloForm.tsx
+│   │   │   └── actions.ts
+│   │   ├── tintorerias/          # Solo listado + aviso "contactá soporte" (alta vía SQL)
+│   │   │   ├── page.tsx
+│   │   │   ├── TintoreriaForm.tsx   # ⚠ archivo huérfano (no se renderea desde page.tsx)
+│   │   │   └── actions.ts
+│   │   ├── equipo/               # Lista usuarios + invitar/editar rol/desactivar/eliminar
+│   │   │   ├── page.tsx
+│   │   │   ├── InviteForm.tsx
+│   │   │   ├── UsuarioRow.tsx    # Acciones por fila (cambiar rol, desactivar, eliminar)
+│   │   │   └── actions.ts        # inviteTeamMember(), updateRole(), disableUser(), deleteUser()
+│   │   ├── reportes/             # Stock, movimientos, merma, diferencias, antigüedad, tintorerías
+│   │   │   ├── page.tsx
+│   │   │   ├── ReportesFilters.tsx     # Año/mes + tintorería + artículo + días antigüedad
+│   │   │   ├── queries.ts              # reporteMovimientos, reporteTintorerias, etc.
+│   │   │   └── csv/route.ts            # Export CSV con filtros activos
+│   │   └── historial/            # Bitácora inborrable (Bloque F, mig 021)
 │   │       ├── page.tsx
-│   │       ├── InviteForm.tsx
-│   │       └── actions.ts        # inviteTeamMember()
+│   │       └── HistorialFilters.tsx
 │   │
-│   ├── ventas/                   # role='ventas' o 'admin'
+│   ├── operario/                 # Solo dashboard del operario
 │   │   ├── layout.tsx
-│   │   └── dashboard/page.tsx    # Solo placeholder (Etapa 6)
+│   │   └── dashboard/page.tsx
 │   │
-│   └── operario/                 # role='operario' o 'admin'
-│       ├── layout.tsx
-│       ├── dashboard/page.tsx
-│       └── despachos/            # ← acá está el form complejo de Etapa 2
-│           ├── page.tsx          # Lista despachos
-│           ├── [id]/page.tsx     # Detalle de un despacho
-│           └── nuevo/
-│               ├── page.tsx
-│               ├── NuevoDespachoForm.tsx  # Form con tabla editable de rollos
-│               └── actions.ts            # createDespacho() + creates inline de catálogos
+│   ├── ventas/                   # Solo dashboard de ventas
+│   │   ├── layout.tsx
+│   │   └── dashboard/page.tsx
+│   │
+│   │   ──────── Rutas neutras (operario+admin) ────────
+│   ├── ingresos/                 # Llegadas + extracción IA + carga manual
+│   │   ├── layout.tsx                   # Guard: operario|admin
+│   │   ├── page.tsx                     # Tabs "Por ingreso" / "Por rollo" (Bloque C)
+│   │   ├── RollosBulkView.tsx           # Vista tipo Excel con 8 filtros + edición masiva
+│   │   ├── bulkActions.ts               # bulkEditRollos()
+│   │   ├── nuevo/
+│   │   │   ├── page.tsx
+│   │   │   ├── NuevoIngresoForm.tsx     # Form con toggle "manual / planilla IA", mobile-first
+│   │   │   └── actions.ts               # crearIngreso() + extracción IA
+│   │   └── [id]/
+│   │       ├── page.tsx
+│   │       └── editar/{page,EditarIngresoForm}.tsx   # Edición header (mig 015)
+│   ├── confirmar/                # Confirmación física (scanner QR, Etapa 4)
+│   │   ├── layout.tsx                   # Guard: operario|admin
+│   │   ├── page.tsx
+│   │   └── [id]/{page,Scanner,actions}.{tsx,ts}
+│   ├── picking/                  # Picking de pedidos (Etapa 6B)
+│   │   ├── layout.tsx                   # Guard: operario|admin
+│   │   ├── page.tsx
+│   │   └── [id]/{page,PickingScanner,actions}.{tsx,ts}
+│   ├── muestras/                 # Muestras (Etapa 7A, mig 011)
+│   │   ├── layout.tsx                   # Guard: operario|admin
+│   │   ├── page.tsx
+│   │   ├── actions.ts
+│   │   └── nuevo/{page,NuevaMuestraForm}.tsx
+│   │
+│   │   ──────── Rutas neutras (ventas+admin) ────────
+│   ├── pedidos/                  # Pedidos (Etapa 6 + Bloque E confirmar venta)
+│   │   ├── layout.tsx                   # Guard: ventas|admin
+│   │   ├── page.tsx
+│   │   ├── PedidosFilters.tsx           # Cliente / estado / rango fechas / búsqueda
+│   │   ├── actions.ts                   # confirmarVentaPedido, cancelarPedido, entregarPedido
+│   │   ├── nuevo/{page,NuevoPedidoForm}.tsx
+│   │   └── [id]/{page,PedidoActions}.tsx
+│   ├── pedidos-pendientes/       # Demandas sin stock asignado (mig 013)
+│   │   ├── layout.tsx                   # Guard: ventas|admin
+│   │   ├── page.tsx
+│   │   ├── PedidoPendienteRow.tsx
+│   │   ├── actions.ts
+│   │   └── nuevo/{page,NuevaDemandaForm}.tsx
+│   ├── clientes/                 # Catálogo de clientes (Bloque G, mig 022)
+│   │   ├── layout.tsx                   # Guard: ventas|admin
+│   │   ├── page.tsx
+│   │   ├── ClientesList.tsx
+│   │   ├── ClienteForm.tsx
+│   │   ├── actions.ts
+│   │   └── [id]/{page,ClienteActions}.tsx
+│   │
+│   │   ──────── Ruta neutra (operario+ventas+admin) ────────
+│   └── stock/                    # Vista de stock unificada (Etapa 5)
+│       ├── layout.tsx                   # Guard: operario|ventas|admin (no super)
+│       ├── page.tsx
+│       ├── StockList.tsx
+│       ├── StockFilters.tsx
+│       ├── RolloDetailDialog.tsx        # Modal con confirmación manual, auditoría, baja, segunda
+│       └── actions.ts                   # confirmarRolloManual, auditarRollo, marcarSegunda, etc.
 │
 ├── lib/
-│   └── supabase/
-│       ├── client.ts             # createBrowserClient (para Client Components)
-│       ├── server.ts             # createServerClient (para Server Components/Actions)
-│       ├── middleware.ts         # Sesión + guards por rol
-│       └── admin.ts              # Service-role client (bypassa RLS, solo para super-admin actions)
+│   ├── supabase/
+│   │   ├── client.ts             # createBrowserClient (para Client Components)
+│   │   ├── server.ts             # createServerClient (para Server Components/Actions)
+│   │   ├── middleware.ts         # Sesión + guards por rol + redirects legacy + bloqueo si empresa pausada
+│   │   └── admin.ts              # Service-role client (bypassa RLS, super-admin actions)
+│   ├── extraccion/               # Sistema de prompts IA por tintorería (Etapa 3)
+│   │   ├── extraerPlanilla.ts
+│   │   ├── gemini.ts
+│   │   └── tintorerias/{_types,_default,_registry,muter-textil}.ts
+│   ├── storage/planillas.ts      # Upload a Storage privado bucket "planillas"
+│   ├── scanner.ts                # extraerCodigoRollo(raw, patrones, esperados) - mig 023
+│   ├── ubicaciones.ts            # Constante con las 180 ubicaciones del depósito (A1..F30)
+│   └── utils.ts                  # Helpers genéricos (cn, etc.)
 │
 ├── components/
-│   ├── ui/button.tsx             # Solo este de shadcn está instalado
-│   └── LogoutButton.tsx
+│   ├── ui/button.tsx             # Único componente shadcn instalado
+│   ├── LogoutButton.tsx
+│   ├── BackButton.tsx            # Botón "← Volver" reutilizable (con href explícito)
+│   ├── DashboardBackButton.tsx   # "Volver al inicio" — Server Component que arma el href según el rol REAL del user logueado
+│   ├── AppShell.tsx              # Sidebar fija + drawer mobile + header (los layouts lo usan)
+│   ├── BrandMark.tsx             # Logo + texto "Nudo" (sidebar + auth pages)
+│   ├── CodeScanner.tsx           # Wrapper genérico de @zxing/browser (cámara + manual fallback)
+│   └── ExcelFilter.tsx           # Chip con search + checkboxes (filtros tipo Excel)
 │
 └── middleware.ts                 # Wrapper que llama a updateSession()
 
+public/
+└── nudo-logo.svg                 # Logo del producto
+
 supabase/
-├── schema.sql                    # Schema canónico para fresh installs
-└── migrations/                   # Historial idempotente
-    ├── 001_etapa2_refactor.sql              # 3 roles, drop orden_items, rename ordenes→pedidos
-    ├── 002_despacho_origen.sql              # despachos.origen
-    ├── 003_operario_gestiona_catalogos.sql  # RLS para que operario CRUD catálogos
-    ├── 004_operario_inserta_despachos_rollos.sql  # operario INSERT en despachos+rollos
-    ├── 005_multi_tenant.sql                 # Tabla empresas, empresa_id en todas las tablas, triggers, RLS
-    └── 006_super_admin_internal_empresa.sql # role='super' + empresa_id NULLABLE para super
+├── schema.sql                    # Canónico hasta migración 011 (post-Etapa 7D)
+└── migrations/                   # Historial idempotente — ver Sección 8 para qué hace cada una
+    └── 001..023_*.sql            # 23 migraciones, todas aplicadas en prod
 
 vercel.json                       # regions: ["gru1"] (São Paulo)
-.env.local                        # (gitignored) NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+.env.local                        # (gitignored) SUPABASE_* + GEMINI_API_KEY
 ```
 
 ---
@@ -1092,6 +1183,101 @@ tildes`, `64cd6e5 cambios2`, `db6e8ab cambio operario ingreso`,
 
 ---
 
+## 10.9. Iteración 2026-05-22 — Refactor de rutas neutras
+
+Cuarta iteración del día. El cliente reportó un bug crítico de UX: al
+entrar como admin a `/operario/picking`, sentía que **cambiaba de rol**.
+
+### Causa raíz
+
+El problema NO era de auth ni de roles. Los layouts ya pasaban
+`role={profile.role}` al sidebar (correctamente) y el guard en el
+middleware/layout permitía el acceso. El bug era visual: los **BackButton**
+en las pantallas compartidas estaban hardcodeados a `/operario/dashboard`,
+y las **URLs** tenían prefijo `/operario/...` o `/ventas/...` aunque las
+pantallas fueran compartidas con admin. Resultado: un admin viendo
+`/operario/picking` clickeaba "← Volver" y caía en el dashboard del
+operario (cards distintas, header "Depósito"), lo que se sentía
+exactamente como cambiar de rol.
+
+### Solución: rutas neutras
+
+Se sacó el prefijo de rol de TODAS las pantallas compartidas entre roles.
+Hoy el patrón es:
+
+- **Rutas neutras** (sin prefijo): `/picking`, `/ingresos`, `/confirmar`,
+  `/muestras`, `/pedidos`, `/pedidos-pendientes`, `/clientes`, `/stock`.
+  Cada una tiene su propio `layout.tsx` con el guard de rol correspondiente
+  (operario+admin, ventas+admin, etc.) y monta `AppShell` con el rol REAL
+  del user logueado.
+- **Rutas por rol** (con prefijo, quedaron solo donde tiene sentido):
+  - `/admin/{dashboard,articulos,tintorerias,equipo,reportes,historial}` — admin-only
+  - `/operario/dashboard` — solo operario (admin tiene su propio dashboard)
+  - `/ventas/dashboard` — solo ventas
+  - `/super` — solo super-admin
+
+### Cambios técnicos
+
+1. **`git mv` de 7 carpetas a top-level** (preservó el history):
+   `operario/{ingresos,confirmar,picking,muestras}` y
+   `ventas/{pedidos,pedidos-pendientes,clientes}`.
+2. **7 `layout.tsx` nuevos** (uno por ruta neutra) con guards y `AppShell`.
+3. **Reemplazos masivos** de hrefs internos (Link, redirect,
+   revalidatePath, router.push, imports `@/app/...`) en ~36 archivos.
+4. **Middleware ampliado**:
+   - Nuevo bloque de `LEGACY_PATH_PREFIXES` que hace **redirect 308** de
+     paths viejos (`/operario/picking` → `/picking`, etc.) para preservar
+     bookmarks y links externos.
+   - Guards nuevos para las rutas neutras (`isOperacion` → operario+admin,
+     `isComercial` → ventas+admin).
+5. **`AppShell.tsx`** — sidebar actualizado con los nuevos hrefs neutrales
+   en los tres `navForRole`.
+6. **Nuevo `DashboardBackButton.tsx`** — Server Component async que consulta
+   el rol del user logueado y arma el href del dashboard correcto. Usado en
+   las 10 pantallas donde antes había `<BackButton href="/{rol}/dashboard" />`
+   hardcodeado.
+
+### Backward-compat
+
+El middleware redirige cualquier URL vieja (`/operario/picking/123`,
+`/ventas/clientes`, etc.) a su nueva forma neutra con un **308 Permanent
+Redirect**, así que:
+- Bookmarks viejos siguen funcionando.
+- Links en chats/emails siguen funcionando.
+- El SEO (si lo hubiera) se preserva.
+
+### Verificado
+
+`npm run build` pasa limpio. Las 33 rutas quedan registradas correctamente.
+
+### Pendiente para que esto funcione en producción
+
+1. **Commit + push a `main`** — Vercel redeploya automático.
+2. Smoke test post-deploy:
+   - Login como admin → click "Picking" en sidebar → URL `/picking` →
+     click "← Volver al inicio" → URL `/admin/dashboard`.
+   - Login como operario → mismo flujo → vuelve a `/operario/dashboard`.
+   - Visitar URL vieja (`/operario/picking`) → redirige a `/picking`.
+
+### Archivos tocados en esta iteración
+
+**Nuevos** (8):
+- `src/app/{ingresos,confirmar,picking,muestras,pedidos,pedidos-pendientes,clientes}/layout.tsx` (7)
+- `src/components/DashboardBackButton.tsx`
+
+**Movidos** (~39 archivos vía `git mv`):
+- `src/app/operario/{ingresos,confirmar,picking,muestras}/*` → `src/app/{ingresos,confirmar,picking,muestras}/*`
+- `src/app/ventas/{pedidos,pedidos-pendientes,clientes}/*` → `src/app/{pedidos,pedidos-pendientes,clientes}/*`
+
+**Modificados** (~38 archivos):
+- `src/components/AppShell.tsx` (sidebar hrefs)
+- `src/lib/supabase/middleware.ts` (legacy redirects + nuevos guards)
+- 10 pantallas con reemplazo de `BackButton` → `DashboardBackButton`
+- ~26 archivos con hrefs/redirects/revalidatePath actualizados
+- `docs/CONTEXTO.md` (esta sección + Sección 7)
+
+---
+
 ## 11. Decisiones de dominio importantes
 
 Surgidas de leer el documento de tesis con entrevistas a Mariela (experta WMS), visita a Muter, charlas con Texcom, Dakuba e ingeniera SIGE.
@@ -1200,7 +1386,7 @@ Cuando otra persona del equipo (compañero, futuro contributor) toma una tarea:
 4. Pedirle a Trinidad el `.env.local` (canal seguro) — contiene `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`. Cada dev puede generar SU propia `GEMINI_API_KEY` gratis en https://aistudio.google.com (es preferible para tracking de quotas).
 5. `npm install` (Node 24 LTS, npm 11)
 6. `npm run dev` → http://localhost:3000
-7. Para cambios en DB schema: las migraciones en `supabase/migrations/` se aplican manualmente en Supabase SQL Editor (ya están aplicadas las 001-008 en el proyecto compartido — solo aplicar nuevas que se agreguen).
+7. Para cambios en DB schema: las migraciones en `supabase/migrations/` se aplican manualmente en Supabase SQL Editor (ya están aplicadas las 001-023 en el proyecto compartido — solo aplicar nuevas que se agreguen).
 
 **Para retomar contexto en chat con asistente**:
 1. Pegá este documento (`docs/CONTEXTO.md`) entero al inicio del chat.

@@ -45,7 +45,7 @@ export default async function NuevaMuestraPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
       <div>
-        <BackButton href="/operario/muestras" label="Volver a muestras" />
+        <BackButton href="/muestras" label="Volver a muestras" />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Nueva muestra</h1>
         <p className="text-sm text-muted-foreground">
           Registrá una entrega chica que se descuenta del rollo

@@ -38,13 +38,13 @@ export default function PedidosFilters({
     else params.delete(field)
     const qs = params.toString()
     startTransition(() => {
-      router.replace(qs ? `/ventas/pedidos?${qs}` : '/ventas/pedidos')
+      router.replace(qs ? `/pedidos?${qs}` : '/pedidos')
     })
   }
 
   function reset() {
     startTransition(() => {
-      router.replace('/ventas/pedidos')
+      router.replace('/pedidos')
     })
   }
 

@@ -68,7 +68,7 @@ export async function crearCliente(input: ClienteInput): Promise<ClienteResult> 
     return { ok: false, error: error.message }
   }
 
-  revalidatePath('/ventas/clientes')
+  revalidatePath('/clientes')
   return { ok: true, cliente: data }
 }
 
@@ -106,8 +106,8 @@ export async function editarCliente(
     return { ok: false, error: error.message }
   }
 
-  revalidatePath('/ventas/clientes')
-  revalidatePath(`/ventas/clientes/${id}`)
+  revalidatePath('/clientes')
+  revalidatePath(`/clientes/${id}`)
   return { ok: true, cliente: data }
 }
 
@@ -125,7 +125,7 @@ export async function toggleClienteActivo(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/ventas/clientes')
-  revalidatePath(`/ventas/clientes/${id}`)
+  revalidatePath('/clientes')
+  revalidatePath(`/clientes/${id}`)
   return { ok: true }
 }

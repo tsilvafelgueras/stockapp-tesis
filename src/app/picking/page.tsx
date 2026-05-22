@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import BackButton from '@/components/BackButton'
+import DashboardBackButton from '@/components/DashboardBackButton'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
@@ -43,7 +43,7 @@ export default async function PickingListPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
       <div>
-        <BackButton href="/operario/dashboard" />
+        <DashboardBackButton />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Picking</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Pedidos a preparar. Escaneá los rollos en el depósito.
@@ -72,7 +72,7 @@ export default async function PickingListPage() {
             return (
               <Link
                 key={p.id}
-                href={`/operario/picking/${p.id}`}
+                href={`/picking/${p.id}`}
                 className="block rounded-lg border bg-white p-4 shadow-sm hover:bg-zinc-50 active:bg-zinc-100 transition-colors"
               >
                 <div className="flex items-start justify-between gap-2">

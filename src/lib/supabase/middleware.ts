@@ -40,6 +40,27 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Backward-compat: rutas que se renombraron al sacarles el prefijo de rol.
+  // Mantiene viejos bookmarks y links externos funcionando con un redirect 308.
+  const LEGACY_PATH_PREFIXES: Array<[string, string]> = [
+    ['/operario/ingresos', '/ingresos'],
+    ['/operario/confirmar', '/confirmar'],
+    ['/operario/picking', '/picking'],
+    ['/operario/muestras', '/muestras'],
+    ['/ventas/pedidos-pendientes', '/pedidos-pendientes'],
+    ['/ventas/pedidos', '/pedidos'],
+    ['/ventas/clientes', '/clientes'],
+  ]
+  for (const [oldPrefix, newPrefix] of LEGACY_PATH_PREFIXES) {
+    if (pathname === oldPrefix || pathname.startsWith(oldPrefix + '/')) {
+      const target = new URL(
+        newPrefix + pathname.slice(oldPrefix.length) + request.nextUrl.search,
+        request.url
+      )
+      return NextResponse.redirect(target, 308)
+    }
+  }
+
   // Rutas públicas o de verificación de auth no requieren sesión
   const isPublic =
     pathname === '/login' ||
@@ -92,15 +113,29 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
 
+    // Rutas neutras (sin prefijo de rol) que pueden tocar varios roles.
+    // Operación: operario+admin. Comercial: ventas+admin. Stock: todos los tenant.
+    const isOperacion =
+      pathname.startsWith('/ingresos') ||
+      pathname.startsWith('/confirmar') ||
+      pathname.startsWith('/picking') ||
+      pathname.startsWith('/muestras')
+    const isComercial =
+      pathname.startsWith('/pedidos') ||
+      pathname.startsWith('/pedidos-pendientes') ||
+      pathname.startsWith('/clientes')
+    const isStock = pathname.startsWith('/stock')
+    const isTenantArea =
+      pathname.startsWith('/admin') ||
+      pathname.startsWith('/ventas') ||
+      pathname.startsWith('/operario') ||
+      isOperacion ||
+      isComercial ||
+      isStock
+
     // Super-admin no puede entrar a rutas de empresa-cliente
     // (no tiene empresa_id, vería datos cruzados/raros)
-    if (
-      role === 'super' &&
-      (pathname.startsWith('/admin') ||
-        pathname.startsWith('/ventas') ||
-        pathname.startsWith('/operario') ||
-        pathname.startsWith('/stock'))
-    ) {
+    if (role === 'super' && isTenantArea) {
       return NextResponse.redirect(new URL('/super', request.url))
     }
 
@@ -120,6 +155,12 @@ export async function updateSession(request: NextRequest) {
       role !== 'operario' &&
       role !== 'admin'
     ) {
+      return NextResponse.redirect(new URL(dest, request.url))
+    }
+    if (isOperacion && role !== 'operario' && role !== 'admin') {
+      return NextResponse.redirect(new URL(dest, request.url))
+    }
+    if (isComercial && role !== 'ventas' && role !== 'admin') {
       return NextResponse.redirect(new URL(dest, request.url))
     }
   }

@@ -324,7 +324,7 @@ export async function crearIngreso(input: IngresoInput) {
     return { error: `No se pudieron cargar los rollos: ${rError.message}` }
   }
 
-  redirect(`/operario/ingresos/${ingreso.id}?creado=1`)
+  redirect(`/ingresos/${ingreso.id}?creado=1`)
 }
 
 // ── Creación inline desde el form ───────────────────────────
@@ -418,7 +418,7 @@ export async function editarIngreso(input: EditarIngresoInput) {
 
   if (error) return { error: error.message }
 
-  redirect(`/operario/ingresos/${input.ingresoId}?editado=1`)
+  redirect(`/ingresos/${input.ingresoId}?editado=1`)
 }
 
 export async function createArticuloInline(nombre: string) {

@@ -146,7 +146,7 @@ export default function PedidoActions({
             onClick={() => setMode('confirmar-entregar')}
             className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            Marcar como entregada
+            Marcar como entregado
           </button>
         )}
         {puedeCancelar && mode === 'view' && (

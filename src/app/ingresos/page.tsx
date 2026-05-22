@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import BackButton from '@/components/BackButton'
+import DashboardBackButton from '@/components/DashboardBackButton'
 import RollosBulkView, { type RolloBulk } from './RollosBulkView'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
@@ -33,7 +33,7 @@ export default async function IngresosPage({
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <BackButton href="/operario/dashboard" />
+        <DashboardBackButton />
       </div>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
@@ -43,7 +43,7 @@ export default async function IngresosPage({
           </p>
         </div>
         <Link
-          href="/operario/ingresos/nuevo"
+          href="/ingresos/nuevo"
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors text-center sm:text-left"
         >
           + Nuevo ingreso
@@ -54,7 +54,7 @@ export default async function IngresosPage({
       <div className="border-b">
         <nav className="flex gap-2 -mb-px">
           <Link
-            href="/operario/ingresos?vista=ingresos"
+            href="/ingresos?vista=ingresos"
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               vista === 'ingresos'
                 ? 'border-primary text-primary'
@@ -64,7 +64,7 @@ export default async function IngresosPage({
             Por ingreso
           </Link>
           <Link
-            href="/operario/ingresos?vista=rollos"
+            href="/ingresos?vista=rollos"
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               vista === 'rollos'
                 ? 'border-primary text-primary'
@@ -124,7 +124,7 @@ async function IngresosListView() {
             return (
               <Link
                 key={d.id}
-                href={`/operario/ingresos/${d.id}`}
+                href={`/ingresos/${d.id}`}
                 className="block rounded-lg border bg-white p-4 shadow-sm hover:bg-zinc-50 active:bg-zinc-100"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -198,7 +198,7 @@ async function IngresosListView() {
                     >
                       <td className="px-4 py-3">
                         <Link
-                          href={`/operario/ingresos/${d.id}`}
+                          href={`/ingresos/${d.id}`}
                           className="font-medium hover:underline"
                         >
                           {d.fecha_despacho}

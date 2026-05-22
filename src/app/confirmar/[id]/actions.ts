@@ -79,8 +79,8 @@ export async function confirmarRollo(
       .eq('id', ingresoId)
   }
 
-  revalidatePath(`/operario/confirmar/${ingresoId}`)
-  revalidatePath('/operario/confirmar')
+  revalidatePath(`/confirmar/${ingresoId}`)
+  revalidatePath('/confirmar')
 
   return {
     ok: true,

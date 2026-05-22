@@ -134,7 +134,7 @@ const cards: {
   section: string
 }[] = [
   {
-    href: '/operario/ingresos',
+    href: '/ingresos',
     title: 'Ingresos',
     description: 'Llegadas desde tintorerías, planillas y rollos pendientes.',
     icon: PackagePlus,
@@ -148,14 +148,14 @@ const cards: {
     section: 'Operación',
   },
   {
-    href: '/operario/picking',
+    href: '/picking',
     title: 'Picking',
     description: 'Preparación de pedidos con scanner QR.',
     icon: ClipboardCheck,
     section: 'Operación',
   },
   {
-    href: '/ventas/pedidos',
+    href: '/pedidos',
     title: 'Pedidos',
     description: 'Reservas, preparación y confirmación de ventas.',
     icon: ShoppingCart,
@@ -231,7 +231,7 @@ export default async function AdminDashboard() {
         <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">
-              Buen dia, {profile?.nombre ?? 'equipo'}
+              Buen día, {profile?.nombre ?? 'equipo'}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/68">
               Una vista rapida para entender que hay en deposito, que falta

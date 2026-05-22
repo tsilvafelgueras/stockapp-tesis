@@ -74,7 +74,7 @@ export default async function NuevoPedidoPage({
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
       <div>
-        <BackButton href="/ventas/pedidos" label="Volver a pedidos" />
+        <BackButton href="/pedidos" label="Volver a pedidos" />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Nuevo pedido</h1>
         <p className="text-sm text-muted-foreground">
           Reservá rollos del stock para un cliente

@@ -100,7 +100,7 @@ export default async function PedidosListPage({
           </p>
         </div>
         <Link
-          href="/ventas/pedidos/nuevo"
+          href="/pedidos/nuevo"
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors text-center"
         >
           + Nuevo pedido
@@ -138,7 +138,7 @@ export default async function PedidosListPage({
             return (
               <Link
                 key={p.id}
-                href={`/ventas/pedidos/${p.id}`}
+                href={`/pedidos/${p.id}`}
                 className="block rounded-lg border bg-white p-4 shadow-sm hover:bg-zinc-50 active:bg-zinc-100"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -204,7 +204,7 @@ export default async function PedidosListPage({
                       (acc, pr) => acc + Number(pr.rollos?.kilos ?? 0),
                       0
                     ) ?? 0
-                  const href = `/ventas/pedidos/${p.id}`
+                  const href = `/pedidos/${p.id}`
                   return (
                     <tr
                       key={p.id}

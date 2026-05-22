@@ -36,7 +36,7 @@ export async function crearPedido(
     return { ok: false, error: error.message }
   }
 
-  revalidatePath('/ventas/pedidos')
+  revalidatePath('/pedidos')
   revalidatePath('/stock')
   return { ok: true, pedidoId: data as string }
 }
@@ -52,8 +52,8 @@ export async function cancelarPedido(
   })
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/ventas/pedidos')
-  revalidatePath(`/ventas/pedidos/${pedidoId}`)
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
   revalidatePath('/stock')
   return { ok: true }
 }
@@ -67,8 +67,8 @@ export async function confirmarVentaPedido(
   })
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/ventas/pedidos')
-  revalidatePath(`/ventas/pedidos/${pedidoId}`)
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
   return { ok: true }
 }
 
@@ -81,8 +81,8 @@ export async function entregarPedido(
   })
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/ventas/pedidos')
-  revalidatePath(`/ventas/pedidos/${pedidoId}`)
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
   revalidatePath('/stock')
   return { ok: true }
 }
