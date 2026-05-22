@@ -39,12 +39,12 @@ export default function ArticulosTabla({
                 ? 'border-action bg-action text-action-foreground hover:bg-action/90'
                 : 'border-action/40 text-action hover:bg-action/5'
             }`}
-            title={modoMasivo ? 'Salir del modo edición' : 'Editar todos los campos'}
+            title={modoMasivo ? 'Listo' : 'Editar todos los campos'}
           >
             {modoMasivo ? (
               <>
                 <X className="size-3.5" />
-                Salir del modo edición
+                Listo
               </>
             ) : (
               <>
