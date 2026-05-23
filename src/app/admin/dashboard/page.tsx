@@ -224,19 +224,11 @@ export default async function AdminDashboard() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-5 sm:px-6 md:py-8">
-      <section className="relative overflow-hidden rounded-xl bg-sidebar p-5 text-white shadow-sm sm:p-6">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              'radial-gradient(22rem 14rem at 110% -10%, rgba(232,145,58,0.22), transparent), radial-gradient(20rem 14rem at -10% 120%, rgba(42,143,232,0.18), transparent)',
-          }}
-        />
-        <p className="relative text-xs font-medium uppercase tracking-[0.08em] text-accent2">
+      <section className="rounded-xl bg-sidebar p-5 text-white shadow-sm sm:p-6">
+        <p className="text-xs font-medium uppercase tracking-[0.08em] text-white/55">
           Dashboard de control
         </p>
-        <div className="relative mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">
               Buen día, {profile?.nombre ?? 'equipo'}
@@ -248,7 +240,7 @@ export default async function AdminDashboard() {
           </div>
           <Link
             href="/stock"
-            className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent2 px-4 text-sm font-semibold text-accent2-foreground transition-colors hover:bg-accent2/90"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-action px-4 text-sm font-semibold text-action-foreground transition-colors hover:bg-action/90"
           >
             Ver inventario
           </Link>
@@ -256,8 +248,8 @@ export default async function AdminDashboard() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <Metric label="Rollos en stock" value={rollosEnStock ?? 0} tone="action" />
-        <Metric label="Pendientes de verificar" value={pendientes ?? 0} tone="accent2" />
+        <Metric label="Rollos en stock" value={rollosEnStock ?? 0} />
+        <Metric label="Pendientes de verificar" value={pendientes ?? 0} />
         <Metric label="Alertas de stock" value={alertas.length} tone="warning" />
       </section>
 
@@ -308,33 +300,16 @@ export default async function AdminDashboard() {
 
       <NotificationBanner />
 
-      {(
-        [
-          ['Operación', 'accent2'],
-          ['Ventas', 'action'],
-          ['Administración', 'plum'],
-          ['Análisis', 'teal'],
-        ] as const
-      ).map(([section, tone]) => (
+      {['Operación', 'Ventas', 'Administración', 'Análisis'].map((section) => (
         <section key={section} className="space-y-3">
-          <h2
-            className={`text-xs font-semibold uppercase tracking-[0.08em] ${
-              tone === 'accent2'
-                ? 'text-accent2'
-                : tone === 'action'
-                  ? 'text-action'
-                  : tone === 'plum'
-                    ? 'text-brand-plum'
-                    : 'text-brand-teal'
-            }`}
-          >
+          <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {section}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {cards
               .filter((card) => card.section === section)
               .map((card) => (
-                <DashboardCard key={card.href} {...card} tone={tone} />
+                <DashboardCard key={card.href} {...card} />
               ))}
           </div>
         </section>
@@ -350,32 +325,18 @@ function Metric({
 }: {
   label: string
   value: number
-  tone?: 'warning' | 'action' | 'accent2'
+  tone?: 'warning'
 }) {
-  const toneClass =
-    tone === 'warning'
-      ? 'text-warning'
-      : tone === 'accent2'
-        ? 'text-accent2'
-        : tone === 'action'
-          ? 'text-action'
-          : 'text-foreground'
-  const borderClass =
-    tone === 'warning'
-      ? 'border-warning/30'
-      : tone === 'accent2'
-        ? 'border-accent2/30'
-        : tone === 'action'
-          ? 'border-action/30'
-          : 'border-border'
   return (
-    <div
-      className={`rounded-lg border bg-white p-4 shadow-sm ${borderClass}`}
-    >
+    <div className="rounded-lg border bg-white p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
-      <p className={`mt-2 font-heading text-3xl font-bold tabular-nums ${toneClass}`}>
+      <p
+        className={`mt-2 font-heading text-3xl font-bold tabular-nums ${
+          tone === 'warning' ? 'text-warning' : 'text-foreground'
+        }`}
+      >
         {value.toLocaleString('es-AR')}
       </p>
     </div>
@@ -409,38 +370,18 @@ function DashboardCard({
   title,
   description,
   icon: Icon,
-  tone = 'action',
 }: {
   href: string
   title: string
   description: string
   icon: LucideIcon
-  tone?: 'action' | 'accent2' | 'plum' | 'teal'
 }) {
-  const styles = {
-    action: {
-      hoverBorder: 'hover:border-action/40',
-      bg: 'bg-action/10 text-action',
-    },
-    accent2: {
-      hoverBorder: 'hover:border-accent2/40',
-      bg: 'bg-accent2-soft text-accent2',
-    },
-    plum: {
-      hoverBorder: 'hover:border-brand-plum/40',
-      bg: 'bg-brand-plum/10 text-brand-plum',
-    },
-    teal: {
-      hoverBorder: 'hover:border-brand-teal/40',
-      bg: 'bg-brand-teal/12 text-brand-teal',
-    },
-  }[tone]
   return (
     <Link
       href={href}
-      className={`group rounded-lg border bg-white p-4 shadow-sm transition-all ${styles.hoverBorder} hover:shadow-md`}
+      className="group rounded-lg border bg-white p-4 shadow-sm transition-all hover:border-action/40 hover:shadow-md"
     >
-      <span className={`flex size-11 items-center justify-center rounded-md ${styles.bg}`}>
+      <span className="flex size-11 items-center justify-center rounded-md bg-accent text-action">
         <Icon className="size-5" />
       </span>
       <h3 className="mt-4 font-heading text-base font-semibold">{title}</h3>
