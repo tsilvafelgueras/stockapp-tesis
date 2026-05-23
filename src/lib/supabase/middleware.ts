@@ -63,6 +63,7 @@ export async function updateSession(request: NextRequest) {
 
   // Rutas públicas o de verificación de auth no requieren sesión
   const isPublic =
+    pathname === '/' ||
     pathname === '/login' ||
     pathname.startsWith('/auth/confirm') ||
     pathname === '/auth/recover'
