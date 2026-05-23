@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
 import { notFound } from 'next/navigation'
+import { formatArticulos } from '@/lib/utils'
 import PedidoActions from './PedidoActions'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
@@ -136,8 +137,12 @@ export default async function PedidoDetailPage({
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm grid grid-cols-2 sm:grid-cols-5 gap-4">
         <Field label="Cliente" value={pedido.cliente} />
+        <Field
+          label="Artículo"
+          value={formatArticulos(rows.map((r) => r.rollos?.articulos?.nombre))}
+        />
         <Field
           label="Fecha"
           value={new Date(pedido.created_at).toLocaleDateString('es-AR')}

@@ -18,10 +18,12 @@ export type StockFiltersState = {
 export default function StockFilters({
   articulos,
   tintorerias,
+  colores,
   current,
 }: {
   articulos: Catalogo[]
   tintorerias: Catalogo[]
+  colores: string[]
   current: StockFiltersState
 }) {
   const router = useRouter()
@@ -97,21 +99,18 @@ export default function StockFilters({
         </Field>
 
         <Field label="Color">
-          <input
-            type="text"
-            defaultValue={current.color}
-            onBlur={(e) => {
-              if (e.target.value !== current.color) update('color', e.target.value)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                update('color', (e.target as HTMLInputElement).value)
-              }
-            }}
-            placeholder="Ej. Negro"
-            className="w-full rounded-md border px-3 py-2 text-sm"
-          />
+          <select
+            value={current.color}
+            onChange={(e) => update('color', e.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Todos</option>
+            {colores.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <Field label="Tintorería">

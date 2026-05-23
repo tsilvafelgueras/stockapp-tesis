@@ -59,6 +59,38 @@ export function extraerCodigoRollo(
   return { ok: false, razon: 'sin_match' }
 }
 
+/**
+ * Extrae un código candidato aplicando los patrones SIN validar que
+ * pertenezca a una lista esperada. Útil para enviar al backend y dejar
+ * que la validación final ocurra ahí (ej. detectar si el rollo está en
+ * otro pedido activo).
+ */
+export function extraerCodigoCandidato(
+  raw: string,
+  patrones: PatronCodigo[]
+): string | null {
+  const texto = normalizarTexto(raw)
+  if (!texto || patrones.length === 0) return null
+
+  const ordenados = [...patrones].sort((a, b) => a.prioridad - b.prioridad)
+
+  for (const p of ordenados) {
+    let regex: RegExp
+    try {
+      regex = new RegExp(p.pattern, 'i')
+    } catch {
+      continue
+    }
+    const match = regex.exec(texto)
+    if (!match) continue
+    const grupo = p.capture_group ?? 0
+    const candidato = match[grupo]?.trim()
+    if (candidato) return candidato
+  }
+
+  return null
+}
+
 function normalizarTexto(value: string): string {
   return value.trim().replace(/\s+/g, ' ')
 }

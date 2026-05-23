@@ -33,18 +33,31 @@ export default async function StockPage({
 
   const role = (profile?.role ?? 'ventas') as StockRole
 
-  const [{ data: articulos }, { data: tintorerias }] = await Promise.all([
-    supabase
-      .from('articulos')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
-    supabase
-      .from('tintorerias')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
-  ])
+  const [{ data: articulos }, { data: tintorerias }, { data: coloresRaw }] =
+    await Promise.all([
+      supabase
+        .from('articulos')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('tintorerias')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('ingresos')
+        .select('color')
+        .not('color', 'is', null),
+    ])
+
+  const colores = Array.from(
+    new Set(
+      ((coloresRaw ?? []) as { color: string | null }[])
+        .map((r) => r.color?.trim())
+        .filter((c): c is string => Boolean(c))
+    )
+  ).sort((a, b) => a.localeCompare(b, 'es'))
 
   let query = supabase
     .from('rollos')
@@ -88,7 +101,7 @@ export default async function StockPage({
   }
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
   if (sp.ubicacion) query = query.ilike('ubicacion', `%${sp.ubicacion.trim()}%`)
-  if (sp.color) query = query.ilike('ingresos.color', `%${sp.color.trim()}%`)
+  if (sp.color) query = query.eq('ingresos.color', sp.color)
 
   const { data: rollosRaw, error } = await query
   const rollos = (rollosRaw ?? []) as unknown as StockRollo[]
@@ -198,6 +211,7 @@ export default async function StockPage({
       <StockFilters
         articulos={articulos ?? []}
         tintorerias={tintorerias ?? []}
+        colores={colores}
         current={{
           q: sp.q ?? '',
           articulo: sp.articulo ?? '',

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
 import { notFound } from 'next/navigation'
+import { formatArticulos } from '@/lib/utils'
 import PickingScanner, { type PickRollo } from './PickingScanner'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
@@ -103,6 +104,14 @@ export default async function PickingDetailPage({
 
   const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
 
+  const articulosLabel = formatArticulos(
+    rows.map((r) => r.rollos?.articulos?.nombre)
+  )
+  const totalKilos = rows.reduce(
+    (acc, r) => acc + Number(r.rollos?.kilos ?? 0),
+    0
+  )
+
   // Si el pedido ya pasó de pendiente/en_preparacion, mostrar mensaje
   const pickeable =
     pedido.estado === 'pendiente' || pedido.estado === 'en_preparacion'
@@ -121,6 +130,9 @@ export default async function PickingDetailPage({
             {estado.text}
           </span>
         </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          {articulosLabel} · {totalKilos.toFixed(2)} kg
+        </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           Pedido {pedido.numero_pedido ?? '—'}
         </p>

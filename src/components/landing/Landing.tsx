@@ -511,7 +511,7 @@ function LandingFooter() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} NUDO · Hecho en Buenos Aires
+          Copyright © {new Date().getFullYear()} NUDO
         </p>
       </div>
     </footer>

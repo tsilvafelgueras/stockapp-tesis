@@ -4,7 +4,11 @@ import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
-import { extraerCodigoRollo, type PatronCodigo } from '@/lib/scanner'
+import {
+  extraerCodigoCandidato,
+  extraerCodigoRollo,
+  type PatronCodigo,
+} from '@/lib/scanner'
 import { pickearRollo } from './actions'
 
 export type PickRollo = {
@@ -43,57 +47,70 @@ export default function PickingScanner({
     [itemsLocales]
   )
 
+  const ejecutarPickeo = useCallback(
+    async (textoEscaneado: string) => {
+      setConfirmando(true)
+      const res = await pickearRollo(pedidoId, textoEscaneado)
+      setConfirmando(false)
+
+      if (!res.ok) {
+        setPendingCode(null)
+        if (res.error.includes('ya fue pickeado')) {
+          toast.warning(res.error)
+        } else {
+          toast.error(res.error)
+        }
+        return
+      }
+
+      setItemsLocales((prev) =>
+        prev.map((r) =>
+          r.numero_pieza === res.numeroPieza
+            ? { ...r, pickeado_at: new Date().toISOString() }
+            : r
+        )
+      )
+      setPendingCode(null)
+
+      if (res.pedidoCompleto) {
+        toast.success('¡Picking completo! El pedido pasa a "Lista".')
+        setTimeout(() => router.refresh(), 1500)
+        return
+      }
+
+      toast.success(
+        `Pieza ${res.numeroPieza} pickeada (${res.total - res.pendientes}/${res.total}).`
+      )
+    },
+    [pedidoId, router]
+  )
+
   const handleLectura = useCallback(
     (result: CodeScannerResult) => {
       const extraido = extraerCodigoRollo(result.texto, patrones, codigosRollos)
-      if (!extraido.ok) {
-        toast.error(
-          'No reconocimos el código. Probá de nuevo o ingresalo manualmente.'
-        )
+      if (extraido.ok) {
+        setPendingCode(extraido.codigo)
         return
       }
-      setPendingCode(extraido.codigo)
+
+      // Código no coincide con ningún rollo del pedido actual. Si igualmente
+      // matchea un patrón, lo enviamos al RPC para que diferencie entre
+      // "rollo de otro pedido activo" y "rollo desconocido".
+      const candidato = extraerCodigoCandidato(result.texto, patrones)
+      if (candidato) {
+        void ejecutarPickeo(candidato)
+        return
+      }
+
+      toast.error(
+        'No reconocimos el código. Probá de nuevo o ingresalo manualmente.'
+      )
     },
-    [codigosRollos, patrones]
+    [codigosRollos, patrones, ejecutarPickeo]
   )
 
   function cancelarModal() {
     setPendingCode(null)
-  }
-
-  async function ejecutarPickeo(textoEscaneado: string) {
-    setConfirmando(true)
-    const res = await pickearRollo(pedidoId, textoEscaneado)
-    setConfirmando(false)
-
-    if (!res.ok) {
-      setPendingCode(null)
-      if (res.error.includes('ya fue pickeado')) {
-        toast.warning(res.error)
-      } else {
-        toast.error(res.error)
-      }
-      return
-    }
-
-    setItemsLocales((prev) =>
-      prev.map((r) =>
-        r.numero_pieza === res.numeroPieza
-          ? { ...r, pickeado_at: new Date().toISOString() }
-          : r
-      )
-    )
-    setPendingCode(null)
-
-    if (res.pedidoCompleto) {
-      toast.success('¡Picking completo! El pedido pasa a "Lista".')
-      setTimeout(() => router.refresh(), 1500)
-      return
-    }
-
-    toast.success(
-      `Pieza ${res.numeroPieza} pickeada (${res.total - res.pendientes}/${res.total}).`
-    )
   }
 
   return (
