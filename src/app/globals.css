@@ -37,6 +37,12 @@
   --color-primary: var(--primary);
   --color-action-foreground: var(--action-foreground);
   --color-action: var(--action);
+  --color-accent2: var(--accent2);
+  --color-accent2-foreground: var(--accent2-foreground);
+  --color-accent2-soft: var(--accent2-soft);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-plum: var(--brand-plum);
+  --color-brand-teal: var(--brand-teal);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -65,6 +71,12 @@
   --primary-foreground: #ffffff;
   --action: #2a8fe8;
   --action-foreground: #ffffff;
+  --accent2: #E8913A;
+  --accent2-foreground: #ffffff;
+  --accent2-soft: #fdf1e3;
+  --brand-navy: #1A2744;
+  --brand-plum: #7E3F65;
+  --brand-teal: #2B7A78;
   --secondary: #eef3f8;
   --secondary-foreground: #1a2f54;
   --muted: #eef3f8;
@@ -122,6 +134,12 @@
   --border: rgba(255, 255, 255, 0.12);
   --input: rgba(255, 255, 255, 0.18);
   --ring: #5aaaf0;
+  --accent2: #F2A85A;
+  --accent2-foreground: #1a1208;
+  --accent2-soft: rgba(242, 168, 90, 0.16);
+  --brand-navy: #0f1f38;
+  --brand-plum: #b06390;
+  --brand-teal: #4ca8a5;
   --sidebar: #132641;
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #5aaaf0;

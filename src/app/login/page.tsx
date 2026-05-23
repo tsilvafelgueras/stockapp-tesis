@@ -66,22 +66,31 @@ function LoginForm() {
 
   return (
     <main className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,1fr)]">
-      <section className="hidden bg-sidebar text-sidebar-foreground lg:flex lg:flex-col lg:justify-between lg:p-10">
-        <div className="flex items-center gap-3">
+      <section className="relative hidden overflow-hidden bg-sidebar text-sidebar-foreground lg:flex lg:flex-col lg:justify-between lg:p-10">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              'radial-gradient(28rem 18rem at 110% 0%, rgba(232,145,58,0.22), transparent), radial-gradient(32rem 22rem at -10% 110%, rgba(42,143,232,0.20), transparent)',
+          }}
+        />
+        <Link href="/" className="relative z-10 flex items-center gap-3 rounded-md transition-opacity hover:opacity-80">
           <BrandMark className="size-11" />
           <div>
             <p className="font-heading text-2xl font-bold leading-none">NUDO</p>
             <p className="mt-1 text-xs text-white/60">WMS textil</p>
           </div>
-        </div>
+        </Link>
 
-        <div className="max-w-md space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/72">
-            <Boxes className="size-3.5" />
+        <div className="relative z-10 max-w-md space-y-5">
+          <div className="inline-flex items-center gap-2 rounded-full border border-accent2/40 bg-accent2/15 px-3 py-1 text-xs font-medium text-white">
+            <Boxes className="size-3.5 text-accent2" />
             Stock real, sin vueltas
           </div>
           <h1 className="text-4xl font-bold leading-tight text-white">
-            Rollos, pedidos y tintorerías en un solo lugar.
+            Rollos, pedidos y tintorerías{' '}
+            <span className="text-accent2">en un solo lugar.</span>
           </h1>
           <p className="text-base leading-7 text-white/68">
             Diseñado para depósito y ventas: rápido en celular, claro en
@@ -89,16 +98,16 @@ function LoginForm() {
           </p>
         </div>
 
-        <p className="text-xs text-white/45">Nudo para equipos textiles</p>
+        <p className="relative z-10 text-xs text-white/45">Nudo para equipos textiles</p>
       </section>
 
       <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-md space-y-6 rounded-xl border bg-white p-6 shadow-sm sm:p-8">
           <div className="space-y-2">
-            <div className="flex items-center gap-3 lg:hidden">
+            <Link href="/" className="flex items-center gap-3 rounded-md transition-opacity hover:opacity-80 lg:hidden">
               <BrandMark className="size-10" />
               <p className="font-heading text-2xl font-bold">NUDO</p>
-            </div>
+            </Link>
             <div>
               <h1 className="text-2xl font-bold tracking-normal">
                 Entrar a la plataforma

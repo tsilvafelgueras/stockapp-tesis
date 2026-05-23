@@ -111,19 +111,20 @@ function Hero() {
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           backgroundImage:
-            'radial-gradient(60rem 30rem at 80% -10%, rgba(42,143,232,0.18), transparent), radial-gradient(40rem 20rem at -10% 30%, rgba(26,47,84,0.12), transparent)',
+            'radial-gradient(60rem 30rem at 80% -10%, rgba(42,143,232,0.18), transparent), radial-gradient(40rem 20rem at -10% 30%, rgba(26,47,84,0.12), transparent), radial-gradient(34rem 18rem at 105% 80%, rgba(232,145,58,0.18), transparent)',
         }}
       />
       <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:px-8 lg:py-28">
         <div className="flex flex-col justify-center">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-action/25 bg-action/10 px-3 py-1 text-xs font-medium text-foreground">
-            <Sparkles className="size-3.5 text-action" />
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-accent2/35 bg-accent2-soft px-3 py-1 text-xs font-medium text-foreground">
+            <Sparkles className="size-3.5 text-accent2" />
             Diseñado para fábricas textiles argentinas
           </div>
 
           <h1 className="mt-5 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
             El stock de tu depósito,{' '}
-            <span className="text-action">en orden y al toque.</span>
+            <span className="text-accent2">en orden</span>{' '}
+            <span className="text-action">y al toque.</span>
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
@@ -263,36 +264,76 @@ function MockStat({
   )
 }
 
-const FEATURES = [
+const FEATURE_TONES = {
+  action: {
+    iconBg: 'bg-action/10 text-action',
+    iconHover: 'group-hover:bg-action group-hover:text-action-foreground',
+  },
+  accent2: {
+    iconBg: 'bg-accent2-soft text-accent2',
+    iconHover: 'group-hover:bg-accent2 group-hover:text-accent2-foreground',
+  },
+  success: {
+    iconBg: 'bg-success/15 text-success',
+    iconHover: 'group-hover:bg-success group-hover:text-success-foreground',
+  },
+  navy: {
+    iconBg: 'bg-brand-navy/10 text-brand-navy',
+    iconHover: 'group-hover:bg-brand-navy group-hover:text-white',
+  },
+  plum: {
+    iconBg: 'bg-brand-plum/12 text-brand-plum',
+    iconHover: 'group-hover:bg-brand-plum group-hover:text-white',
+  },
+  teal: {
+    iconBg: 'bg-brand-teal/12 text-brand-teal',
+    iconHover: 'group-hover:bg-brand-teal group-hover:text-white',
+  },
+} as const
+
+type FeatureTone = keyof typeof FEATURE_TONES
+
+const FEATURES: Array<{
+  icon: typeof Sparkles
+  title: string
+  text: string
+  tone: FeatureTone
+}> = [
   {
     icon: Sparkles,
     title: 'Planillas con IA',
     text: 'Subís la foto o PDF de la planilla de la tintorería y NUDO extrae los rollos automáticamente. Cada tintorería tiene su propia configuración.',
+    tone: 'accent2',
   },
   {
     icon: ScanLine,
     title: 'Scanner de rollos',
     text: 'Confirmación física con QR o código de barras desde el celular. Si el rollo no pertenece al ingreso, el sistema bloquea: nada se carga mal.',
+    tone: 'action',
   },
   {
     icon: ClipboardList,
     title: 'Pedidos y picking',
     text: 'Ventas elige los rollos puntuales para cada cliente. Operario hace el picking escaneando, sin chance de entregar la pieza equivocada.',
+    tone: 'plum',
   },
   {
     icon: Smartphone,
     title: 'Mobile-first de verdad',
     text: 'Pensada para depósito: tipografía grande, botones generosos, todo a una mano. La gente del depósito la aprende en un día.',
+    tone: 'teal',
   },
   {
     icon: ShieldCheck,
     title: 'Historial inborrable',
     text: 'Cada cambio queda registrado: quién, cuándo, qué movió. Cumple con auditoría sin que tengas que llevar un Excel paralelo.',
+    tone: 'success',
   },
   {
     icon: Building2,
     title: 'Multi-empresa',
     text: 'Cada fábrica con sus propios datos, usuarios y tintorerías. Aislamiento total: nadie ve lo que no es suyo.',
+    tone: 'navy',
   },
 ]
 
@@ -304,7 +345,7 @@ function Features() {
     >
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-action">
+          <p className="text-sm font-semibold uppercase tracking-wider text-accent2">
             Por qué NUDO
           </p>
           <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
@@ -317,22 +358,27 @@ function Features() {
         </div>
 
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, text }) => (
-            <div
-              key={title}
-              className="group rounded-2xl border border-border bg-card p-6 transition-shadow hover:shadow-[0_12px_30px_rgba(26,47,84,0.08)]"
-            >
-              <div className="inline-flex size-11 items-center justify-center rounded-xl bg-action/10 text-action transition-colors group-hover:bg-action group-hover:text-action-foreground">
-                <Icon className="size-5" />
+          {FEATURES.map(({ icon: Icon, title, text, tone }) => {
+            const t = FEATURE_TONES[tone]
+            return (
+              <div
+                key={title}
+                className="group rounded-2xl border border-border bg-card p-6 transition-shadow hover:shadow-[0_12px_30px_rgba(26,47,84,0.08)]"
+              >
+                <div
+                  className={`inline-flex size-11 items-center justify-center rounded-xl transition-colors ${t.iconBg} ${t.iconHover}`}
+                >
+                  <Icon className="size-5" />
+                </div>
+                <h3 className="mt-4 font-heading text-lg font-semibold">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {text}
+                </p>
               </div>
-              <h3 className="mt-4 font-heading text-lg font-semibold">
-                {title}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {text}
-              </p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </section>
@@ -370,7 +416,7 @@ function HowItWorks() {
     >
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-action">
+          <p className="text-sm font-semibold uppercase tracking-wider text-accent2">
             Cómo funciona
           </p>
           <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">
@@ -383,23 +429,36 @@ function HowItWorks() {
         </div>
 
         <ol className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map(({ icon: Icon, title, text }, i) => (
-            <li
-              key={title}
-              className="relative rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm"
-            >
-              <span className="absolute -top-3 left-6 inline-flex h-7 items-center justify-center rounded-full bg-action px-3 text-xs font-bold text-action-foreground">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <div className="inline-flex size-11 items-center justify-center rounded-xl bg-white/10 text-white">
-                <Icon className="size-5" />
-              </div>
-              <h3 className="mt-4 font-heading text-lg font-semibold text-white">
-                {title}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-white/70">{text}</p>
-            </li>
-          ))}
+          {STEPS.map(({ icon: Icon, title, text }, i) => {
+            const stepTones = [
+              { badge: 'bg-accent2 text-accent2-foreground', icon: 'bg-accent2/20 text-accent2' },
+              { badge: 'bg-action text-action-foreground', icon: 'bg-action/20 text-action' },
+              { badge: 'bg-success text-success-foreground', icon: 'bg-success/20 text-success' },
+              { badge: 'bg-white text-brand-navy', icon: 'bg-white/15 text-white' },
+            ]
+            const tone = stepTones[i % stepTones.length]
+            return (
+              <li
+                key={title}
+                className="relative rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm"
+              >
+                <span
+                  className={`absolute -top-3 left-6 inline-flex h-7 items-center justify-center rounded-full px-3 text-xs font-bold ${tone.badge}`}
+                >
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div
+                  className={`inline-flex size-11 items-center justify-center rounded-xl ${tone.icon}`}
+                >
+                  <Icon className="size-5" />
+                </div>
+                <h3 className="mt-4 font-heading text-lg font-semibold text-white">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-white/70">{text}</p>
+              </li>
+            )
+          })}
         </ol>
       </div>
     </section>
@@ -424,7 +483,7 @@ function FinalCta() {
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={DEMO_MAILTO}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-action px-6 text-sm font-semibold text-action-foreground shadow-sm transition-colors hover:bg-action/90"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-accent2 px-6 text-sm font-semibold text-accent2-foreground shadow-sm transition-colors hover:bg-accent2/90"
                 >
                   Pedir una demo
                   <ArrowRight className="size-4" />
@@ -438,7 +497,7 @@ function FinalCta() {
               </div>
             </div>
 
-            <ul className="space-y-4 rounded-2xl bg-secondary/50 p-6 text-sm">
+            <ul className="space-y-4 rounded-2xl bg-accent2-soft p-6 text-sm">
               {[
                 'Sin instalación: corre en cualquier navegador.',
                 'Datos en servidores en Argentina (São Paulo).',
@@ -511,7 +570,7 @@ function LandingFooter() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} NUDO · Hecho en Buenos Aires
+           Copyright © {new Date().getFullYear()} NUDO
         </p>
       </div>
     </footer>
