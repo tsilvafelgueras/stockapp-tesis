@@ -74,6 +74,7 @@ const SCHEMA: Schema = {
           metros: fieldNumber(),
           ratio: fieldNumber(),
           gramaje_planilla: fieldNumber(),
+          articulo: fieldString(),
         },
         required: [
           'numero_pieza',
@@ -81,6 +82,7 @@ const SCHEMA: Schema = {
           'metros',
           'ratio',
           'gramaje_planilla',
+          'articulo',
         ],
       },
     },

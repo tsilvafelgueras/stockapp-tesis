@@ -118,7 +118,7 @@ export default function EditarIngresoForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium">Artículo *</label>
+          <label className="text-sm font-medium">Artículo principal *</label>
           <select
             value={articuloId}
             onChange={(e) => setArticuloId(e.target.value)}
@@ -132,6 +132,9 @@ export default function EditarIngresoForm({
               </option>
             ))}
           </select>
+          <p className="text-xs text-muted-foreground">
+            Para cambiar el artículo de rollos individuales usá la vista &quot;Por rollo&quot; en /ingresos.
+          </p>
         </div>
 
         <div className="space-y-1">

@@ -38,6 +38,7 @@ La planilla es un remito de una tintorería textil argentina. Extraé los datos 
 - metros: largo en metros (decimal).
 - ratio: rendimiento m/kg (decimal). A veces "Ratio", "Rdto", "Rto".
 - gramaje_planilla: g/m² (peso por m²). Suele aparecer como "Pm2", "Gramaje", "g/m²".
+- articulo: nombre del artículo/tela del rollo (ej "Algodón Pima", "Modal", "Lino"). Algunas planillas traen un único artículo en el header (en ese caso, copialo en todos los rollos). Otras traen una columna "Artículo" o "Tela" por rollo. Si no aparece en ninguna parte, devolvé value: null y confidence: 0.
 
 # CONFIANZA
 

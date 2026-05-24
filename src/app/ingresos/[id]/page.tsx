@@ -51,20 +51,28 @@ export default async function IngresoDetailPage({
 
   if (!ingreso) notFound()
 
-  const [{ data: rollos }, { data: demandasCoincidentes }] = await Promise.all([
-    supabase
-      .from('rollos')
-      .select('*')
-      .eq('ingreso_id', id)
-      .order('numero_pieza', { ascending: true }),
-    ingreso.articulo_id
-      ? supabase
+  const { data: rollos } = await supabase
+    .from('rollos')
+    .select('*')
+    .eq('ingreso_id', id)
+    .order('numero_pieza', { ascending: true })
+
+  const articulosDelIngreso = Array.from(
+    new Set(
+      (rollos ?? [])
+        .map((r) => r.articulo_id as string | null)
+        .filter((a): a is string => Boolean(a))
+    )
+  )
+
+  const { data: demandasCoincidentes } =
+    articulosDelIngreso.length > 0
+      ? await supabase
           .from('pedidos_pendientes')
           .select('id, cliente, color, metros_estimados, kilos_estimados')
-          .eq('articulo_id', ingreso.articulo_id)
+          .in('articulo_id', articulosDelIngreso)
           .eq('estado', 'activo')
-      : Promise.resolve({ data: [] }),
-  ])
+      : { data: [] as Array<{ id: string; cliente: string; color: string | null; metros_estimados: number | null; kilos_estimados: number | null }> }
 
   const tintoreria = (
     ingreso.tintorerias as unknown as { nombre: string } | null
@@ -122,7 +130,9 @@ export default async function IngresoDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-3 mt-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-bold">
-              Ingreso del {ingreso.fecha_despacho}
+              {ingreso.numero_lote
+                ? `Lote ${ingreso.numero_lote} · ${ingreso.fecha_despacho}`
+                : `Ingreso del ${ingreso.fecha_despacho}`}
             </h1>
             <span
               className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}

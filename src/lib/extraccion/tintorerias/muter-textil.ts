@@ -35,6 +35,10 @@ Cada bloque tiene exactamente las mismas columnas:
 - Rdto / Ratio (decimal con 2 decimales, ej 4.09)
 - Pm2 / Gramaje (entero típicamente, ej 144)
 
+# Artículo por rollo
+
+Las planillas Muter usualmente vienen con UN solo artículo por despacho (ej "Algodón Pima", "Modal", "Jersey"). Suele aparecer cerca del header del lote o asociado al campo REFERENCIA (ej "SBI" puede mapear a un nombre comercial). Si la planilla muestra el nombre del artículo en algún sector, copialo en el campo articulo de TODOS los rollos. Si una planilla excepcionalmente trae varios artículos mezclados (columna explícita "Artículo" o "Tela" por rollo), asigná el correspondiente a cada uno. Si no se detecta artículo, devolvé articulo.value: null y confidence: 0.
+
 Si ves un salto en el correlativo del N°Pieza, es muy probable un error de OCR. Bajá la confianza de ese rollo.
 
 # Header (esquina superior derecha)

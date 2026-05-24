@@ -24,6 +24,7 @@ export type StockRollo = {
     id: string
     fecha_despacho: string
     numero_remito: string | null
+    numero_lote: string | null
     color: string | null
     ot: string | null
     rem_tejeduria: string | null

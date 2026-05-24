@@ -92,6 +92,7 @@ async function IngresosListView() {
     .from('ingresos')
     .select(`
       id,
+      numero_lote,
       fecha_despacho,
       numero_remito,
       estado,
@@ -129,7 +130,10 @@ async function IngresosListView() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium">{d.fecha_despacho}</p>
+                    <p className="font-medium">
+                      {d.numero_lote ? `${d.numero_lote} · ` : ''}
+                      {d.fecha_despacho}
+                    </p>
                     <p className="text-sm text-muted-foreground truncate">
                       {tintoreria ?? '—'} · {articulo ?? '—'}
                     </p>
@@ -163,6 +167,7 @@ async function IngresosListView() {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 border-b">
               <tr className="text-left">
+                <th className="px-4 py-3 font-medium">Lote</th>
                 <th className="px-4 py-3 font-medium">Fecha</th>
                 <th className="px-4 py-3 font-medium">Tintorería</th>
                 <th className="px-4 py-3 font-medium">Artículo</th>
@@ -196,14 +201,15 @@ async function IngresosListView() {
                       key={d.id}
                       className="border-b last:border-0 hover:bg-zinc-50"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 font-mono text-xs">
                         <Link
                           href={`/ingresos/${d.id}`}
                           className="font-medium hover:underline"
                         >
-                          {d.fecha_despacho}
+                          {d.numero_lote ?? '—'}
                         </Link>
                       </td>
+                      <td className="px-4 py-3">{d.fecha_despacho}</td>
                       <td className="px-4 py-3">{tintoreria ?? '—'}</td>
                       <td className="px-4 py-3">{articulo ?? '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground">
@@ -226,7 +232,7 @@ async function IngresosListView() {
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Todavía no cargaste ningún ingreso.

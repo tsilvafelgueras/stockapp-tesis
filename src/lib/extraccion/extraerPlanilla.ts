@@ -19,6 +19,7 @@ export type RolloExtraido = {
   metros: Field<number>
   ratio: Field<number>
   gramaje_planilla: Field<number>
+  articulo: Field<string>
 }
 
 export type IngresoExtraido = {

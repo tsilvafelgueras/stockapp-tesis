@@ -19,6 +19,8 @@ export type RolloInput = {
   gramaje_planilla?: string
   ubicacion: string
   estado: 'en_stock' | 'pendiente'
+  /** Si está seteado, sobreescribe articulo_id del ingreso para este rollo. */
+  articulo_id?: string | null
   /** Confianza promedio reportada por la IA para este rollo (0-1). Solo se setea en flow IA. */
   confianza_ia?: number
 }
@@ -201,7 +203,8 @@ function calcularWarnings(data: IngresoExtraido): string[] {
       r.kilos.confidence,
       r.metros.confidence,
       r.ratio.confidence,
-      r.gramaje_planilla.confidence
+      r.gramaje_planilla.confidence,
+      r.articulo?.confidence ?? 1
     )
   }
   const bajas = todasLasCeldas.filter((c) => c < UMBRAL_BAJA_CONFIANZA).length
@@ -293,7 +296,7 @@ export async function crearIngreso(input: IngresoInput) {
 
   const rollosToInsert = input.rollos.map((r) => ({
     ingreso_id: ingreso.id,
-    articulo_id: input.articulo_id,
+    articulo_id: r.articulo_id ?? input.articulo_id,
     numero_pieza: r.numero_pieza.trim(),
     kilos: r.kilos ? parseFloat(r.kilos) : null,
     metros: r.metros ? parseFloat(r.metros) : null,

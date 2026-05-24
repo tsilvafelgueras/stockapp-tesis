@@ -35,7 +35,17 @@ type Confianzas = {
     metros: number
     ratio: number
     gramaje_planilla: number
+    articulo: number
   }>
+}
+
+function normNombre(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
 }
 
 function emptyRollo(): RolloInput {
@@ -217,22 +227,33 @@ export default function NuevoIngresoForm({
         : ''
     )
 
-    const rollosFromIA: RolloInput[] = datos.rollos.map((r) => ({
-      numero_pieza: valOf(r.numero_pieza),
-      kilos: fmt(r.kilos.value),
-      metros: fmt(r.metros.value),
-      ratio_rendimiento: fmt(r.ratio.value),
-      gramaje_planilla: fmt(r.gramaje_planilla.value),
-      ubicacion: '',
-      estado: 'pendiente',
-      confianza_ia: avg([
-        r.numero_pieza.confidence,
-        r.kilos.confidence,
-        r.metros.confidence,
-        r.ratio.confidence,
-        r.gramaje_planilla.confidence,
-      ]),
-    }))
+    const articulosByName = new Map(
+      articulos.map((a) => [normNombre(a.nombre), a.id])
+    )
+
+    const rollosFromIA: RolloInput[] = datos.rollos.map((r) => {
+      const articuloNombre = r.articulo?.value?.trim() ?? ''
+      const articuloIdMatch = articuloNombre
+        ? articulosByName.get(normNombre(articuloNombre)) ?? null
+        : null
+      return {
+        numero_pieza: valOf(r.numero_pieza),
+        kilos: fmt(r.kilos.value),
+        metros: fmt(r.metros.value),
+        ratio_rendimiento: fmt(r.ratio.value),
+        gramaje_planilla: fmt(r.gramaje_planilla.value),
+        ubicacion: '',
+        estado: 'pendiente',
+        articulo_id: articuloIdMatch,
+        confianza_ia: avg([
+          r.numero_pieza.confidence,
+          r.kilos.confidence,
+          r.metros.confidence,
+          r.ratio.confidence,
+          r.gramaje_planilla.confidence,
+        ]),
+      }
+    })
     setRollos(rollosFromIA.length > 0 ? rollosFromIA : [emptyRollo()])
 
     setConfianzas({
@@ -250,6 +271,7 @@ export default function NuevoIngresoForm({
         metros: r.metros.confidence,
         ratio: r.ratio.confidence,
         gramaje_planilla: r.gramaje_planilla.confidence,
+        articulo: r.articulo?.confidence ?? 0,
       })),
     })
   }
@@ -581,7 +603,7 @@ export default function NuevoIngresoForm({
           )}
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">Artículo *</label>
+            <label className="text-sm font-medium">Artículo principal *</label>
             <select
               value={articuloId}
               onChange={(e) => setArticuloId(e.target.value)}
@@ -595,6 +617,9 @@ export default function NuevoIngresoForm({
                 </option>
               ))}
             </select>
+            <p className="text-xs text-muted-foreground">
+              Se aplica a rollos sin selección propia. Cambialo en la tabla si la planilla trae varios artículos.
+            </p>
             <InlineCreator
               label="+ Nuevo artículo"
               placeholder="Nombre del artículo"
@@ -749,6 +774,7 @@ export default function NuevoIngresoForm({
               key={i}
               rollo={r}
               index={i}
+              articulos={articulos}
               confianzas={confianzas?.rollos[i]}
               isDuplicate={
                 !!r.numero_pieza.trim() &&
@@ -773,6 +799,7 @@ export default function NuevoIngresoForm({
               <tr>
                 <th className="px-3 py-2 font-medium w-10">#</th>
                 <th className="px-3 py-2 font-medium">N° Pieza *</th>
+                <th className="px-3 py-2 font-medium w-40">Artículo</th>
                 <th className="px-3 py-2 font-medium w-24">Kilos</th>
                 <th className="px-3 py-2 font-medium w-24">Metros</th>
                 <th className="px-3 py-2 font-medium w-20">Ratio</th>
@@ -815,6 +842,26 @@ export default function NuevoIngresoForm({
                             : celdaCls(conf?.numero_pieza)
                         }`}
                       />
+                    </td>
+                    <td className="px-3 py-1">
+                      <select
+                        value={r.articulo_id ?? ''}
+                        onChange={(e) =>
+                          updateRollo(
+                            i,
+                            'articulo_id',
+                            e.target.value || null
+                          )
+                        }
+                        className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.articulo)}`}
+                      >
+                        <option value="">Principal</option>
+                        {articulos.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.nombre}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-1">
                       <input
@@ -993,6 +1040,7 @@ export default function NuevoIngresoForm({
 function RolloCardMobile({
   rollo,
   index,
+  articulos,
   confianzas,
   isDuplicate,
   ubicacionFaltante,
@@ -1001,6 +1049,7 @@ function RolloCardMobile({
 }: {
   rollo: RolloInput
   index: number
+  articulos: Catalog[]
   confianzas:
     | {
         numero_pieza: number
@@ -1044,6 +1093,24 @@ function RolloCardMobile({
               : celdaCls(confianzas?.numero_pieza)
           }`}
         />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Artículo
+        </label>
+        <select
+          value={rollo.articulo_id ?? ''}
+          onChange={(e) => onUpdate('articulo_id', e.target.value || null)}
+          className="w-full rounded border border-input bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">Principal (del header)</option>
+          {articulos.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.nombre}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

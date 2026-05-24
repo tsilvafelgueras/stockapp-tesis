@@ -10,6 +10,7 @@ export type StockFiltersState = {
   q: string
   articulo: string
   color: string
+  lote: string
   tintoreria: string
   ubicacion: string
   estado: string
@@ -19,11 +20,13 @@ export default function StockFilters({
   articulos,
   tintorerias,
   colores,
+  lotes,
   current,
 }: {
   articulos: Catalogo[]
   tintorerias: Catalogo[]
   colores: string[]
+  lotes: string[]
   current: StockFiltersState
 }) {
   const router = useRouter()
@@ -50,6 +53,7 @@ export default function StockFilters({
     !!current.q ||
     !!current.articulo ||
     !!current.color ||
+    !!current.lote ||
     !!current.tintoreria ||
     !!current.ubicacion ||
     current.estado !== 'en_stock'
@@ -108,6 +112,21 @@ export default function StockFilters({
             {colores.map((c) => (
               <option key={c} value={c}>
                 {c}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Lote">
+          <select
+            value={current.lote}
+            onChange={(e) => update('lote', e.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Todos</option>
+            {lotes.map((l) => (
+              <option key={l} value={l}>
+                {l}
               </option>
             ))}
           </select>

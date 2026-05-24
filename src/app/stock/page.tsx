@@ -7,6 +7,7 @@ type SearchParams = {
   q?: string
   articulo?: string
   color?: string
+  lote?: string
   tintoreria?: string
   ubicacion?: string
   estado?: string
@@ -33,23 +34,31 @@ export default async function StockPage({
 
   const role = (profile?.role ?? 'ventas') as StockRole
 
-  const [{ data: articulos }, { data: tintorerias }, { data: coloresRaw }] =
-    await Promise.all([
-      supabase
-        .from('articulos')
-        .select('id, nombre')
-        .eq('activo', true)
-        .order('nombre'),
-      supabase
-        .from('tintorerias')
-        .select('id, nombre')
-        .eq('activo', true)
-        .order('nombre'),
-      supabase
-        .from('ingresos')
-        .select('color')
-        .not('color', 'is', null),
-    ])
+  const [
+    { data: articulos },
+    { data: tintorerias },
+    { data: coloresRaw },
+    { data: lotesRaw },
+  ] = await Promise.all([
+    supabase
+      .from('articulos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('tintorerias')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('ingresos')
+      .select('color')
+      .not('color', 'is', null),
+    supabase
+      .from('ingresos')
+      .select('numero_lote')
+      .not('numero_lote', 'is', null),
+  ])
 
   const colores = Array.from(
     new Set(
@@ -58,6 +67,14 @@ export default async function StockPage({
         .filter((c): c is string => Boolean(c))
     )
   ).sort((a, b) => a.localeCompare(b, 'es'))
+
+  const lotes = Array.from(
+    new Set(
+      ((lotesRaw ?? []) as { numero_lote: string | null }[])
+        .map((r) => r.numero_lote?.trim())
+        .filter((c): c is string => Boolean(c))
+    )
+  ).sort((a, b) => b.localeCompare(a, 'es'))
 
   let query = supabase
     .from('rollos')
@@ -83,6 +100,7 @@ export default async function StockPage({
           id,
           fecha_despacho,
           numero_remito,
+          numero_lote,
           color,
           ot,
           rem_tejeduria,
@@ -102,6 +120,7 @@ export default async function StockPage({
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
   if (sp.ubicacion) query = query.ilike('ubicacion', `%${sp.ubicacion.trim()}%`)
   if (sp.color) query = query.eq('ingresos.color', sp.color)
+  if (sp.lote) query = query.eq('ingresos.numero_lote', sp.lote)
 
   const { data: rollosRaw, error } = await query
   const rollos = (rollosRaw ?? []) as unknown as StockRollo[]
@@ -212,10 +231,12 @@ export default async function StockPage({
         articulos={articulos ?? []}
         tintorerias={tintorerias ?? []}
         colores={colores}
+        lotes={lotes}
         current={{
           q: sp.q ?? '',
           articulo: sp.articulo ?? '',
           color: sp.color ?? '',
+          lote: sp.lote ?? '',
           tintoreria: sp.tintoreria ?? '',
           ubicacion: sp.ubicacion ?? '',
           estado,
