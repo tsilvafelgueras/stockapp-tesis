@@ -6,6 +6,7 @@ import {
   crearIngreso,
   createTintoreriaInline,
   createArticuloInline,
+  createColorInline,
   procesarPlanillaConIA,
   type RolloInput,
 } from './actions'
@@ -14,7 +15,6 @@ import {
   type IngresoExtraido,
   type Field,
 } from '@/lib/extraccion/extraerPlanilla'
-import { UBICACIONES } from '@/lib/ubicaciones'
 
 type Catalog = { id: string; nombre: string }
 
@@ -88,10 +88,12 @@ function celdaCls(confianza: number | undefined): string {
 export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
+  colores: initialColores,
   role,
 }: {
   tintorerias: Catalog[]
   articulos: Catalog[]
+  colores: Catalog[]
   role: 'operario' | 'admin'
 }) {
   const router = useRouter()
@@ -99,6 +101,7 @@ export default function NuevoIngresoForm({
 
   const [tintorerias, setTintorerias] = useState(initialTintorerias)
   const [articulos, setArticulos] = useState(initialArticulos)
+  const [colores, setColores] = useState(initialColores)
 
   const [modo, setModo] = useState<Modo>('manual')
 
@@ -212,7 +215,17 @@ export default function NuevoIngresoForm({
   function aplicarDatosIA(datos: IngresoExtraido) {
     setNumeroRemito(valOf(datos.numero_remito))
     if (datos.fecha.value) setFecha(datos.fecha.value)
-    setColor(valOf(datos.color))
+
+    const colorExtraido = datos.color.value?.trim() ?? ''
+    if (colorExtraido) {
+      const colorNorm = colorExtraido
+        .toLowerCase()
+        .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
+      const match = colores.find((c) => c.nombre === colorNorm)
+      setColor(match ? match.nombre : '')
+    } else {
+      setColor('')
+    }
     setOt(valOf(datos.ot))
     setRemTejeduria(valOf(datos.rem_tejeduria))
     setReferencia(valOf(datos.referencia))
@@ -658,12 +671,31 @@ export default function NuevoIngresoForm({
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Color</label>
-            <input
-              type="text"
+            <select
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              placeholder="Ej: Blanco"
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.color)}`}
+            >
+              <option value="">Seleccionar...</option>
+              {colores.map((c) => (
+                <option key={c.id} value={c.nombre}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+            <InlineCreator
+              label="+ Nuevo color"
+              placeholder="Nombre del color"
+              onCreate={async (nombre) => {
+                const res = await createColorInline(nombre)
+                if (res.success && res.data) {
+                  if (!colores.find((c) => c.id === res.data.id)) {
+                    setColores([...colores, res.data])
+                  }
+                  setColor(res.data.nombre)
+                }
+                return res
+              }}
             />
           </div>
 
@@ -730,6 +762,30 @@ export default function NuevoIngresoForm({
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.referencia)}`}
             />
           </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Ubicación inicial</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={bulkUbicacion}
+                onChange={(e) => setBulkUbicacion(e.target.value)}
+                placeholder="Ej. A1"
+                className="flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={applyBulkUbicacion}
+                disabled={!bulkUbicacion.trim()}
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                Aplicar a todos
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se copia a cada rollo. Podés sobrescribir individualmente en la tabla.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -741,30 +797,6 @@ export default function NuevoIngresoForm({
             {validations.cantidadRollos} cargados · suma{' '}
             {validations.sumaKilos.toFixed(2)} kg
           </span>
-        </div>
-        <div className="px-3 sm:px-4 py-2 border-b bg-zinc-50/60 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Ubicación para todos:</span>
-          <input
-            type="text"
-            list="ubicaciones-list"
-            value={bulkUbicacion}
-            onChange={(e) => setBulkUbicacion(e.target.value)}
-            placeholder="Ej. A1"
-            className="rounded border border-input bg-background px-2 py-1 text-xs w-24 focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <datalist id="ubicaciones-list">
-            {UBICACIONES.map((u) => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
-          <button
-            type="button"
-            onClick={applyBulkUbicacion}
-            disabled={!bulkUbicacion.trim()}
-            className="rounded bg-primary text-primary-foreground px-2 py-1 text-xs font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
-          >
-            Aplicar
-          </button>
         </div>
 
         {/* Mobile: cards apilados */}
@@ -936,7 +968,6 @@ export default function NuevoIngresoForm({
                     <td className="px-3 py-1">
                       <input
                         type="text"
-                        list="ubicaciones-list"
                         value={r.ubicacion}
                         onChange={(e) =>
                           updateRollo(i, 'ubicacion', e.target.value)
@@ -1195,7 +1226,6 @@ function RolloCardMobile({
           </label>
           <input
             type="text"
-            list="ubicaciones-list"
             value={rollo.ubicacion}
             onChange={(e) => onUpdate('ubicacion', e.target.value)}
             placeholder={rollo.estado === 'en_stock' ? 'A1' : 'opcional'}

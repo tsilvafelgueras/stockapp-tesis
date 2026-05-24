@@ -10,6 +10,7 @@ export default function EditarIngresoForm({
   ingreso,
   tintorerias,
   articulos,
+  colores,
   cantidadRollosReal,
   sumaKilosReal,
 }: {
@@ -28,6 +29,7 @@ export default function EditarIngresoForm({
   }
   tintorerias: Catalog[]
   articulos: Catalog[]
+  colores: Catalog[]
   cantidadRollosReal: number
   sumaKilosReal: number
 }) {
@@ -161,13 +163,21 @@ export default function EditarIngresoForm({
 
         <div className="space-y-1">
           <label className="text-sm font-medium">Color</label>
-          <input
-            type="text"
+          <select
             value={color}
             onChange={(e) => setColor(e.target.value)}
-            placeholder="Ej: Blanco"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
+          >
+            <option value="">Sin color</option>
+            {colores.map((c) => (
+              <option key={c.id} value={c.nombre}>
+                {c.nombre}
+              </option>
+            ))}
+            {color && !colores.find((c) => c.nombre === color) && (
+              <option value={color}>{color} (legacy)</option>
+            )}
+          </select>
         </div>
 
         <div className="space-y-1">

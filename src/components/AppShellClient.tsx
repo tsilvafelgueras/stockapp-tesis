@@ -15,6 +15,7 @@ import {
   Home,
   Menu,
   PackagePlus,
+  Palette,
   ScanLine,
   Scissors,
   Search,
@@ -120,6 +121,7 @@ function navForRole(role: Role): NavSection[] {
       title: 'Administracion',
       items: [
         { href: '/admin/articulos', label: 'Articulos', icon: Boxes },
+        { href: '/admin/colores', label: 'Colores', icon: Palette },
         { href: '/admin/tintorerias', label: 'Tintorerias', icon: Factory },
         { href: '/admin/equipo', label: 'Equipo', icon: Users },
         { href: '/admin/reportes', label: 'Reportes', icon: BarChart3 },

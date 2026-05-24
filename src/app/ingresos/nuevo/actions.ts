@@ -438,3 +438,29 @@ export async function createArticuloInline(nombre: string) {
   if (error || !data) return { error: error?.message ?? 'Error al crear.' }
   return { success: true, data }
 }
+
+export async function createColorInline(nombre: string) {
+  const supabase = await createClient()
+  const normalizado = nombre
+    .trim()
+    .toLowerCase()
+    .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
+  if (!normalizado) return { error: 'El nombre no puede estar vacío.' }
+
+  const { data: existente } = await supabase
+    .from('colores')
+    .select('id, nombre')
+    .eq('nombre', normalizado)
+    .maybeSingle()
+
+  if (existente) return { success: true, data: existente }
+
+  const { data, error } = await supabase
+    .from('colores')
+    .insert({ nombre: normalizado })
+    .select('id, nombre')
+    .single()
+
+  if (error || !data) return { error: error?.message ?? 'Error al crear.' }
+  return { success: true, data }
+}

@@ -1,7 +1,18 @@
 import { Boxes, Search } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import StockFilters from './StockFilters'
 import StockList, { type StockRollo, type StockRole } from './StockList'
+
+const ESTADO_LABEL: Record<string, string> = {
+  en_stock: 'En stock',
+  segunda: 'Segunda',
+  reservado: 'Reservado',
+  pendiente: 'Pendiente',
+  entregado: 'Entregado',
+  baja: 'Baja',
+  todos: 'Todos',
+}
 
 type SearchParams = {
   q?: string
@@ -248,8 +259,48 @@ export default async function StockPage({
           Error al cargar el stock: {error.message}
         </div>
       ) : (
-        <StockList rollos={rollos} role={role} />
+        <>
+          {sp.lote && rollos.length === 0 && estado !== 'todos' && (
+            <LoteSinResultadosBanner
+              lote={sp.lote}
+              estado={estado}
+              searchParams={sp}
+            />
+          )}
+          <StockList rollos={rollos} role={role} />
+        </>
       )}
+    </div>
+  )
+}
+
+function LoteSinResultadosBanner({
+  lote,
+  estado,
+  searchParams,
+}: {
+  lote: string
+  estado: string
+  searchParams: SearchParams
+}) {
+  const params = new URLSearchParams()
+  for (const [k, v] of Object.entries(searchParams)) {
+    if (v && k !== 'estado') params.set(k, v)
+  }
+  params.set('estado', 'todos')
+  const estadoLabel = ESTADO_LABEL[estado] ?? estado
+
+  return (
+    <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
+      El lote <span className="font-mono font-medium">{lote}</span> no tiene
+      rollos en estado &ldquo;{estadoLabel}&rdquo;.{' '}
+      <Link
+        href={`/stock?${params.toString()}`}
+        className="underline hover:no-underline font-medium"
+      >
+        Ver todos los rollos del lote
+      </Link>
+      .
     </div>
   )
 }

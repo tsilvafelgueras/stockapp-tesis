@@ -9,24 +9,33 @@ export default async function NuevoIngresoPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: tintorerias }, { data: articulos }, { data: profile }] =
-    await Promise.all([
-      supabase
-        .from('tintorerias')
-        .select('id, nombre')
-        .eq('activo', true)
-        .order('nombre'),
-      supabase
-        .from('articulos')
-        .select('id, nombre')
-        .eq('activo', true)
-        .order('nombre'),
-      supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user!.id)
-        .single(),
-    ])
+  const [
+    { data: tintorerias },
+    { data: articulos },
+    { data: colores },
+    { data: profile },
+  ] = await Promise.all([
+    supabase
+      .from('tintorerias')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('articulos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('colores')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user!.id)
+      .single(),
+  ])
 
   const role = (profile?.role ?? 'operario') as 'operario' | 'admin'
 
@@ -68,7 +77,12 @@ export default async function NuevoIngresoPage() {
           </div>
         </div>
       ) : (
-        <NuevoIngresoForm tintorerias={tintorerias!} articulos={articulos!} role={role} />
+        <NuevoIngresoForm
+          tintorerias={tintorerias!}
+          articulos={articulos!}
+          colores={colores ?? []}
+          role={role}
+        />
       )}
     </div>
   )

@@ -27,6 +27,7 @@ export default async function EditarIngresoPage({
     { data: ingreso },
     { data: tintorerias },
     { data: articulos },
+    { data: colores },
     { data: rollos },
   ] = await Promise.all([
     supabase
@@ -36,6 +37,7 @@ export default async function EditarIngresoPage({
       .single(),
     supabase.from('tintorerias').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('articulos').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase.from('colores').select('id, nombre').eq('activo', true).order('nombre'),
     supabase.from('rollos').select('kilos').eq('ingreso_id', id),
   ])
 
@@ -59,6 +61,7 @@ export default async function EditarIngresoPage({
         ingreso={ingreso}
         tintorerias={tintorerias ?? []}
         articulos={articulos ?? []}
+        colores={colores ?? []}
         cantidadRollosReal={cantidadRollos}
         sumaKilosReal={sumaKilos}
       />
