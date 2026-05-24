@@ -100,15 +100,6 @@ function navForRole(role: Role): NavSection[] {
       items: [{ href: '/admin/dashboard', label: 'Inicio', icon: Home }],
     },
     {
-      title: 'Operacion',
-      items: [
-        { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
-        { href: '/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
-        { href: '/picking', label: 'Picking', icon: ClipboardCheck },
-        { href: '/muestras', label: 'Muestras', icon: Scissors },
-      ],
-    },
-    {
       title: 'Ventas',
       items: [
         { href: '/stock', label: 'Stock', icon: Search },
