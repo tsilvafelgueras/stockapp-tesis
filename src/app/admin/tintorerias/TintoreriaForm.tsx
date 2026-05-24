@@ -15,7 +15,7 @@ export default function TintoreriaForm() {
 
     const result = await createTintoreria({ nombre })
 
-    if (result.error) {
+    if ('error' in result) {
       setError(result.error)
     } else {
       setNombre('')

@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   Factory,
+  PackagePlus,
   Search,
   ShoppingCart,
   Users,
@@ -20,6 +21,8 @@ type AlertaStockMinimo = {
 }
 
 type ResumenDiario = {
+  ingresosRollos: number
+  ingresosKilos: number
   pedidosCreados: number
   pedidosEntregados: number
   pedidosActivos: number
@@ -72,10 +75,16 @@ async function getResumenDiario(
   const hasta = fin.toISOString()
 
   const [
+    { data: rollosHoy },
     { count: pedidosCreados },
     { count: pedidosEntregados },
     { count: pedidosActivos },
   ] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select('kilos')
+      .gte('created_at', desde)
+      .lt('created_at', hasta),
     supabase
       .from('pedidos')
       .select('id', { count: 'exact', head: true })
@@ -94,6 +103,9 @@ async function getResumenDiario(
   ])
 
   return {
+    ingresosRollos: rollosHoy?.length ?? 0,
+    ingresosKilos:
+      rollosHoy?.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0) ?? 0,
     pedidosCreados: pedidosCreados ?? 0,
     pedidosEntregados: pedidosEntregados ?? 0,
     pedidosActivos: pedidosActivos ?? 0,
@@ -108,11 +120,18 @@ const cards: {
   section: string
 }[] = [
   {
+    href: '/ingresos',
+    title: 'Ingresos',
+    description: 'Llegadas desde tintorerías, planillas y rollos pendientes.',
+    icon: PackagePlus,
+    section: 'Operación',
+  },
+  {
     href: '/stock',
     title: 'Inventario',
     description: 'Stock disponible, ubicaciones, reservas y bajas.',
     icon: Search,
-    section: 'Ventas',
+    section: 'Operación',
   },
   {
     href: '/pedidos',
@@ -172,6 +191,7 @@ export default async function AdminDashboard({
     alertas,
     resumenDiario,
     { count: rollosEnStock },
+    { count: pendientes },
   ] =
     await Promise.all([
       supabase
@@ -185,6 +205,10 @@ export default async function AdminDashboard({
         .from('rollos')
         .select('id', { count: 'exact', head: true })
         .eq('estado', 'en_stock'),
+      supabase
+        .from('rollos')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'pendiente'),
     ])
 
   return (
@@ -214,8 +238,9 @@ export default async function AdminDashboard({
 
       <SeccionDenegadaBanner denegado={sp.denegado} />
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-3">
         <Metric label="Rollos en stock" value={rollosEnStock ?? 0} />
+        <Metric label="Pendientes de verificar" value={pendientes ?? 0} />
         <Metric label="Alertas de stock" value={alertas.length} tone="warning" />
       </section>
 
@@ -236,7 +261,14 @@ export default async function AdminDashboard({
             Ver reportes
           </Link>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <SummaryTile
+            label="Ingresos"
+            value={resumenDiario.ingresosRollos}
+            detail={`${resumenDiario.ingresosKilos.toLocaleString('es-AR', {
+              maximumFractionDigits: 2,
+            })} kg`}
+          />
           <SummaryTile
             label="Pedidos creados"
             value={resumenDiario.pedidosCreados}
@@ -252,7 +284,7 @@ export default async function AdminDashboard({
 
       <NotificationBanner />
 
-      {['Ventas', 'Administración', 'Análisis'].map((section) => (
+      {['Operación', 'Ventas', 'Administración', 'Análisis'].map((section) => (
         <section key={section} className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {section}

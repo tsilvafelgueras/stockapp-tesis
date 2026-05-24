@@ -28,24 +28,18 @@ export default async function ColoresPage() {
           <thead className="bg-zinc-50 border-b">
             <tr className="text-left">
               <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium w-32"></th>
+              <th className="px-4 py-3 font-medium w-40"></th>
             </tr>
           </thead>
           <tbody>
             {colores && colores.length > 0 ? (
               colores.map((c) => (
-                <ColorRow
-                  key={c.id}
-                  id={c.id}
-                  nombre={c.nombre}
-                  activo={c.activo}
-                />
+                <ColorRow key={c.id} id={c.id} nombre={c.nombre} />
               ))
             ) : (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={2}
                   className="px-4 py-8 text-center text-sm text-muted-foreground"
                 >
                   Todavía no cargaste ningún color.

@@ -68,6 +68,7 @@ export default function StockList({
       <div className="space-y-3 sm:hidden">
         {rollos.map((r) => {
           const estado = ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
+          const dias = diasEnInventario(r.created_at)
           return (
             <button
               key={r.id}
@@ -107,7 +108,18 @@ export default function StockList({
                 {r.ingresos?.tintorerias?.nombre && (
                   <span className="truncate">{r.ingresos.tintorerias.nombre}</span>
                 )}
+                <span className="tabular-nums">
+                  Ingresó {formatFechaCorta(r.created_at)} · {dias}{' '}
+                  {dias === 1 ? 'día' : 'días'} en inventario
+                </span>
               </div>
+              {r.estado === 'segunda' && (
+                <div className="mt-3 flex justify-end">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                    Ver detalle de falla
+                  </span>
+                </div>
+              )}
             </button>
           )
         })}
@@ -115,7 +127,7 @@ export default function StockList({
 
       <div className="hidden overflow-hidden rounded-lg border bg-white shadow-sm sm:block">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead className="border-b bg-muted">
               <tr className="text-left">
                 <th className="w-12 px-3 py-3 font-medium"></th>
@@ -127,12 +139,17 @@ export default function StockList({
                 <th className="px-3 py-3 font-medium">Metros</th>
                 <th className="px-3 py-3 font-medium">Ubicacion</th>
                 <th className="px-3 py-3 font-medium">Tintoreria</th>
+                <th className="px-3 py-3 font-medium">Ingreso</th>
+                <th className="px-3 py-3 font-medium">Días</th>
                 <th className="px-3 py-3 font-medium">Estado</th>
+                <th className="px-3 py-3 font-medium w-24"></th>
               </tr>
             </thead>
             <tbody>
               {rollos.map((r) => {
                 const estado = ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
+                const dias = diasEnInventario(r.created_at)
+                const esSegunda = r.estado === 'segunda'
                 return (
                   <tr
                     key={r.id}
@@ -158,12 +175,32 @@ export default function StockList({
                     <td className="px-3 py-3 text-muted-foreground">
                       {r.ingresos?.tintorerias?.nombre ?? '-'}
                     </td>
+                    <td className="px-3 py-3 tabular-nums text-muted-foreground">
+                      {formatFechaCorta(r.created_at)}
+                    </td>
+                    <td className="px-3 py-3 tabular-nums text-muted-foreground">
+                      {dias}
+                    </td>
                     <td className="px-3 py-3">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
                       >
                         {estado.text}
                       </span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {esSegunda && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelected(r)
+                          }}
+                          className="rounded-md border border-amber-400/40 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                        >
+                          Detalle
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )
@@ -183,6 +220,25 @@ export default function StockList({
       )}
     </>
   )
+}
+
+function formatFechaCorta(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '-'
+  return d.toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  })
+}
+
+function diasEnInventario(iso: string): number {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return 0
+  const ahora = Date.now()
+  const diffMs = ahora - d.getTime()
+  if (diffMs < 0) return 0
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
 }
 
 function FabricSwatch({ rollo }: { rollo: StockRollo }) {

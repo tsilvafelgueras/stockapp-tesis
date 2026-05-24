@@ -21,7 +21,7 @@ export default async function IngresosLayout({
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'operario') {
+  if (profile?.role !== 'operario' && profile?.role !== 'admin') {
     redirect(`${homePathForRole(profile?.role)}?denegado=ingresos`)
   }
 
