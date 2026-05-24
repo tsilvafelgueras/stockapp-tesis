@@ -13,23 +13,42 @@ type Articulo = {
   stock_minimo_kg: number | null
 }
 
-const COLOR_DATALIST_ID = 'articulos-colores-sugeridos'
+type Catalog = { id: string; nombre: string }
 
-function ColoresDatalist({ colores }: { colores: string[] }) {
-  if (colores.length === 0) return null
+function ColorSelect({
+  value,
+  onChange,
+  colores,
+  className,
+}: {
+  value: string
+  onChange: (v: string) => void
+  colores: Catalog[]
+  className?: string
+}) {
   return (
-    <datalist id={COLOR_DATALIST_ID}>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={className}
+    >
+      <option value="">Sin color</option>
       {colores.map((c) => (
-        <option key={c} value={c} />
+        <option key={c.id} value={c.nombre}>
+          {c.nombre}
+        </option>
       ))}
-    </datalist>
+      {value && !colores.find((c) => c.nombre === value) && (
+        <option value={value}>{value} (legacy)</option>
+      )}
+    </select>
   )
 }
 
 export function NuevoArticuloForm({
-  coloresExistentes = [],
+  colores = [],
 }: {
-  coloresExistentes?: string[]
+  colores?: Catalog[]
 }) {
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
@@ -66,8 +85,6 @@ export function NuevoArticuloForm({
     >
       <h2 className="font-semibold">Nuevo artículo</h2>
 
-      <ColoresDatalist colores={coloresExistentes} />
-
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1">
           <label htmlFor="nombre" className="text-sm font-medium">
@@ -100,12 +117,10 @@ export function NuevoArticuloForm({
           <label htmlFor="color" className="text-sm font-medium">
             Color
           </label>
-          <input
-            id="color"
+          <ColorSelect
             value={color}
-            onChange={(e) => setColor(e.target.value)}
-            list={COLOR_DATALIST_ID}
-            placeholder="Ej: Blanco"
+            onChange={setColor}
+            colores={colores}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
@@ -145,12 +160,12 @@ export function EditArticuloRow({
   articulo,
   forzarEdicion = false,
   onEliminado,
-  coloresExistentes = [],
+  colores = [],
 }: {
   articulo: Articulo
   forzarEdicion?: boolean
   onEliminado?: (id: string) => void
-  coloresExistentes?: string[]
+  colores?: Catalog[]
 }) {
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [nombre, setNombre] = useState(articulo.nombre)
@@ -257,12 +272,10 @@ export function EditArticuloRow({
           />
         </td>
         <td className="px-4 py-3">
-          <ColoresDatalist colores={coloresExistentes} />
-          <input
+          <ColorSelect
             value={color}
-            onChange={(e) => setColor(e.target.value)}
-            list={COLOR_DATALIST_ID}
-            placeholder="Color"
+            onChange={setColor}
+            colores={colores}
             className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </td>

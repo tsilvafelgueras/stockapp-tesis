@@ -82,6 +82,11 @@ export default function StockList({
                       {r.articulos?.nombre ?? '-'}
                       {r.ingresos?.color ? ` - ${r.ingresos.color}` : ''}
                     </p>
+                    {r.ingresos?.numero_lote && (
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {r.ingresos.numero_lote}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <span
@@ -113,6 +118,7 @@ export default function StockList({
               <tr className="text-left">
                 <th className="w-12 px-3 py-3 font-medium"></th>
                 <th className="px-3 py-3 font-medium">Pieza</th>
+                <th className="px-3 py-3 font-medium">Lote</th>
                 <th className="px-3 py-3 font-medium">Articulo</th>
                 <th className="px-3 py-3 font-medium">Color</th>
                 <th className="px-3 py-3 font-medium">Kilos</th>
@@ -135,6 +141,9 @@ export default function StockList({
                       <FabricSwatch rollo={r} />
                     </td>
                     <td className="px-3 py-3 font-medium">{r.numero_pieza}</td>
+                    <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
+                      {r.ingresos?.numero_lote ?? '-'}
+                    </td>
                     <td className="px-3 py-3">{r.articulos?.nombre ?? '-'}</td>
                     <td className="px-3 py-3">{r.ingresos?.color ?? '-'}</td>
                     <td className="px-3 py-3 tabular-nums">
