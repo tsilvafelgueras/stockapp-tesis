@@ -17,13 +17,17 @@ export default function NotificationBell({
 }) {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notificacion[]>(notificaciones)
+  const [prevNotificaciones, setPrevNotificaciones] = useState(notificaciones)
   const [pending, startTransition] = useTransition()
   const panelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
+  // Sync prop → state without an effect (React render-time update pattern).
+  // When the parent re-validates and passes a fresh list, reset items to match.
+  if (prevNotificaciones !== notificaciones) {
+    setPrevNotificaciones(notificaciones)
     setItems(notificaciones)
-  }, [notificaciones])
+  }
 
   useEffect(() => {
     if (!open) return

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useSyncExternalStore, useState, type CSSProperties } from 'react'
 import {
   BarChart3,
   Boxes,
@@ -134,6 +134,25 @@ const SIDEBAR_WIDTH_COLLAPSED = '4.5rem'
 const TOPBAR_HEIGHT = '4rem'
 const STORAGE_KEY = 'nudo:sidebar-collapsed'
 
+// --- sidebar-collapsed external store (useSyncExternalStore) ---
+// Dispatching 'sidebar-toggle' notifies same-tab subscribers because the
+// native 'storage' event only fires for *other* tabs.
+function subscribeSidebar(cb: () => void) {
+  window.addEventListener('storage', cb)
+  window.addEventListener('sidebar-toggle', cb)
+  return () => {
+    window.removeEventListener('storage', cb)
+    window.removeEventListener('sidebar-toggle', cb)
+  }
+}
+function getSidebarSnapshot() {
+  try { return localStorage.getItem(STORAGE_KEY) === '1' } catch { return false }
+}
+function writeSidebar(next: boolean) {
+  try { localStorage.setItem(STORAGE_KEY, next ? '1' : '0') } catch { /* ignore */ }
+  window.dispatchEvent(new Event('sidebar-toggle'))
+}
+
 export default function AppShellClient({
   role,
   userName,
@@ -148,29 +167,18 @@ export default function AppShellClient({
   children: React.ReactNode
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
-  const [hydrated, setHydrated] = useState(false)
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY)
-      if (stored === '1') setCollapsed(true)
-    } catch {
-      // localStorage no disponible: usar default expandido
-    }
-    setHydrated(true)
-  }, [])
+  // useSyncExternalStore handles SSR correctly: getServerSnapshot returns false
+  // on the server, getSnapshot reads localStorage on the client.  No effect or
+  // setState needed — no lint violations, no hydration mismatches.
+  const collapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false)
+
+  // Detect client-side hydration without setState: noop subscribe + true/false
+  // snapshots is the documented pattern for "is this rendering on the client?".
+  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false)
 
   function toggleCollapsed() {
-    setCollapsed((v) => {
-      const next = !v
-      try {
-        window.localStorage.setItem(STORAGE_KEY, next ? '1' : '0')
-      } catch {
-        // ignore
-      }
-      return next
-    })
+    writeSidebar(!collapsed)
   }
 
   const sections = navForRole(role)
