@@ -36,39 +36,41 @@ export default async function TintoreriasPage() {
       <TintoreriaForm />
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 border-b">
-            <tr className="text-left">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Alta</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium w-64"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {lista.length > 0 ? (
-              lista.map((t) => (
-                <TintoreriaRow
-                  key={t.id}
-                  id={t.id}
-                  nombre={t.nombre}
-                  activo={t.activo}
-                  createdAt={t.created_at}
-                  fechaBaja={t.fecha_baja}
-                />
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="px-4 py-8 text-center text-sm text-muted-foreground"
-                >
-                  Todavía no cargaste ninguna tintorería.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-zinc-50 border-b">
+              <tr className="text-left">
+                <th className="px-4 py-3 font-medium">Nombre</th>
+                <th className="px-4 py-3 font-medium w-28">Alta</th>
+                <th className="px-4 py-3 font-medium w-36">Estado</th>
+                <th className="px-4 py-3 font-medium w-72"></th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {lista.length > 0 ? (
+                lista.map((t) => (
+                  <TintoreriaRow
+                    key={t.id}
+                    id={t.id}
+                    nombre={t.nombre}
+                    activo={t.activo}
+                    createdAt={t.created_at}
+                    fechaBaja={t.fecha_baja}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-sm text-muted-foreground"
+                  >
+                    Todavía no cargaste ninguna tintorería.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

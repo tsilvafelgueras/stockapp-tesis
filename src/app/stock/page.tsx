@@ -22,6 +22,7 @@ type SearchParams = {
   tintoreria?: string
   ubicacion?: string
   estado?: string
+  orden?: string
 }
 
 export default async function StockPage({
@@ -36,6 +37,7 @@ export default async function StockPage({
 
   const sp = await searchParams
   const estado = sp.estado || 'en_stock'
+  const orden = sp.orden || 'reciente'
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -137,6 +139,11 @@ export default async function StockPage({
 
   const { data: rollosRaw, error } = await query
   const rollos = (rollosRaw ?? []) as unknown as StockRollo[]
+
+  // Ordenamiento en cliente del set ya filtrado. El query usa
+  // `created_at desc` como base; aquí lo reordenamos según la preferencia
+  // del usuario sin volver a pegarle a la base.
+  rollos.sort(comparadorPorOrden(orden))
 
   const { data: resumenRaw } = await supabase
     .from('rollos')
@@ -253,6 +260,7 @@ export default async function StockPage({
           tintoreria: sp.tintoreria ?? '',
           ubicacion: sp.ubicacion ?? '',
           estado,
+          orden,
         }}
       />
 
@@ -274,6 +282,38 @@ export default async function StockPage({
       )}
     </div>
   )
+}
+
+function comparadorPorOrden(
+  orden: string
+): (a: StockRollo, b: StockRollo) => number {
+  switch (orden) {
+    case 'antiguo':
+      return (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    case 'kilos_desc':
+      return (a, b) => Number(b.kilos ?? 0) - Number(a.kilos ?? 0)
+    case 'kilos_asc':
+      return (a, b) => Number(a.kilos ?? 0) - Number(b.kilos ?? 0)
+    case 'articulo_asc':
+      return (a, b) =>
+        (a.articulos?.nombre ?? '').localeCompare(
+          b.articulos?.nombre ?? '',
+          'es',
+          { sensitivity: 'base' }
+        )
+    case 'articulo_desc':
+      return (a, b) =>
+        (b.articulos?.nombre ?? '').localeCompare(
+          a.articulos?.nombre ?? '',
+          'es',
+          { sensitivity: 'base' }
+        )
+    case 'reciente':
+    default:
+      return (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  }
 }
 
 function LoteSinResultadosBanner({

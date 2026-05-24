@@ -217,13 +217,13 @@ export default function TintoreriaRow({
           </div>
         )}
       </td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex flex-wrap justify-end gap-2">
+      <td className="px-4 py-3">
+        <div className="flex flex-nowrap items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={() => setMode('edit')}
             disabled={pending}
-            className="rounded-md border px-3 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50"
+            className="whitespace-nowrap rounded-md border px-2.5 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50"
           >
             Editar
           </button>
@@ -232,7 +232,7 @@ export default function TintoreriaRow({
               type="button"
               onClick={() => setMode('confirmar-baja')}
               disabled={pending}
-              className="rounded-md border border-amber-400/40 text-amber-700 px-3 py-1 text-xs hover:bg-amber-50 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md border border-amber-400/40 text-amber-700 px-2.5 py-1 text-xs hover:bg-amber-50 disabled:opacity-50"
             >
               Dar de baja
             </button>
@@ -241,7 +241,7 @@ export default function TintoreriaRow({
               type="button"
               onClick={reactivar}
               disabled={pending}
-              className="rounded-md border border-success/40 text-success px-3 py-1 text-xs hover:bg-success/5 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md border border-success/40 text-success px-2.5 py-1 text-xs hover:bg-success/5 disabled:opacity-50"
             >
               Reactivar
             </button>
@@ -250,7 +250,7 @@ export default function TintoreriaRow({
             type="button"
             onClick={() => setMode('confirmar-eliminar')}
             disabled={pending}
-            className="rounded-md border border-destructive/40 text-destructive px-3 py-1 text-xs hover:bg-destructive/5 disabled:opacity-50"
+            className="whitespace-nowrap rounded-md border border-destructive/40 text-destructive px-2.5 py-1 text-xs hover:bg-destructive/5 disabled:opacity-50"
           >
             Eliminar
           </button>

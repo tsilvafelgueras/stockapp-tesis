@@ -49,6 +49,9 @@ function normNombre(s: string): string {
 }
 
 function emptyRollo(): RolloInput {
+  // Todos los rollos arrancan en "pendiente": el operario los confirma uno a
+  // uno escaneando el QR cuando llegan al depósito. No se permite saltarse
+  // ese paso desde la carga de planilla.
   return {
     numero_pieza: '',
     kilos: '',
@@ -56,7 +59,7 @@ function emptyRollo(): RolloInput {
     ratio_rendimiento: '',
     gramaje_planilla: '',
     ubicacion: '',
-    estado: 'en_stock',
+    estado: 'pendiente',
   }
 }
 
@@ -313,25 +316,14 @@ export default function NuevoIngresoForm({
     const kilosCoinciden =
       totalKilosNum === null || Math.abs(totalKilosNum - sumaKilos) < 0.01
 
-    const ubicacionesFaltantes =
-      modo === 'manual'
-        ? rollos.filter(
-            (r) =>
-              r.numero_pieza.trim() &&
-              r.estado === 'en_stock' &&
-              !r.ubicacion.trim()
-          ).length
-        : 0
-
     return {
       sumaKilos,
       cantidadRollos,
       duplicados,
       cantidadCoincide,
       kilosCoinciden,
-      ubicacionesFaltantes,
     }
-  }, [rollos, totalRollosDeclarado, totalKilosDeclarado, modo])
+  }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -368,7 +360,6 @@ export default function NuevoIngresoForm({
     !fecha ||
     validations.cantidadRollos === 0 ||
     validations.duplicados.length > 0 ||
-    validations.ubicacionesFaltantes > 0 ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
 
@@ -812,12 +803,6 @@ export default function NuevoIngresoForm({
                 !!r.numero_pieza.trim() &&
                 validations.duplicados.includes(r.numero_pieza.trim())
               }
-              ubicacionFaltante={
-                modo === 'manual' &&
-                !!r.numero_pieza.trim() &&
-                r.estado === 'en_stock' &&
-                !r.ubicacion.trim()
-              }
               onUpdate={(field, value) => updateRollo(i, field, value)}
               onRemove={() => removeRow(i)}
             />
@@ -847,11 +832,6 @@ export default function NuevoIngresoForm({
                 const isDuplicate =
                   r.numero_pieza.trim() &&
                   validations.duplicados.includes(r.numero_pieza.trim())
-                const ubicacionFaltante =
-                  modo === 'manual' &&
-                  r.numero_pieza.trim() &&
-                  r.estado === 'en_stock' &&
-                  !r.ubicacion.trim()
                 return (
                   <tr
                     key={i}
@@ -950,20 +930,9 @@ export default function NuevoIngresoForm({
                       />
                     </td>
                     <td className="px-3 py-1">
-                      <select
-                        value={r.estado}
-                        onChange={(e) =>
-                          updateRollo(
-                            i,
-                            'estado',
-                            e.target.value as RolloInput['estado']
-                          )
-                        }
-                        className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        <option value="en_stock">En stock</option>
-                        <option value="pendiente">Pendiente</option>
-                      </select>
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-warning">
+                        Pendiente
+                      </span>
                     </td>
                     <td className="px-3 py-1">
                       <input
@@ -972,14 +941,8 @@ export default function NuevoIngresoForm({
                         onChange={(e) =>
                           updateRollo(i, 'ubicacion', e.target.value)
                         }
-                        placeholder={
-                          r.estado === 'en_stock' ? 'A1' : 'opcional'
-                        }
-                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
-                          ubicacionFaltante
-                            ? 'border-destructive'
-                            : 'border-input'
-                        }`}
+                        placeholder="opcional"
+                        className="w-full rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </td>
                     <td className="px-3 py-1 text-center">
@@ -1012,7 +975,6 @@ export default function NuevoIngresoForm({
 
       {/* Validaciones / warnings */}
       {(validations.duplicados.length > 0 ||
-        validations.ubicacionesFaltantes > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-3 sm:p-4 space-y-1 text-sm">
@@ -1020,13 +982,6 @@ export default function NuevoIngresoForm({
             <p className="text-destructive">
               ⚠ Números de pieza duplicados:{' '}
               {validations.duplicados.join(', ')}
-            </p>
-          )}
-          {validations.ubicacionesFaltantes > 0 && (
-            <p className="text-destructive">
-              ⚠ Faltan ubicaciones en {validations.ubicacionesFaltantes}{' '}
-              {validations.ubicacionesFaltantes === 1 ? 'rollo' : 'rollos'} con
-              estado &quot;en stock&quot;.
             </p>
           )}
           {!validations.cantidadCoincide && (
@@ -1074,7 +1029,6 @@ function RolloCardMobile({
   articulos,
   confianzas,
   isDuplicate,
-  ubicacionFaltante,
   onUpdate,
   onRemove,
 }: {
@@ -1091,7 +1045,6 @@ function RolloCardMobile({
       }
     | undefined
   isDuplicate: boolean
-  ubicacionFaltante: boolean
   onUpdate: <K extends keyof RolloInput>(field: K, value: RolloInput[K]) => void
   onRemove: () => void
 }) {
@@ -1209,16 +1162,11 @@ function RolloCardMobile({
           <label className="text-xs font-medium text-muted-foreground">
             Estado
           </label>
-          <select
-            value={rollo.estado}
-            onChange={(e) =>
-              onUpdate('estado', e.target.value as RolloInput['estado'])
-            }
-            className="w-full rounded border border-input bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="en_stock">En stock</option>
-            <option value="pendiente">Pendiente</option>
-          </select>
+          <div className="flex h-[42px] items-center rounded border border-input bg-background px-3">
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-warning">
+              Pendiente
+            </span>
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">
@@ -1228,10 +1176,8 @@ function RolloCardMobile({
             type="text"
             value={rollo.ubicacion}
             onChange={(e) => onUpdate('ubicacion', e.target.value)}
-            placeholder={rollo.estado === 'en_stock' ? 'A1' : 'opcional'}
-            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
-              ubicacionFaltante ? 'border-destructive' : 'border-input'
-            }`}
+            placeholder="opcional"
+            className="w-full rounded border border-input px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
       </div>

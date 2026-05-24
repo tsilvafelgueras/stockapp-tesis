@@ -14,7 +14,17 @@ export type StockFiltersState = {
   tintoreria: string
   ubicacion: string
   estado: string
+  orden: string
 }
+
+export const ORDEN_OPCIONES: { value: string; label: string }[] = [
+  { value: 'reciente', label: 'Ingreso (más reciente primero)' },
+  { value: 'antiguo', label: 'Ingreso (más antiguo primero)' },
+  { value: 'kilos_desc', label: 'Kilos (mayor a menor)' },
+  { value: 'kilos_asc', label: 'Kilos (menor a mayor)' },
+  { value: 'articulo_asc', label: 'Artículo (A-Z)' },
+  { value: 'articulo_desc', label: 'Artículo (Z-A)' },
+]
 
 export default function StockFilters({
   articulos,
@@ -56,7 +66,8 @@ export default function StockFilters({
     !!current.lote ||
     !!current.tintoreria ||
     !!current.ubicacion ||
-    current.estado !== 'en_stock'
+    current.estado !== 'en_stock' ||
+    current.orden !== 'reciente'
 
   return (
     <form
@@ -180,6 +191,20 @@ export default function StockFilters({
             <option value="entregado">Entregado</option>
             <option value="baja">Baja</option>
             <option value="todos">Todos</option>
+          </select>
+        </Field>
+
+        <Field label="Ordenar por">
+          <select
+            value={current.orden}
+            onChange={(e) => update('orden', e.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            {ORDEN_OPCIONES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </Field>
       </div>
