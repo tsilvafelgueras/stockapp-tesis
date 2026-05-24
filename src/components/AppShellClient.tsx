@@ -309,25 +309,8 @@ export default function AppShellClient({
         >
           {children}
         </div>
-        <AppFooter />
       </main>
     </div>
-  )
-}
-
-function AppFooter() {
-  return (
-    <footer className="mt-8 border-t border-border bg-background">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-1 px-4 py-4 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <p>
-          <span className="font-medium text-foreground">NUDO</span> · Tus datos
-          están aislados por empresa. No se cruzan ni se usan con otros fines.
-        </p>
-        <p className="text-muted-foreground/70">
-          © {new Date().getFullYear()} NUDO
-        </p>
-      </div>
-    </footer>
   )
 }
 
