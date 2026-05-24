@@ -42,9 +42,9 @@ export default function ColorForm() {
           placeholder="Ej: Azul Marino"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <p className="text-xs text-muted-foreground">
+        {/* <p className="text-xs text-muted-foreground">
           Se normaliza automáticamente: cada palabra empieza en mayúscula.
-        </p>
+        </p> */}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
