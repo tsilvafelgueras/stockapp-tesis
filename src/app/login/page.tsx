@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowRight, Boxes } from 'lucide-react'
+import { ArrowRight, Boxes, ShieldCheck } from 'lucide-react'
 import BrandMark from '@/components/BrandMark'
 import { createClient } from '@/lib/supabase/client'
 
@@ -87,6 +87,21 @@ function LoginForm() {
             Diseñado para depósito y ventas: rápido en celular, claro en
             escritorio y preparado para el ritmo de una PyME textil argentina.
           </p>
+
+          <div className="rounded-lg border border-white/15 bg-white/5 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <ShieldCheck className="size-4 text-white/80" />
+              Tus datos son tuyos
+            </div>
+            <ul className="space-y-1.5 text-xs leading-relaxed text-white/65">
+              <li>· Cada empresa ve sólo sus rollos, pedidos y clientes.</li>
+              <li>· No cruzamos información entre empresas. Nunca.</li>
+              <li>
+                · No usamos tus datos para entrenar modelos ni para ningún otro
+                fin.
+              </li>
+            </ul>
+          </div>
         </div>
 
         <p className="text-xs text-white/45">Nudo para equipos textiles</p>
@@ -170,6 +185,14 @@ function LoginForm() {
             >
               ¿Olvidaste tu contraseña?
             </Link>
+          </div>
+
+          <div className="lg:hidden flex items-start gap-2 rounded-md border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+            <ShieldCheck className="size-4 shrink-0 mt-0.5 text-action" />
+            <p>
+              Tus datos están aislados por empresa. Nunca se cruzan con los de
+              otros clientes ni se usan con otros fines.
+            </p>
           </div>
         </div>
       </section>

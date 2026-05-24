@@ -104,6 +104,8 @@ export default async function StockPage({
         gramaje_propio,
         gramaje_planilla,
         estado,
+        falla_categoria,
+        falla_descripcion,
         created_at,
         auditado_at,
         articulos ( id, nombre ),

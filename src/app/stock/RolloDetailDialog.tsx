@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import type { StockRollo, StockRole } from './StockList'
 import {
@@ -9,6 +9,12 @@ import {
   marcarComoSegunda,
   confirmarRolloManual,
   auditarRollo,
+  subirFotoRollo,
+  listarFotosRollo,
+  FALLA_CATEGORIAS,
+  FALLA_CATEGORIA_LABEL,
+  type FallaCategoria,
+  type RolloFotoConUrl,
 } from './actions'
 import { UBICACIONES } from '@/lib/ubicaciones'
 
@@ -40,13 +46,47 @@ export default function RolloDetailDialog({
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
   const [pending, startTransition] = useTransition()
 
+  // Formulario de "segunda"
+  const [fallaCategoria, setFallaCategoria] = useState<FallaCategoria | ''>('')
+  const [fallaDescripcion, setFallaDescripcion] = useState('')
+  const [fallaArchivos, setFallaArchivos] = useState<File[]>([])
+  const [subiendoIdx, setSubiendoIdx] = useState<number | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Galería de fotos ya existentes para este rollo. Inicializamos el flag
+  // de "cargando" según el estado inicial del rollo para evitar setState
+  // síncrono dentro del effect (regla react-hooks/set-state-in-effect).
+  const [fotos, setFotos] = useState<RolloFotoConUrl[]>([])
+  const [fotosCargando, setFotosCargando] = useState(
+    rollo.estado === 'segunda'
+  )
+  const [fotoAmpliada, setFotoAmpliada] = useState<RolloFotoConUrl | null>(null)
+
+  useEffect(() => {
+    if (rollo.estado !== 'segunda') return
+    let cancelado = false
+    listarFotosRollo(rollo.id).then((res) => {
+      if (cancelado) return
+      if (res.ok) setFotos(res.fotos)
+      setFotosCargando(false)
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [rollo.id, rollo.estado])
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      if (fotoAmpliada) {
+        setFotoAmpliada(null)
+      } else {
+        onClose()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, fotoAmpliada])
 
   const esOperarioOAdmin = role === 'operario' || role === 'admin'
   const puedeMover =
@@ -74,8 +114,34 @@ export default function RolloDetailDialog({
   }
 
   function handleSegunda() {
+    if (!fallaCategoria) {
+      toast.error('Elegí una categoría de falla.')
+      return
+    }
     startTransition(async () => {
-      const res = await marcarComoSegunda(rollo.id)
+      // Subimos las fotos primero. Si alguna falla, abortamos antes de
+      // cambiar el estado del rollo para que el operario pueda reintentar.
+      const fotoPaths: string[] = []
+      for (let i = 0; i < fallaArchivos.length; i++) {
+        setSubiendoIdx(i)
+        const fd = new FormData()
+        fd.set('archivo', fallaArchivos[i])
+        fd.set('rollo_id', rollo.id)
+        const res = await subirFotoRollo(fd)
+        if (!res.ok) {
+          setSubiendoIdx(null)
+          toast.error(`No se pudo subir la foto ${i + 1}: ${res.error}`)
+          return
+        }
+        fotoPaths.push(res.path)
+      }
+      setSubiendoIdx(null)
+
+      const res = await marcarComoSegunda(rollo.id, {
+        categoria: fallaCategoria,
+        descripcion: fallaDescripcion,
+        fotoPaths,
+      })
       if (!res.ok) {
         toast.error(res.error)
         return
@@ -83,6 +149,19 @@ export default function RolloDetailDialog({
       toast.success(`Pieza ${rollo.numero_pieza} marcada como segunda calidad.`)
       onClose()
     })
+  }
+
+  function handleArchivosSeleccionados(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const nuevos = Array.from(files)
+    setFallaArchivos((prev) => [...prev, ...nuevos])
+    // Reset para permitir volver a elegir el mismo archivo si se quitó
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function quitarArchivo(idx: number) {
+    setFallaArchivos((prev) => prev.filter((_, i) => i !== idx))
   }
 
   function handleBaja() {
@@ -247,6 +326,66 @@ export default function RolloDetailDialog({
               </p>
             )}
           </div>
+
+          {/* Detalle de segunda calidad */}
+          {rollo.estado === 'segunda' && (
+            <div className="rounded-md border border-amber-300/60 bg-amber-50 p-3 text-xs space-y-2">
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-amber-900">Falla registrada</p>
+                {rollo.falla_categoria && (
+                  <span className="rounded-full bg-amber-200 text-amber-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                    {FALLA_CATEGORIA_LABEL[
+                      rollo.falla_categoria as FallaCategoria
+                    ] ?? rollo.falla_categoria}
+                  </span>
+                )}
+              </div>
+              {rollo.falla_descripcion && (
+                <p className="text-amber-900 whitespace-pre-wrap">
+                  {rollo.falla_descripcion}
+                </p>
+              )}
+              {!rollo.falla_categoria && !rollo.falla_descripcion && (
+                <p className="text-amber-800/70">
+                  Sin categoría ni detalle cargados. Marcala de nuevo desde
+                  acciones para sumar esa información.
+                </p>
+              )}
+
+              {fotosCargando ? (
+                <p className="text-amber-800/70">Cargando fotos…</p>
+              ) : fotos.length > 0 ? (
+                <ul className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
+                  {fotos.map((f) => (
+                    <li
+                      key={f.id}
+                      className="aspect-square rounded-md overflow-hidden border bg-white"
+                    >
+                      {f.signedUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setFotoAmpliada(f)}
+                          className="block w-full h-full"
+                          aria-label="Ampliar foto"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={f.signedUrl}
+                            alt={f.descripcion ?? 'Foto de la falla'}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[10px] text-muted-foreground p-1 text-center">
+                          No se pudo cargar
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          )}
 
           {/* Acciones */}
           {mode === 'view' &&
@@ -423,14 +562,99 @@ export default function RolloDetailDialog({
           )}
 
           {mode === 'segunda' && (
-            <div className="space-y-2 pt-2 border-t">
+            <div className="space-y-3 pt-2 border-t">
               <p className="text-sm">
-                ¿Confirmás marcar la pieza{' '}
-                <strong>{rollo.numero_pieza}</strong> como segunda calidad?
+                Marcar la pieza <strong>{rollo.numero_pieza}</strong> como
+                segunda calidad. Documentá la falla ahora para evitar el ida y
+                vuelta con el cliente.
               </p>
-              <p className="text-xs text-muted-foreground">
-                El rollo quedará en estado &ldquo;Segunda&rdquo;. Se puede revertir cambiando el estado desde stock.
-              </p>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium block">
+                  Categoría de falla <span className="text-destructive">*</span>
+                </label>
+                <select
+                  value={fallaCategoria}
+                  onChange={(e) =>
+                    setFallaCategoria(e.target.value as FallaCategoria | '')
+                  }
+                  className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+                  autoFocus
+                >
+                  <option value="">Seleccionar...</option>
+                  {FALLA_CATEGORIAS.map((c) => (
+                    <option key={c} value={c}>
+                      {FALLA_CATEGORIA_LABEL[c]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium block">
+                  Detalle (opcional)
+                </label>
+                <textarea
+                  value={fallaDescripcion}
+                  onChange={(e) => setFallaDescripcion(e.target.value)}
+                  placeholder="Ej. Mancha en el borde a la mitad del rollo. Tono más claro de un costado."
+                  rows={3}
+                  className="w-full rounded-md border px-3 py-2 text-sm resize-y"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium block">
+                  Fotos de la falla (opcional)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  onChange={handleArchivosSeleccionados}
+                  disabled={pending}
+                  className="block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-amber-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-amber-800 hover:file:bg-amber-200"
+                />
+                {fallaArchivos.length > 0 && (
+                  <ul className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {fallaArchivos.map((file, idx) => {
+                      const url = URL.createObjectURL(file)
+                      const subiendoEsta = subiendoIdx === idx
+                      return (
+                        <li
+                          key={`${file.name}-${idx}`}
+                          className="relative aspect-square rounded-md overflow-hidden border bg-zinc-50"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`Foto ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          {subiendoEsta && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-[10px] font-medium">
+                              Subiendo…
+                            </div>
+                          )}
+                          {!pending && (
+                            <button
+                              type="button"
+                              onClick={() => quitarArchivo(idx)}
+                              className="absolute top-1 right-1 size-5 rounded-full bg-black/60 text-white text-xs leading-none flex items-center justify-center hover:bg-black/80"
+                              aria-label="Quitar foto"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+
               <div className="flex gap-2 justify-end pt-1">
                 <button
                   type="button"
@@ -443,10 +667,14 @@ export default function RolloDetailDialog({
                 <button
                   type="button"
                   onClick={handleSegunda}
-                  disabled={pending}
+                  disabled={pending || !fallaCategoria}
                   className="rounded-md bg-amber-500 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
-                  {pending ? 'Marcando…' : 'Confirmar segunda'}
+                  {pending
+                    ? subiendoIdx !== null && fallaArchivos.length > 0
+                      ? `Subiendo ${subiendoIdx + 1}/${fallaArchivos.length}…`
+                      : 'Marcando…'
+                    : 'Confirmar segunda'}
                 </button>
               </div>
             </div>
@@ -485,6 +713,46 @@ export default function RolloDetailDialog({
           )}
         </div>
       </div>
+
+      {fotoAmpliada?.signedUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+          onClick={(e) => {
+            e.stopPropagation()
+            setFotoAmpliada(null)
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fotoAmpliada.signedUrl}
+            alt={fotoAmpliada.descripcion ?? 'Foto ampliada'}
+            className="max-w-full max-h-full object-contain"
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setFotoAmpliada(null)
+            }}
+            aria-label="Cerrar foto"
+            className="absolute top-3 right-3 rounded-full bg-white/90 text-foreground p-2 hover:bg-white"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

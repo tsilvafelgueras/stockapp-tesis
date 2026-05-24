@@ -17,6 +17,8 @@ export type StockRollo = {
   gramaje_propio: number | null
   gramaje_planilla: number | null
   estado: string
+  falla_categoria: string | null
+  falla_descripcion: string | null
   created_at: string
   auditado_at: string | null
   articulos: { id: string; nombre: string } | null

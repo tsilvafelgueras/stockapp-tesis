@@ -2,8 +2,32 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import {
+  subirPlanilla,
+  getSignedUrl,
+  MIME_TYPES_ACEPTADOS,
+} from '@/lib/storage/planillas'
 
 export type StockActionResult = { ok: true } | { ok: false; error: string }
+
+export const FALLA_CATEGORIAS = [
+  'mancha',
+  'agujero',
+  'color_disparejo',
+  'tono_diferente',
+  'rotura_tejido',
+  'otro',
+] as const
+export type FallaCategoria = (typeof FALLA_CATEGORIAS)[number]
+
+export const FALLA_CATEGORIA_LABEL: Record<FallaCategoria, string> = {
+  mancha: 'Mancha',
+  agujero: 'Agujero',
+  color_disparejo: 'Color disparejo',
+  tono_diferente: 'Tono diferente',
+  rotura_tejido: 'Rotura de tejido',
+  otro: 'Otro',
+}
 
 export async function moverUbicacion(
   rolloId: string,
@@ -247,8 +271,15 @@ export async function auditarRollo(
   return { ok: true }
 }
 
+export type MarcarSegundaParams = {
+  categoria: FallaCategoria
+  descripcion?: string
+  fotoPaths?: string[]
+}
+
 export async function marcarComoSegunda(
-  rolloId: string
+  rolloId: string,
+  params: MarcarSegundaParams
 ): Promise<StockActionResult> {
   const supabase = await createClient()
 
@@ -259,13 +290,23 @@ export async function marcarComoSegunda(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, empresa_id')
     .eq('id', user.id)
     .single()
 
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
     return { ok: false, error: 'Solo el operario o el administrador pueden marcar rollos.' }
   }
+
+  if (!params || !FALLA_CATEGORIAS.includes(params.categoria)) {
+    return {
+      ok: false,
+      error: 'Elegí una categoría de falla para marcar como segunda.',
+    }
+  }
+
+  const descripcion = params.descripcion?.trim() || null
+  const fotoPaths = (params.fotoPaths ?? []).filter((p) => p && p.trim() !== '')
 
   const { data: rollo, error: fetchError } = await supabase
     .from('rollos')
@@ -285,11 +326,143 @@ export async function marcarComoSegunda(
 
   const { error } = await supabase
     .from('rollos')
-    .update({ estado: 'segunda' })
+    .update({
+      estado: 'segunda',
+      falla_categoria: params.categoria,
+      falla_descripcion: descripcion,
+    })
     .eq('id', rolloId)
 
   if (error) return { ok: false, error: error.message }
 
+  if (fotoPaths.length > 0) {
+    const rows = fotoPaths.map((path) => ({
+      rollo_id: rolloId,
+      path,
+      tipo: 'falla' as const,
+      created_by: user.id,
+    }))
+    const { error: insertError } = await supabase
+      .from('rollo_fotos')
+      .insert(rows)
+    if (insertError) {
+      // Intencionalmente no revertimos el cambio de estado: el rollo ya está
+      // como segunda con categoría. Las fotos pueden volver a subirse después.
+      return {
+        ok: false,
+        error: `Rollo marcado como segunda, pero falló el guardado de fotos: ${insertError.message}`,
+      }
+    }
+  }
+
   revalidatePath('/stock')
   return { ok: true }
+}
+
+export async function subirFotoRollo(
+  formData: FormData
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, empresa_id')
+    .eq('id', user.id)
+    .single()
+
+  if (
+    !profile?.empresa_id ||
+    (profile.role !== 'operario' && profile.role !== 'admin')
+  ) {
+    return {
+      ok: false,
+      error: 'Solo operario o admin pueden subir fotos de rollos.',
+    }
+  }
+
+  const file = formData.get('archivo')
+  const rolloId = formData.get('rollo_id')
+
+  if (!(file instanceof File)) {
+    return { ok: false, error: 'Falta el archivo de la foto.' }
+  }
+  if (typeof rolloId !== 'string' || !rolloId) {
+    return { ok: false, error: 'Falta el id del rollo.' }
+  }
+  if (!MIME_TYPES_ACEPTADOS.split(',').includes(file.type)) {
+    return {
+      ok: false,
+      error: 'Formato no soportado. Aceptamos JPG, PNG, WebP o HEIC.',
+    }
+  }
+  // Límite suave: 10 MB por foto
+  if (file.size > 10 * 1024 * 1024) {
+    return { ok: false, error: 'La foto pesa más de 10 MB. Comprimila e intentá de nuevo.' }
+  }
+
+  // RLS filtra por empresa: si el rollo no aparece es porque no pertenece a
+  // esta empresa.
+  const { data: rollo, error: rolloError } = await supabase
+    .from('rollos')
+    .select('id')
+    .eq('id', rolloId)
+    .single()
+  if (rolloError || !rollo) {
+    return { ok: false, error: 'No se encontró el rollo.' }
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const upload = await subirPlanilla(buffer, file.type, profile.empresa_id)
+  if (!upload.ok) return { ok: false, error: upload.error }
+
+  return { ok: true, path: upload.path }
+}
+
+export type RolloFotoConUrl = {
+  id: string
+  path: string
+  descripcion: string | null
+  tipo: 'falla' | 'general'
+  created_at: string
+  signedUrl: string | null
+}
+
+export async function listarFotosRollo(
+  rolloId: string
+): Promise<{ ok: true; fotos: RolloFotoConUrl[] } | { ok: false; error: string }> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+
+  const { data: fotos, error } = await supabase
+    .from('rollo_fotos')
+    .select('id, path, descripcion, tipo, created_at')
+    .eq('rollo_id', rolloId)
+    .order('created_at', { ascending: true })
+
+  if (error) return { ok: false, error: error.message }
+
+  const conUrl: RolloFotoConUrl[] = await Promise.all(
+    (fotos ?? []).map(async (f) => {
+      const res = await getSignedUrl(f.path)
+      return {
+        id: f.id,
+        path: f.path,
+        descripcion: f.descripcion,
+        tipo: f.tipo as 'falla' | 'general',
+        created_at: f.created_at,
+        signedUrl: res.ok ? res.url : null,
+      }
+    })
+  )
+
+  return { ok: true, fotos: conUrl }
 }

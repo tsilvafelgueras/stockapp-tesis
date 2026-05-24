@@ -55,6 +55,7 @@ export default async function NuevoPedidoPage({
         ingresos!inner (
           id,
           color,
+          numero_lote,
           tintorerias ( id, nombre )
         )
       `
