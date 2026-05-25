@@ -694,13 +694,26 @@ export default function NuevoIngresoForm({
             />
           </div>
 
+        </div>
+      </div>
+
+      {/* Atajos para asignar valores comunes a todos los rollos */}
+      <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm space-y-3">
+        <div>
+          <h2 className="font-semibold">Asignar a todos los rollos</h2>
+          <p className="text-xs text-muted-foreground">
+            Atajo opcional. Lo que pongas acá se copia a todos los rollos de la tabla; podés sobrescribirlos individualmente.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium">Artículo (a todos)</label>
+            <label className="text-sm font-medium">Artículo</label>
             <div className="flex gap-2">
               <select
                 value={bulkArticuloId}
                 onChange={(e) => setBulkArticuloId(e.target.value)}
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Seleccionar...</option>
                 {articulos.map((a) => (
@@ -713,7 +726,7 @@ export default function NuevoIngresoForm({
                 type="button"
                 onClick={applyBulkArticulo}
                 disabled={!bulkArticuloId}
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                className="shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
               >
                 Aplicar
               </button>
@@ -733,12 +746,12 @@ export default function NuevoIngresoForm({
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">Color (a todos)</label>
+            <label className="text-sm font-medium">Color</label>
             <div className="flex gap-2">
               <select
                 value={bulkColor}
                 onChange={(e) => setBulkColor(e.target.value)}
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Seleccionar...</option>
                 {colores.map((c) => (
@@ -751,7 +764,7 @@ export default function NuevoIngresoForm({
                 type="button"
                 onClick={applyBulkColor}
                 disabled={!bulkColor}
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                className="shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
               >
                 Aplicar
               </button>
@@ -773,27 +786,24 @@ export default function NuevoIngresoForm({
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">Ubicación inicial</label>
+            <label className="text-sm font-medium">Ubicación</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={bulkUbicacion}
                 onChange={(e) => setBulkUbicacion(e.target.value)}
                 placeholder="Ej. A1"
-                className="flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <button
                 type="button"
                 onClick={applyBulkUbicacion}
                 disabled={!bulkUbicacion.trim()}
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                className="shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
               >
                 Aplicar
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Estos tres se copian a cada rollo y podés sobrescribirlos individualmente en la tabla.
-            </p>
           </div>
         </div>
       </div>
