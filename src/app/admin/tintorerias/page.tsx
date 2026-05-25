@@ -9,6 +9,9 @@ type Tintoreria = {
   activo: boolean
   created_at: string
   fecha_baja: string | null
+  contacto: string | null
+  email: string | null
+  telefono: string | null
 }
 
 export default async function TintoreriasPage() {
@@ -16,7 +19,9 @@ export default async function TintoreriasPage() {
 
   const { data: tintorerias } = await supabase
     .from('tintorerias')
-    .select('id, nombre, activo, created_at, fecha_baja')
+    .select(
+      'id, nombre, activo, created_at, fecha_baja, contacto, email, telefono'
+    )
     .order('activo', { ascending: false })
     .order('nombre', { ascending: true })
 
@@ -40,7 +45,7 @@ export default async function TintoreriasPage() {
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-zinc-50 border-b">
               <tr className="text-left">
-                <th className="px-4 py-3 font-medium">Nombre</th>
+                <th className="px-4 py-3 font-medium">Nombre y contacto</th>
                 <th className="px-4 py-3 font-medium w-28">Alta</th>
                 <th className="px-4 py-3 font-medium w-36">Estado</th>
                 <th className="px-4 py-3 font-medium w-72"></th>
@@ -56,6 +61,9 @@ export default async function TintoreriasPage() {
                     activo={t.activo}
                     createdAt={t.created_at}
                     fechaBaja={t.fecha_baja}
+                    contacto={t.contacto}
+                    email={t.email}
+                    telefono={t.telefono}
                   />
                 ))
               ) : (

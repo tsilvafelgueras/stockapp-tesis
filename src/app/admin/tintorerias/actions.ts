@@ -5,17 +5,35 @@ import { revalidatePath } from 'next/cache'
 
 type ActionResult = { success: true } | { error: string }
 
-export async function createTintoreria(formData: {
+export type TintoreriaInput = {
   nombre: string
-}): Promise<ActionResult> {
+  contacto?: string
+  email?: string
+  telefono?: string
+}
+
+function clean(v: string | undefined | null): string | null {
+  if (v == null) return null
+  const t = v.trim()
+  return t === '' ? null : t
+}
+
+export async function createTintoreria(
+  formData: TintoreriaInput
+): Promise<ActionResult> {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
   if (!nombre) return { error: 'El nombre es obligatorio.' }
 
-  const { error } = await supabase
-    .from('tintorerias')
-    .insert({ nombre, activo: true, fecha_baja: null })
+  const { error } = await supabase.from('tintorerias').insert({
+    nombre,
+    activo: true,
+    fecha_baja: null,
+    contacto: clean(formData.contacto),
+    email: clean(formData.email),
+    telefono: clean(formData.telefono),
+  })
 
   if (error) {
     if (error.code === '23505') {
@@ -30,16 +48,21 @@ export async function createTintoreria(formData: {
 
 export async function editarTintoreria(
   id: string,
-  nuevoNombre: string
+  cambios: TintoreriaInput
 ): Promise<ActionResult> {
   const supabase = await createClient()
 
-  const nombre = nuevoNombre.trim()
+  const nombre = cambios.nombre.trim()
   if (!nombre) return { error: 'El nombre es obligatorio.' }
 
   const { error } = await supabase
     .from('tintorerias')
-    .update({ nombre })
+    .update({
+      nombre,
+      contacto: clean(cambios.contacto),
+      email: clean(cambios.email),
+      telefono: clean(cambios.telefono),
+    })
     .eq('id', id)
 
   if (error) {

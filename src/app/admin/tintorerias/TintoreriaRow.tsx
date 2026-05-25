@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
+import { Mail, Phone, User } from 'lucide-react'
 import {
   darDeBajaTintoreria,
   editarTintoreria,
@@ -17,29 +18,46 @@ export default function TintoreriaRow({
   activo,
   createdAt,
   fechaBaja,
+  contacto,
+  email,
+  telefono,
 }: {
   id: string
   nombre: string
   activo: boolean
   createdAt: string
   fechaBaja: string | null
+  contacto: string | null
+  email: string | null
+  telefono: string | null
 }) {
   const [mode, setMode] = useState<Mode>('view')
-  const [valor, setValor] = useState(nombre)
+  const [nombreVal, setNombreVal] = useState(nombre)
+  const [contactoVal, setContactoVal] = useState(contacto ?? '')
+  const [emailVal, setEmailVal] = useState(email ?? '')
+  const [telefonoVal, setTelefonoVal] = useState(telefono ?? '')
   const [pending, startTransition] = useTransition()
 
+  function resetForm() {
+    setNombreVal(nombre)
+    setContactoVal(contacto ?? '')
+    setEmailVal(email ?? '')
+    setTelefonoVal(telefono ?? '')
+  }
+
   function guardar() {
-    const limpio = valor.trim()
+    const limpio = nombreVal.trim()
     if (!limpio) {
       toast.error('El nombre no puede estar vacío.')
       return
     }
-    if (limpio === nombre) {
-      setMode('view')
-      return
-    }
     startTransition(async () => {
-      const res = await editarTintoreria(id, limpio)
+      const res = await editarTintoreria(id, {
+        nombre: limpio,
+        contacto: contactoVal,
+        email: emailVal,
+        telefono: telefonoVal,
+      })
       if ('error' in res) {
         toast.error(res.error)
         return
@@ -87,44 +105,77 @@ export default function TintoreriaRow({
   if (mode === 'edit') {
     return (
       <tr className="border-b last:border-0 bg-accent/40">
-        <td className="px-4 py-3" colSpan={2}>
-          <input
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                guardar()
-              } else if (e.key === 'Escape') {
-                setValor(nombre)
-                setMode('view')
-              }
-            }}
-            className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
-          />
-        </td>
-        <td className="px-4 py-3 text-right" colSpan={2}>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setValor(nombre)
-                setMode('view')
-              }}
-              disabled={pending}
-              className="rounded-md border px-3 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={guardar}
-              disabled={pending}
-              className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              {pending ? 'Guardando…' : 'Guardar'}
-            </button>
+        <td colSpan={4} className="px-4 py-4">
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Nombre *
+                </label>
+                <input
+                  value={nombreVal}
+                  onChange={(e) => setNombreVal(e.target.value)}
+                  autoFocus
+                  className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Persona de contacto
+                </label>
+                <input
+                  value={contactoVal}
+                  onChange={(e) => setContactoVal(e.target.value)}
+                  placeholder="Ej: Juan Pérez"
+                  className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={emailVal}
+                  onChange={(e) => setEmailVal(e.target.value)}
+                  placeholder="contacto@tintoreria.com"
+                  className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Teléfono
+                </label>
+                <input
+                  type="tel"
+                  value={telefonoVal}
+                  onChange={(e) => setTelefonoVal(e.target.value)}
+                  placeholder="11 4444-5555"
+                  className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm()
+                  setMode('view')
+                }}
+                disabled={pending}
+                className="rounded-md border px-3 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={guardar}
+                disabled={pending}
+                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {pending ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
           </div>
         </td>
       </tr>
@@ -193,9 +244,45 @@ export default function TintoreriaRow({
     )
   }
 
+  const tieneContacto = !!(contacto || email || telefono)
+
   return (
-    <tr className="border-b last:border-0">
-      <td className="px-4 py-3 font-medium">{nombre}</td>
+    <tr className="border-b last:border-0 align-top">
+      <td className="px-4 py-3">
+        <div className="font-medium">{nombre}</div>
+        {tieneContacto && (
+          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            {contacto && (
+              <li className="flex items-center gap-1.5">
+                <User className="size-3 shrink-0" aria-hidden />
+                <span className="truncate">{contacto}</span>
+              </li>
+            )}
+            {email && (
+              <li className="flex items-center gap-1.5">
+                <Mail className="size-3 shrink-0" aria-hidden />
+                <a
+                  href={`mailto:${email}`}
+                  className="truncate hover:text-foreground hover:underline"
+                >
+                  {email}
+                </a>
+              </li>
+            )}
+            {telefono && (
+              <li className="flex items-center gap-1.5">
+                <Phone className="size-3 shrink-0" aria-hidden />
+                <a
+                  href={`tel:${telefono.replace(/\s+/g, '')}`}
+                  className="truncate hover:text-foreground hover:underline"
+                >
+                  {telefono}
+                </a>
+              </li>
+            )}
+          </ul>
+        )}
+      </td>
       <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums">
         {formatFecha(createdAt)}
       </td>
