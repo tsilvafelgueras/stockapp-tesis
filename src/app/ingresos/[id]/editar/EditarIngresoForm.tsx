@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarIngreso } from '@/app/ingresos/nuevo/actions'
+import { normalizarFechaISO } from '@/lib/fechas'
 
 type Catalog = { id: string; nombre: string }
 
@@ -30,7 +31,7 @@ export default function EditarIngresoForm({
   const router = useRouter()
 
   const [tintoreriaId, setTintoreriaId] = useState(ingreso.tintoreria_id ?? '')
-  const [fecha, setFecha] = useState(ingreso.fecha_despacho ?? '')
+  const [fecha, setFecha] = useState(normalizarFechaISO(ingreso.fecha_despacho) ?? '')
   const [numeroRemito, setNumeroRemito] = useState(ingreso.numero_remito ?? '')
   const [ot, setOt] = useState(ingreso.ot ?? '')
   const [remTejeduria, setRemTejeduria] = useState(ingreso.rem_tejeduria ?? '')

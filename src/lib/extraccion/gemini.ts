@@ -3,6 +3,7 @@ import type {
   IngresoExtraido,
   ExtraccionResult,
 } from './extraerPlanilla'
+import { normalizarFechaISO } from '@/lib/fechas'
 
 const MODELO = 'gemini-2.5-flash'
 
@@ -18,6 +19,15 @@ Sos un asistente experto en procesar planillas de remitos de tintorerías textil
 
 Te paso una imagen o PDF de una planilla. Extraé TODOS los datos en formato JSON estructurado, según el schema dado.
 
+REGLA CRÍTICA — FECHA:
+El campo \`fecha\` SIEMPRE debe devolverse como ISO "YYYY-MM-DD" (año-mes-día con guiones, año de 4 dígitos).
+NUNCA usar barras "/" ni puntos. NUNCA copiar el formato original de la planilla.
+En Argentina la planilla viene en DD/MM/YYYY → SIEMPRE convertir antes de devolver.
+Ejemplos obligatorios:
+  · "03/05/2026" → "2026-05-03"
+  · "3/5/26"     → "2026-05-03"
+  · "03-05-26"   → "2026-05-03"
+
 Devolvé el JSON directamente. No agregues explicaciones ni texto adicional fuera del JSON.
 `.trim()
 
@@ -27,7 +37,7 @@ La planilla es un remito de una tintorería textil argentina. Extraé los datos 
 # HEADER (datos del lote/despacho, uno solo)
 
 - numero_remito: número de la planilla. Aparece como "DESPACHO N°", "REMITO N°", "N° DE REMITO" o similar. Suele estar en una esquina, a veces con código de barras al lado.
-- fecha: en ISO 'YYYY-MM-DD'. Si la planilla la trae como 'DD/MM/YY' o 'DD/MM/YYYY', convertí. Si son 2 dígitos del año, asumí 20YY.
+- fecha: OBLIGATORIO formato ISO "YYYY-MM-DD" (año-mes-día, con guiones, 4 dígitos de año). NUNCA devolver con barras "/" ni en otro orden. En Argentina la planilla viene como DD/MM/YYYY (día primero, mes segundo) — SIEMPRE convertir. Año de 2 dígitos = 20YY. Ejemplos: "03/05/26" → "2026-05-03"; "3/5/2026" → "2026-05-03"; "03-05-2026" → "2026-05-03".
 - color: color del lote a nivel header. Si la planilla declara un único color para TODA la planilla (caso típico: aparece en el header como "COLOR" o "PARTIDA EN COLOR"), ponelo acá. Si la planilla NO declara un color global y cada rollo tiene su propio color en una columna, dejá value: null acá y poné el color en cada rollo.
 - ot: número de orden de trabajo de la tintorería ("OT", "O.T.", "ORDEN").
 - rem_tejeduria: remito de tejeduría ("REM. TEJ.", "REM TEJEDURIA"), del proveedor de tela cruda.
@@ -212,6 +222,11 @@ export async function extraerConGemini(
 
   try {
     const parsed = JSON.parse(text) as IngresoExtraido
+    // Blindaje: aunque el prompt pide ISO, a veces Gemini devuelve DD/MM/YYYY
+    // y el <input type="date"> lo rechaza. Normalizamos siempre.
+    if (parsed.fecha) {
+      parsed.fecha.value = normalizarFechaISO(parsed.fecha.value)
+    }
     if (!parsed.rollos || parsed.rollos.length === 0) {
       return {
         ok: false,
