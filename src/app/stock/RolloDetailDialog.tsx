@@ -8,9 +8,9 @@ import {
   moverUbicacion,
   marcarComoSegunda,
   confirmarRolloManual,
-  auditarRollo,
   subirFotoRollo,
   listarFotosRollo,
+  editarRollo,
   FALLA_CATEGORIAS,
   FALLA_CATEGORIA_LABEL,
   type FallaCategoria,
@@ -34,14 +34,16 @@ export default function RolloDetailDialog({
   rollo,
   role,
   onClose,
+  initialMode,
 }: {
   rollo: StockRollo
   role: StockRole
   onClose: () => void
+  initialMode?: 'view' | 'editar'
 }) {
   const [mode, setMode] = useState<
-    'view' | 'mover' | 'baja' | 'segunda' | 'confirmar' | 'auditar'
-  >('view')
+    'view' | 'mover' | 'baja' | 'segunda' | 'confirmar' | 'editar'
+  >(initialMode ?? 'view')
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
   const [pending, startTransition] = useTransition()
@@ -65,15 +67,40 @@ export default function RolloDetailDialog({
   useEffect(() => {
     if (rollo.estado !== 'segunda') return
     let cancelado = false
-    listarFotosRollo(rollo.id).then((res) => {
-      if (cancelado) return
-      if (res.ok) setFotos(res.fotos)
-      setFotosCargando(false)
-    })
+    listarFotosRollo(rollo.id)
+      .then((res) => {
+        if (cancelado) return
+        if (res.ok) setFotos(res.fotos)
+        setFotosCargando(false)
+      })
+      .catch(() => {
+        // Si algo crashea (red, server action fallida), simplemente no
+        // mostramos fotos en lugar de romper la UI del dialog.
+        if (!cancelado) setFotosCargando(false)
+      })
     return () => {
       cancelado = true
     }
   }, [rollo.id, rollo.estado])
+
+  // Formulario de "Editar campos"
+  const [editForm, setEditForm] = useState({
+    numero_pieza: rollo.numero_pieza,
+    ubicacion: rollo.ubicacion ?? '',
+    pantone: rollo.pantone ?? '',
+    kilos: rollo.kilos != null ? String(rollo.kilos) : '',
+    metros: rollo.metros != null ? String(rollo.metros) : '',
+    kilos_propios:
+      rollo.kilos_propios != null ? String(rollo.kilos_propios) : '',
+    metros_propios:
+      rollo.metros_propios != null ? String(rollo.metros_propios) : '',
+    ancho_propio:
+      rollo.ancho_propio != null ? String(rollo.ancho_propio) : '',
+    gramaje_propio:
+      rollo.gramaje_propio != null ? String(rollo.gramaje_propio) : '',
+    gramaje_planilla:
+      rollo.gramaje_planilla != null ? String(rollo.gramaje_planilla) : '',
+  })
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -97,19 +124,26 @@ export default function RolloDetailDialog({
     (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
   const puedeBaja = role === 'admin' && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
   const puedeConfirmar = esOperarioOAdmin && rollo.estado === 'pendiente'
-  const puedeAuditar =
-    esOperarioOAdmin &&
-    ['en_stock', 'reservado', 'segunda'].includes(rollo.estado)
+  const puedeEditar =
+    esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
 
   function handleMover() {
     startTransition(async () => {
-      const res = await moverUbicacion(rollo.id, ubicacion)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
+      try {
+        const res = await moverUbicacion(rollo.id, ubicacion)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(
+          `Pieza ${rollo.numero_pieza} movida a ${ubicacion.trim()}.`
+        )
+        onClose()
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : 'Error inesperado al mover ubicación.'
+        )
       }
-      toast.success(`Pieza ${rollo.numero_pieza} movida a ${ubicacion.trim()}.`)
-      onClose()
     })
   }
 
@@ -119,35 +153,86 @@ export default function RolloDetailDialog({
       return
     }
     startTransition(async () => {
-      // Subimos las fotos primero. Si alguna falla, abortamos antes de
-      // cambiar el estado del rollo para que el operario pueda reintentar.
-      const fotoPaths: string[] = []
-      for (let i = 0; i < fallaArchivos.length; i++) {
-        setSubiendoIdx(i)
-        const fd = new FormData()
-        fd.set('archivo', fallaArchivos[i])
-        fd.set('rollo_id', rollo.id)
-        const res = await subirFotoRollo(fd)
+      try {
+        // Subimos las fotos primero. Si alguna falla, abortamos antes de
+        // cambiar el estado del rollo para que el operario pueda reintentar.
+        const fotoPaths: string[] = []
+        for (let i = 0; i < fallaArchivos.length; i++) {
+          setSubiendoIdx(i)
+          const fd = new FormData()
+          fd.set('archivo', fallaArchivos[i])
+          fd.set('rollo_id', rollo.id)
+          const res = await subirFotoRollo(fd)
+          if (!res.ok) {
+            setSubiendoIdx(null)
+            toast.error(`No se pudo subir la foto ${i + 1}: ${res.error}`)
+            return
+          }
+          fotoPaths.push(res.path)
+        }
+        setSubiendoIdx(null)
+
+        const res = await marcarComoSegunda(rollo.id, {
+          categoria: fallaCategoria,
+          descripcion: fallaDescripcion,
+          fotoPaths,
+        })
         if (!res.ok) {
-          setSubiendoIdx(null)
-          toast.error(`No se pudo subir la foto ${i + 1}: ${res.error}`)
+          toast.error(res.error)
           return
         }
-        fotoPaths.push(res.path)
+        toast.success(
+          `Pieza ${rollo.numero_pieza} marcada como segunda calidad.`
+        )
+        onClose()
+      } catch (e) {
+        setSubiendoIdx(null)
+        toast.error(
+          e instanceof Error
+            ? e.message
+            : 'Error inesperado al marcar como segunda.'
+        )
       }
-      setSubiendoIdx(null)
+    })
+  }
 
-      const res = await marcarComoSegunda(rollo.id, {
-        categoria: fallaCategoria,
-        descripcion: fallaDescripcion,
-        fotoPaths,
-      })
-      if (!res.ok) {
-        toast.error(res.error)
-        return
+  function parseNumOpt(s: string): number | null {
+    const t = s.trim()
+    if (t === '') return null
+    const n = Number(t)
+    return Number.isFinite(n) ? n : null
+  }
+
+  function handleEditarGuardar() {
+    if (!editForm.numero_pieza.trim()) {
+      toast.error('El número de pieza no puede estar vacío.')
+      return
+    }
+    startTransition(async () => {
+      try {
+        const res = await editarRollo(rollo.id, {
+          numero_pieza: editForm.numero_pieza,
+          ubicacion: editForm.ubicacion,
+          pantone: editForm.pantone,
+          kilos: parseNumOpt(editForm.kilos),
+          metros: parseNumOpt(editForm.metros),
+          kilos_propios: parseNumOpt(editForm.kilos_propios),
+          metros_propios: parseNumOpt(editForm.metros_propios),
+          ancho_propio: parseNumOpt(editForm.ancho_propio),
+          gramaje_propio: parseNumOpt(editForm.gramaje_propio),
+          gramaje_planilla: parseNumOpt(editForm.gramaje_planilla),
+        })
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success('Cambios guardados.')
+        onClose()
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : 'Error inesperado al guardar cambios.'
+        )
       }
-      toast.success(`Pieza ${rollo.numero_pieza} marcada como segunda calidad.`)
-      onClose()
     })
   }
 
@@ -166,39 +251,39 @@ export default function RolloDetailDialog({
 
   function handleBaja() {
     startTransition(async () => {
-      const res = await darDeBajaRollo(rollo.id)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
+      try {
+        const res = await darDeBajaRollo(rollo.id)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(`Pieza ${rollo.numero_pieza} dada de baja.`)
+        onClose()
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : 'Error inesperado al dar de baja.'
+        )
       }
-      toast.success(`Pieza ${rollo.numero_pieza} dada de baja.`)
-      onClose()
     })
   }
 
   function handleConfirmar() {
     startTransition(async () => {
-      const res = await confirmarRolloManual(rollo.id, confirmUbicacion)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
+      try {
+        const res = await confirmarRolloManual(rollo.id, confirmUbicacion)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(
+          `Pieza ${rollo.numero_pieza} confirmada en ${confirmUbicacion.trim()}.`
+        )
+        onClose()
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : 'Error inesperado al confirmar.'
+        )
       }
-      toast.success(
-        `Pieza ${rollo.numero_pieza} confirmada en ${confirmUbicacion.trim()}.`
-      )
-      onClose()
-    })
-  }
-
-  function handleAuditar() {
-    startTransition(async () => {
-      const res = await auditarRollo(rollo.id)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
-      }
-      toast.success(`Auditoría registrada para la pieza ${rollo.numero_pieza}.`)
-      onClose()
     })
   }
 
@@ -263,44 +348,51 @@ export default function RolloDetailDialog({
 
           {/* Metadata */}
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
+            {/* Estado siempre presente; el resto solo se muestra si tiene valor */}
             <Field
               label="Estado"
               value={ESTADO_TEXT[rollo.estado] ?? rollo.estado}
             />
-            <Field label="Ubicación" value={rollo.ubicacion ?? '—'} />
-            <Field label="Pantone" value={rollo.pantone ?? '—'} />
-            <Field label="Kilos" value={fmt(rollo.kilos, 'kg')} />
-            <Field label="Metros" value={fmt(rollo.metros, 'm')} />
-            <Field
+            <FieldIf label="Ubicación" value={rollo.ubicacion} />
+            <FieldIf label="Pantone" value={rollo.pantone} />
+            <FieldIf label="Kilos" value={fmtN(rollo.kilos, 'kg')} />
+            <FieldIf label="Metros" value={fmtN(rollo.metros, 'm')} />
+            <FieldIf
               label="Gramaje (planilla)"
-              value={fmt(rollo.gramaje_planilla)}
+              value={fmtN(rollo.gramaje_planilla)}
             />
-            <Field label="Kilos propios" value={fmt(rollo.kilos_propios, 'kg')} />
-            <Field
+            <FieldIf
+              label="Kilos propios"
+              value={fmtN(rollo.kilos_propios, 'kg')}
+            />
+            <FieldIf
               label="Metros propios"
-              value={fmt(rollo.metros_propios, 'm')}
+              value={fmtN(rollo.metros_propios, 'm')}
             />
-            <Field
-              label="Ancho propio"
-              value={fmt(rollo.ancho_propio, 'cm')}
-            />
-            <Field label="Gramaje propio" value={fmt(rollo.gramaje_propio)} />
+            <FieldIf label="Ancho propio" value={fmtN(rollo.ancho_propio, 'cm')} />
+            <FieldIf label="Gramaje propio" value={fmtN(rollo.gramaje_propio)} />
           </dl>
 
           <div className="rounded-md bg-zinc-50 border p-3 text-xs space-y-1">
             <p className="font-medium text-foreground">Origen</p>
-            <p>
-              <span className="text-muted-foreground">Tintorería: </span>
-              {rollo.ingresos?.tintorerias?.nombre ?? '—'}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Fecha despacho: </span>
-              {rollo.ingresos?.fecha_despacho ?? '—'}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Remito: </span>
-              {rollo.ingresos?.numero_remito ?? '—'}
-            </p>
+            {rollo.ingresos?.tintorerias?.nombre && (
+              <p>
+                <span className="text-muted-foreground">Tintorería: </span>
+                {rollo.ingresos.tintorerias.nombre}
+              </p>
+            )}
+            {rollo.ingresos?.fecha_despacho && (
+              <p>
+                <span className="text-muted-foreground">Fecha despacho: </span>
+                {rollo.ingresos.fecha_despacho}
+              </p>
+            )}
+            {rollo.ingresos?.numero_remito && (
+              <p>
+                <span className="text-muted-foreground">Remito: </span>
+                {rollo.ingresos.numero_remito}
+              </p>
+            )}
             {rollo.ingresos?.ot && (
               <p>
                 <span className="text-muted-foreground">OT: </span>
@@ -317,12 +409,6 @@ export default function RolloDetailDialog({
               <p>
                 <span className="text-muted-foreground">Rem. tejeduría: </span>
                 {rollo.ingresos.rem_tejeduria}
-              </p>
-            )}
-            {rollo.auditado_at && (
-              <p>
-                <span className="text-muted-foreground">Última auditoría: </span>
-                {formatFecha(rollo.auditado_at)}
               </p>
             )}
           </div>
@@ -390,10 +476,10 @@ export default function RolloDetailDialog({
           {/* Acciones */}
           {mode === 'view' &&
             (puedeConfirmar ||
-              puedeAuditar ||
               puedeMover ||
               puedeSegunda ||
-              puedeBaja) && (
+              puedeBaja ||
+              puedeEditar) && (
               <div className="flex flex-wrap gap-2 pt-2 border-t">
                 {puedeConfirmar && (
                   <button
@@ -404,13 +490,13 @@ export default function RolloDetailDialog({
                     Confirmar manualmente
                   </button>
                 )}
-                {puedeAuditar && (
+                {puedeEditar && (
                   <button
                     type="button"
-                    onClick={() => setMode('auditar')}
-                    className="rounded-md border border-primary/40 text-primary px-4 py-2 text-sm font-medium hover:bg-primary/5 transition-colors"
+                    onClick={() => setMode('editar')}
+                    className="rounded-md border border-input bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 transition-colors"
                   >
-                    Auditar
+                    Editar campos
                   </button>
                 )}
                 {puedeMover && (
@@ -442,6 +528,128 @@ export default function RolloDetailDialog({
                 )}
               </div>
             )}
+
+          {mode === 'editar' && (
+            <div className="space-y-3 pt-2 border-t">
+              <p className="text-sm">
+                Editar los campos de la pieza{' '}
+                <strong>{rollo.numero_pieza}</strong>. Dejá vacío lo que no
+                aplique.
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <EditField
+                  label="N° de pieza"
+                  value={editForm.numero_pieza}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, numero_pieza: v }))
+                  }
+                  required
+                />
+                <EditField
+                  label="Ubicación"
+                  value={editForm.ubicacion}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, ubicacion: v }))
+                  }
+                  list="ubicaciones-dialog-list"
+                />
+                <EditField
+                  label="Pantone"
+                  value={editForm.pantone}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, pantone: v }))
+                  }
+                />
+                <EditField
+                  label="Kilos"
+                  value={editForm.kilos}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, kilos: v }))
+                  }
+                  type="number"
+                />
+                <EditField
+                  label="Metros"
+                  value={editForm.metros}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, metros: v }))
+                  }
+                  type="number"
+                />
+                <EditField
+                  label="Gramaje (planilla)"
+                  value={editForm.gramaje_planilla}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, gramaje_planilla: v }))
+                  }
+                  type="number"
+                />
+                <EditField
+                  label="Kilos propios"
+                  value={editForm.kilos_propios}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, kilos_propios: v }))
+                  }
+                  type="number"
+                />
+                <EditField
+                  label="Metros propios"
+                  value={editForm.metros_propios}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, metros_propios: v }))
+                  }
+                  type="number"
+                />
+                <EditField
+                  label="Ancho propio"
+                  value={editForm.ancho_propio}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, ancho_propio: v }))
+                  }
+                  type="number"
+                />
+                <EditField
+                  label="Gramaje propio"
+                  value={editForm.gramaje_propio}
+                  onChange={(v) =>
+                    setEditForm((prev) => ({ ...prev, gramaje_propio: v }))
+                  }
+                  type="number"
+                />
+              </div>
+
+              <datalist id="ubicaciones-dialog-list">
+                {UBICACIONES.map((u) => (
+                  <option key={u} value={u} />
+                ))}
+              </datalist>
+
+              <p className="text-xs text-muted-foreground">
+                Para cambiar el estado del rollo usá las acciones específicas
+                (Mover, Marcar como segunda, Dar de baja).
+              </p>
+
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditarGuardar}
+                  disabled={pending || !editForm.numero_pieza.trim()}
+                  className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {pending ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {mode === 'confirmar' && (
             <div className="space-y-2 pt-2 border-t">
@@ -487,37 +695,6 @@ export default function RolloDetailDialog({
                   className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
                   {pending ? 'Confirmando…' : 'Confirmar y pasar a stock'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {mode === 'auditar' && (
-            <div className="space-y-2 pt-2 border-t">
-              <p className="text-sm">
-                Registrar auditoría de la pieza{' '}
-                <strong>{rollo.numero_pieza}</strong>.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Esto no cambia el estado del rollo, pero deja registro de quién
-                lo verificó físicamente y cuándo.
-              </p>
-              <div className="flex gap-2 justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={() => setMode('view')}
-                  disabled={pending}
-                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAuditar}
-                  disabled={pending}
-                  className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
-                >
-                  {pending ? 'Registrando…' : 'Confirmar auditoría'}
                 </button>
               </div>
             </div>
@@ -757,6 +934,40 @@ export default function RolloDetailDialog({
   )
 }
 
+function EditField({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required = false,
+  list,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  type?: 'text' | 'number'
+  required?: boolean
+  list?: string
+}) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">
+        {label}
+        {required && <span className="text-destructive"> *</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        list={list}
+        step={type === 'number' ? '0.01' : undefined}
+        inputMode={type === 'number' ? 'decimal' : undefined}
+        className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
+      />
+    </div>
+  )
+}
+
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
@@ -766,23 +977,27 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-function fmt(v: number | null, suffix?: string): string {
-  if (v == null) return '—'
+// Renderiza el campo solo si el valor existe y no es vacío. Mantiene el grid
+// libre de huecos con "—".
+function FieldIf({
+  label,
+  value,
+}: {
+  label: string
+  value: string | null | undefined
+}) {
+  if (value == null || value === '') return null
+  return <Field label={label} value={value} />
+}
+
+// fmtN devuelve null si no hay valor (en lugar de "—"), para integrarse con
+// FieldIf y que el campo se oculte automáticamente.
+function fmtN(v: number | null, suffix?: string): string | null {
+  if (v == null) return null
   const num = Number(v)
-  if (Number.isNaN(num)) return '—'
+  if (Number.isNaN(num)) return null
   return `${num.toLocaleString('es-AR', {
     maximumFractionDigits: 2,
   })}${suffix ? ' ' + suffix : ''}`
 }
 
-function formatFecha(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}

@@ -220,55 +220,121 @@ export async function confirmarRolloManual(
   return { ok: true }
 }
 
-export async function auditarRollo(
-  rolloId: string
+export type EditarRolloInput = {
+  numero_pieza?: string
+  ubicacion?: string | null
+  pantone?: string | null
+  kilos?: number | null
+  metros?: number | null
+  kilos_propios?: number | null
+  metros_propios?: number | null
+  ancho_propio?: number | null
+  gramaje_propio?: number | null
+  gramaje_planilla?: number | null
+}
+
+function cleanText(v: string | null | undefined): string | null {
+  if (v == null) return null
+  const t = v.trim()
+  return t === '' ? null : t
+}
+
+function cleanNumber(v: number | null | undefined): number | null {
+  if (v == null) return null
+  if (typeof v !== 'number' || Number.isNaN(v)) return null
+  return v
+}
+
+export async function editarRollo(
+  rolloId: string,
+  cambios: EditarRolloInput
 ): Promise<StockActionResult> {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-  if (profile?.role !== 'operario' && profile?.role !== 'admin') {
-    return { ok: false, error: 'Solo el operario o el administrador pueden auditar rollos.' }
-  }
+    if (profile?.role !== 'operario' && profile?.role !== 'admin') {
+      return {
+        ok: false,
+        error: 'Solo el operario o el administrador pueden editar rollos.',
+      }
+    }
 
-  const { data: rollo, error: fetchError } = await supabase
-    .from('rollos')
-    .select('id, estado')
-    .eq('id', rolloId)
-    .single()
+    const { data: rollo, error: fetchError } = await supabase
+      .from('rollos')
+      .select('id, estado')
+      .eq('id', rolloId)
+      .single()
 
-  if (fetchError || !rollo) {
-    return { ok: false, error: 'No se encontró el rollo.' }
-  }
-  if (!['en_stock', 'reservado', 'segunda'].includes(rollo.estado)) {
+    if (fetchError || !rollo) {
+      return { ok: false, error: 'No se encontró el rollo.' }
+    }
+    if (rollo.estado === 'baja' || rollo.estado === 'entregado') {
+      return {
+        ok: false,
+        error: 'No se puede editar un rollo dado de baja o ya entregado.',
+      }
+    }
+
+    if (cambios.numero_pieza !== undefined) {
+      const np = cambios.numero_pieza.trim()
+      if (!np) return { ok: false, error: 'El número de pieza no puede estar vacío.' }
+      if (np.length > 50) {
+        return { ok: false, error: 'El número de pieza es demasiado largo (máx. 50).' }
+      }
+    }
+
+    const update: Record<string, unknown> = {}
+    if (cambios.numero_pieza !== undefined) {
+      update.numero_pieza = cambios.numero_pieza.trim()
+    }
+    if (cambios.ubicacion !== undefined) update.ubicacion = cleanText(cambios.ubicacion)
+    if (cambios.pantone !== undefined) update.pantone = cleanText(cambios.pantone)
+    if (cambios.kilos !== undefined) update.kilos = cleanNumber(cambios.kilos)
+    if (cambios.metros !== undefined) update.metros = cleanNumber(cambios.metros)
+    if (cambios.kilos_propios !== undefined) update.kilos_propios = cleanNumber(cambios.kilos_propios)
+    if (cambios.metros_propios !== undefined) update.metros_propios = cleanNumber(cambios.metros_propios)
+    if (cambios.ancho_propio !== undefined) update.ancho_propio = cleanNumber(cambios.ancho_propio)
+    if (cambios.gramaje_propio !== undefined) update.gramaje_propio = cleanNumber(cambios.gramaje_propio)
+    if (cambios.gramaje_planilla !== undefined) update.gramaje_planilla = cleanNumber(cambios.gramaje_planilla)
+
+    if (Object.keys(update).length === 0) {
+      return { ok: true }
+    }
+
+    const { error } = await supabase
+      .from('rollos')
+      .update(update)
+      .eq('id', rolloId)
+
+    if (error) {
+      if (error.code === '23505') {
+        return {
+          ok: false,
+          error: 'Ya existe un rollo con ese número de pieza en este ingreso.',
+        }
+      }
+      return { ok: false, error: error.message }
+    }
+
+    revalidatePath('/stock')
+    return { ok: true }
+  } catch (e) {
     return {
       ok: false,
-      error:
-        'Solo se puede auditar un rollo en stock, reservado o marcado como segunda.',
+      error: e instanceof Error ? e.message : 'Error inesperado al editar el rollo.',
     }
   }
-
-  const { error } = await supabase
-    .from('rollos')
-    .update({
-      auditado_at: new Date().toISOString(),
-      auditado_por: user.id,
-    })
-    .eq('id', rolloId)
-
-  if (error) return { ok: false, error: error.message }
-
-  revalidatePath('/stock')
-  return { ok: true }
 }
 
 export type MarcarSegundaParams = {
@@ -281,146 +347,193 @@ export async function marcarComoSegunda(
   rolloId: string,
   params: MarcarSegundaParams
 ): Promise<StockActionResult> {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, empresa_id')
-    .eq('id', user.id)
-    .single()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, empresa_id')
+      .eq('id', user.id)
+      .single()
 
-  if (profile?.role !== 'operario' && profile?.role !== 'admin') {
-    return { ok: false, error: 'Solo el operario o el administrador pueden marcar rollos.' }
-  }
-
-  if (!params || !FALLA_CATEGORIAS.includes(params.categoria)) {
-    return {
-      ok: false,
-      error: 'Elegí una categoría de falla para marcar como segunda.',
-    }
-  }
-
-  const descripcion = params.descripcion?.trim() || null
-  const fotoPaths = (params.fotoPaths ?? []).filter((p) => p && p.trim() !== '')
-
-  const { data: rollo, error: fetchError } = await supabase
-    .from('rollos')
-    .select('id, estado')
-    .eq('id', rolloId)
-    .single()
-
-  if (fetchError || !rollo) {
-    return { ok: false, error: 'No se encontró el rollo.' }
-  }
-  if (!['pendiente', 'en_stock'].includes(rollo.estado)) {
-    return {
-      ok: false,
-      error: 'Solo se puede marcar como segunda un rollo pendiente o en stock.',
-    }
-  }
-
-  const { error } = await supabase
-    .from('rollos')
-    .update({
-      estado: 'segunda',
-      falla_categoria: params.categoria,
-      falla_descripcion: descripcion,
-    })
-    .eq('id', rolloId)
-
-  if (error) return { ok: false, error: error.message }
-
-  if (fotoPaths.length > 0) {
-    const rows = fotoPaths.map((path) => ({
-      rollo_id: rolloId,
-      path,
-      tipo: 'falla' as const,
-      created_by: user.id,
-    }))
-    const { error: insertError } = await supabase
-      .from('rollo_fotos')
-      .insert(rows)
-    if (insertError) {
-      // Intencionalmente no revertimos el cambio de estado: el rollo ya está
-      // como segunda con categoría. Las fotos pueden volver a subirse después.
+    if (profile?.role !== 'operario' && profile?.role !== 'admin') {
       return {
         ok: false,
-        error: `Rollo marcado como segunda, pero falló el guardado de fotos: ${insertError.message}`,
+        error: 'Solo el operario o el administrador pueden marcar rollos.',
       }
     }
-  }
 
-  revalidatePath('/stock')
-  return { ok: true }
+    if (!params || !FALLA_CATEGORIAS.includes(params.categoria)) {
+      return {
+        ok: false,
+        error: 'Elegí una categoría de falla para marcar como segunda.',
+      }
+    }
+
+    const descripcion = params.descripcion?.trim() || null
+    const fotoPaths = (params.fotoPaths ?? []).filter(
+      (p) => p && p.trim() !== ''
+    )
+
+    const { data: rollo, error: fetchError } = await supabase
+      .from('rollos')
+      .select('id, estado')
+      .eq('id', rolloId)
+      .single()
+
+    if (fetchError || !rollo) {
+      return { ok: false, error: 'No se encontró el rollo.' }
+    }
+    if (!['pendiente', 'en_stock'].includes(rollo.estado)) {
+      return {
+        ok: false,
+        error:
+          'Solo se puede marcar como segunda un rollo pendiente o en stock.',
+      }
+    }
+
+    const { error } = await supabase
+      .from('rollos')
+      .update({
+        estado: 'segunda',
+        falla_categoria: params.categoria,
+        falla_descripcion: descripcion,
+      })
+      .eq('id', rolloId)
+
+    if (error) return { ok: false, error: friendlyMarcarSegundaError(error) }
+
+    if (fotoPaths.length > 0) {
+      const rows = fotoPaths.map((path) => ({
+        rollo_id: rolloId,
+        path,
+        tipo: 'falla' as const,
+        created_by: user.id,
+      }))
+      const { error: insertError } = await supabase
+        .from('rollo_fotos')
+        .insert(rows)
+      if (insertError) {
+        // Intencionalmente no revertimos el cambio de estado: el rollo ya está
+        // como segunda con categoría. Las fotos pueden volver a subirse después.
+        return {
+          ok: false,
+          error: `Rollo marcado como segunda, pero falló el guardado de fotos: ${insertError.message}`,
+        }
+      }
+    }
+
+    revalidatePath('/stock')
+    return { ok: true }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error inesperado al marcar como segunda.',
+    }
+  }
+}
+
+// Traduce errores típicos de PostgREST a algo accionable. El más probable hoy
+// es que la migración 029 no se haya aplicado y las columnas/tabla nuevas
+// no existan todavía.
+function friendlyMarcarSegundaError(error: { message: string; code?: string }) {
+  const msg = error.message ?? ''
+  const code = error.code ?? ''
+  if (
+    code === '42703' ||
+    /column .*(falla_categoria|falla_descripcion).* does not exist/i.test(msg)
+  ) {
+    return 'Faltan columnas en la base de datos. Aplicá la migración 029_segunda_calidad_detalle.sql.'
+  }
+  if (
+    code === '42P01' ||
+    /relation .*rollo_fotos.* does not exist/i.test(msg)
+  ) {
+    return 'Falta la tabla rollo_fotos. Aplicá la migración 029_segunda_calidad_detalle.sql.'
+  }
+  if (code === '23514' || /violates check constraint/i.test(msg)) {
+    return 'La categoría de falla no es válida. Volvé a elegir una opción del menú.'
+  }
+  return msg || 'Error desconocido al marcar como segunda.'
 }
 
 export async function subirFotoRollo(
   formData: FormData
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, empresa_id')
-    .eq('id', user.id)
-    .single()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, empresa_id')
+      .eq('id', user.id)
+      .single()
 
-  if (
-    !profile?.empresa_id ||
-    (profile.role !== 'operario' && profile.role !== 'admin')
-  ) {
+    if (
+      !profile?.empresa_id ||
+      (profile.role !== 'operario' && profile.role !== 'admin')
+    ) {
+      return {
+        ok: false,
+        error: 'Solo operario o admin pueden subir fotos de rollos.',
+      }
+    }
+
+    const file = formData.get('archivo')
+    const rolloId = formData.get('rollo_id')
+
+    if (!(file instanceof File)) {
+      return { ok: false, error: 'Falta el archivo de la foto.' }
+    }
+    if (typeof rolloId !== 'string' || !rolloId) {
+      return { ok: false, error: 'Falta el id del rollo.' }
+    }
+    if (!MIME_TYPES_ACEPTADOS.split(',').includes(file.type)) {
+      return {
+        ok: false,
+        error: 'Formato no soportado. Aceptamos JPG, PNG, WebP o HEIC.',
+      }
+    }
+    // Límite suave: 10 MB por foto
+    if (file.size > 10 * 1024 * 1024) {
+      return {
+        ok: false,
+        error: 'La foto pesa más de 10 MB. Comprimila e intentá de nuevo.',
+      }
+    }
+
+    // RLS filtra por empresa: si el rollo no aparece es porque no pertenece a
+    // esta empresa.
+    const { data: rollo, error: rolloError } = await supabase
+      .from('rollos')
+      .select('id')
+      .eq('id', rolloId)
+      .single()
+    if (rolloError || !rollo) {
+      return { ok: false, error: 'No se encontró el rollo.' }
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const upload = await subirPlanilla(buffer, file.type, profile.empresa_id)
+    if (!upload.ok) return { ok: false, error: upload.error }
+
+    return { ok: true, path: upload.path }
+  } catch (e) {
     return {
       ok: false,
-      error: 'Solo operario o admin pueden subir fotos de rollos.',
+      error: e instanceof Error ? e.message : 'Error inesperado subiendo la foto.',
     }
   }
-
-  const file = formData.get('archivo')
-  const rolloId = formData.get('rollo_id')
-
-  if (!(file instanceof File)) {
-    return { ok: false, error: 'Falta el archivo de la foto.' }
-  }
-  if (typeof rolloId !== 'string' || !rolloId) {
-    return { ok: false, error: 'Falta el id del rollo.' }
-  }
-  if (!MIME_TYPES_ACEPTADOS.split(',').includes(file.type)) {
-    return {
-      ok: false,
-      error: 'Formato no soportado. Aceptamos JPG, PNG, WebP o HEIC.',
-    }
-  }
-  // Límite suave: 10 MB por foto
-  if (file.size > 10 * 1024 * 1024) {
-    return { ok: false, error: 'La foto pesa más de 10 MB. Comprimila e intentá de nuevo.' }
-  }
-
-  // RLS filtra por empresa: si el rollo no aparece es porque no pertenece a
-  // esta empresa.
-  const { data: rollo, error: rolloError } = await supabase
-    .from('rollos')
-    .select('id')
-    .eq('id', rolloId)
-    .single()
-  if (rolloError || !rollo) {
-    return { ok: false, error: 'No se encontró el rollo.' }
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const upload = await subirPlanilla(buffer, file.type, profile.empresa_id)
-  if (!upload.ok) return { ok: false, error: upload.error }
-
-  return { ok: true, path: upload.path }
 }
 
 export type RolloFotoConUrl = {
@@ -434,35 +547,55 @@ export type RolloFotoConUrl = {
 
 export async function listarFotosRollo(
   rolloId: string
-): Promise<{ ok: true; fotos: RolloFotoConUrl[] } | { ok: false; error: string }> {
-  const supabase = await createClient()
+): Promise<
+  { ok: true; fotos: RolloFotoConUrl[] } | { ok: false; error: string }
+> {
+  try {
+    const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
 
-  const { data: fotos, error } = await supabase
-    .from('rollo_fotos')
-    .select('id, path, descripcion, tipo, created_at')
-    .eq('rollo_id', rolloId)
-    .order('created_at', { ascending: true })
+    const { data: fotos, error } = await supabase
+      .from('rollo_fotos')
+      .select('id, path, descripcion, tipo, created_at')
+      .eq('rollo_id', rolloId)
+      .order('created_at', { ascending: true })
 
-  if (error) return { ok: false, error: error.message }
-
-  const conUrl: RolloFotoConUrl[] = await Promise.all(
-    (fotos ?? []).map(async (f) => {
-      const res = await getSignedUrl(f.path)
-      return {
-        id: f.id,
-        path: f.path,
-        descripcion: f.descripcion,
-        tipo: f.tipo as 'falla' | 'general',
-        created_at: f.created_at,
-        signedUrl: res.ok ? res.url : null,
+    if (error) {
+      // Si la tabla no existe (migración 029 sin aplicar), devolvemos lista
+      // vacía para no romper la UI del dialog. El usuario ve el rollo sin
+      // fotos en lugar de un error fatal.
+      if (
+        error.code === '42P01' ||
+        /relation .*rollo_fotos.* does not exist/i.test(error.message ?? '')
+      ) {
+        return { ok: true, fotos: [] }
       }
-    })
-  )
+      return { ok: false, error: error.message }
+    }
 
-  return { ok: true, fotos: conUrl }
+    const conUrl: RolloFotoConUrl[] = await Promise.all(
+      (fotos ?? []).map(async (f) => {
+        const res = await getSignedUrl(f.path)
+        return {
+          id: f.id,
+          path: f.path,
+          descripcion: f.descripcion,
+          tipo: f.tipo as 'falla' | 'general',
+          created_at: f.created_at,
+          signedUrl: res.ok ? res.url : null,
+        }
+      })
+    )
+
+    return { ok: true, fotos: conUrl }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error inesperado al listar fotos.',
+    }
+  }
 }

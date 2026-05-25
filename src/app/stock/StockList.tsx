@@ -54,6 +54,15 @@ export default function StockList({
   role: StockRole
 }) {
   const [selected, setSelected] = useState<StockRollo | null>(null)
+  const [selectedIntent, setSelectedIntent] = useState<'view' | 'editar'>(
+    'view'
+  )
+  const puedeEditarRollos = role === 'operario' || role === 'admin'
+
+  function abrir(r: StockRollo, intent: 'view' | 'editar' = 'view') {
+    setSelectedIntent(intent)
+    setSelected(r)
+  }
 
   if (rollos.length === 0) {
     return (
@@ -70,11 +79,18 @@ export default function StockList({
           const estado = ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
           const dias = diasEnInventario(r.created_at)
           return (
-            <button
+            <div
               key={r.id}
-              type="button"
-              onClick={() => setSelected(r)}
-              className="block w-full rounded-lg border bg-white p-4 text-left shadow-sm active:scale-[0.99]"
+              role="button"
+              tabIndex={0}
+              onClick={() => abrir(r, 'view')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  abrir(r, 'view')
+                }
+              }}
+              className="block w-full cursor-pointer rounded-lg border bg-white p-4 text-left shadow-sm active:scale-[0.99]"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -113,14 +129,28 @@ export default function StockList({
                   {dias === 1 ? 'día' : 'días'} en inventario
                 </span>
               </div>
-              {r.estado === 'segunda' && (
-                <div className="mt-3 flex justify-end">
-                  <span className="inline-flex items-center gap-1 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                    Ver detalle de falla
-                  </span>
+              {(puedeEditarRollos || r.estado === 'segunda') && (
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  {puedeEditarRollos && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        abrir(r, 'editar')
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-3 py-1 text-xs font-medium hover:bg-zinc-50"
+                    >
+                      Editar
+                    </button>
+                  )}
+                  {r.estado === 'segunda' && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                      Ver detalle de falla
+                    </span>
+                  )}
                 </div>
               )}
-            </button>
+            </div>
           )
         })}
       </div>
@@ -153,7 +183,7 @@ export default function StockList({
                 return (
                   <tr
                     key={r.id}
-                    onClick={() => setSelected(r)}
+                    onClick={() => abrir(r, 'view')}
                     className="cursor-pointer border-b odd:bg-white even:bg-background/70 last:border-0 hover:bg-accent/55"
                   >
                     <td className="px-3 py-3">
@@ -189,18 +219,32 @@ export default function StockList({
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right">
-                      {esSegunda && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelected(r)
-                          }}
-                          className="rounded-md border border-amber-400/40 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50"
-                        >
-                          Detalle
-                        </button>
-                      )}
+                      <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                        {puedeEditarRollos && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              abrir(r, 'editar')
+                            }}
+                            className="whitespace-nowrap rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium hover:bg-zinc-50"
+                          >
+                            Editar
+                          </button>
+                        )}
+                        {esSegunda && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              abrir(r, 'view')
+                            }}
+                            className="whitespace-nowrap rounded-md border border-amber-400/40 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                          >
+                            Detalle
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -212,9 +256,10 @@ export default function StockList({
 
       {selected && (
         <RolloDetailDialog
-          key={selected.id}
+          key={`${selected.id}-${selectedIntent}`}
           rollo={selected}
           role={role}
+          initialMode={selectedIntent}
           onClose={() => setSelected(null)}
         />
       )}
