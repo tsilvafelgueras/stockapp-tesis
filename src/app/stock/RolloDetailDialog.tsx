@@ -13,7 +13,9 @@ import {
   editarRollo,
   FALLA_CATEGORIAS,
   FALLA_CATEGORIA_LABEL,
+  ESTADOS_EDITABLES,
   type FallaCategoria,
+  type EstadoEditable,
   type RolloFotoConUrl,
 } from './actions'
 import { UBICACIONES } from '@/lib/ubicaciones'
@@ -83,7 +85,13 @@ export default function RolloDetailDialog({
     }
   }, [rollo.id, rollo.estado])
 
-  // Formulario de "Editar campos"
+  // Formulario de "Editar campos". El estado solo es editable si el rollo
+  // está en un estado "manejable" (no reservado/entregado/baja — esos los
+  // bloquea el server). Para los que sí, el dropdown ofrece las
+  // transiciones disponibles definidas en ESTADOS_EDITABLES.
+  const estadoActualEsEditable = (
+    ESTADOS_EDITABLES as readonly string[]
+  ).includes(rollo.estado)
   const [editForm, setEditForm] = useState({
     numero_pieza: rollo.numero_pieza,
     ubicacion: rollo.ubicacion ?? '',
@@ -100,6 +108,9 @@ export default function RolloDetailDialog({
       rollo.gramaje_propio != null ? String(rollo.gramaje_propio) : '',
     gramaje_planilla:
       rollo.gramaje_planilla != null ? String(rollo.gramaje_planilla) : '',
+    estado: estadoActualEsEditable
+      ? (rollo.estado as EstadoEditable)
+      : ('en_stock' as EstadoEditable),
   })
 
   useEffect(() => {
@@ -140,8 +151,11 @@ export default function RolloDetailDialog({
         )
         onClose()
       } catch (e) {
+        console.error('[handleMover] error inesperado', e)
         toast.error(
-          e instanceof Error ? e.message : 'Error inesperado al mover ubicación.'
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al mover ubicación. Mirá la consola.'
         )
       }
     })
@@ -187,10 +201,14 @@ export default function RolloDetailDialog({
         onClose()
       } catch (e) {
         setSubiendoIdx(null)
+        // Log al console para diagnóstico: el toast a veces se corta y el
+        // stack trace ayuda a identificar si el problema vino del frontend,
+        // de Next.js o del server action.
+        console.error('[marcarComoSegunda] error inesperado', e)
         toast.error(
           e instanceof Error
-            ? e.message
-            : 'Error inesperado al marcar como segunda.'
+            ? `Error: ${e.message}`
+            : 'Error inesperado al marcar como segunda. Mirá la consola del navegador.'
         )
       }
     })
@@ -221,6 +239,10 @@ export default function RolloDetailDialog({
           ancho_propio: parseNumOpt(editForm.ancho_propio),
           gramaje_propio: parseNumOpt(editForm.gramaje_propio),
           gramaje_planilla: parseNumOpt(editForm.gramaje_planilla),
+          // Solo enviamos estado si el rollo arrancó en un estado editable.
+          // Si arrancó en 'reservado' por ejemplo, el server lo rechaza
+          // antes y no queremos darle motivos.
+          ...(estadoActualEsEditable ? { estado: editForm.estado } : {}),
         })
         if (!res.ok) {
           toast.error(res.error)
@@ -229,8 +251,11 @@ export default function RolloDetailDialog({
         toast.success('Cambios guardados.')
         onClose()
       } catch (e) {
+        console.error('[handleEditarGuardar] error inesperado', e)
         toast.error(
-          e instanceof Error ? e.message : 'Error inesperado al guardar cambios.'
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al guardar cambios. Mirá la consola.'
         )
       }
     })
@@ -260,8 +285,11 @@ export default function RolloDetailDialog({
         toast.success(`Pieza ${rollo.numero_pieza} dada de baja.`)
         onClose()
       } catch (e) {
+        console.error('[handleBaja] error inesperado', e)
         toast.error(
-          e instanceof Error ? e.message : 'Error inesperado al dar de baja.'
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al dar de baja. Mirá la consola.'
         )
       }
     })
@@ -280,8 +308,11 @@ export default function RolloDetailDialog({
         )
         onClose()
       } catch (e) {
+        console.error('[handleConfirmar] error inesperado', e)
         toast.error(
-          e instanceof Error ? e.message : 'Error inesperado al confirmar.'
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al confirmar. Mirá la consola.'
         )
       }
     })
@@ -546,6 +577,35 @@ export default function RolloDetailDialog({
                   }
                   required
                 />
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Estado
+                  </label>
+                  {estadoActualEsEditable ? (
+                    <select
+                      value={editForm.estado}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          estado: e.target.value as EstadoEditable,
+                        }))
+                      }
+                      className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
+                    >
+                      {ESTADOS_EDITABLES.map((s) => (
+                        <option key={s} value={s}>
+                          {ESTADO_TEXT[s] ?? s}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={ESTADO_TEXT[rollo.estado] ?? rollo.estado}
+                      disabled
+                      className="w-full rounded-md border bg-zinc-50 px-3 py-1.5 text-sm text-muted-foreground"
+                    />
+                  )}
+                </div>
                 <EditField
                   label="Ubicación"
                   value={editForm.ubicacion}
@@ -626,8 +686,9 @@ export default function RolloDetailDialog({
               </datalist>
 
               <p className="text-xs text-muted-foreground">
-                Para cambiar el estado del rollo usá las acciones específicas
-                (Mover, Marcar como segunda, Dar de baja).
+                Si pasás un rollo a &ldquo;Segunda&rdquo; desde acá no quedan
+                categoría ni fotos cargadas. Para sumar ese detalle usá
+                &ldquo;Marcar como segunda&rdquo; desde la vista del rollo.
               </p>
 
               <div className="flex gap-2 justify-end pt-1">

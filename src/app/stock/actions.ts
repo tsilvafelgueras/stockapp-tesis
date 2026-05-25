@@ -220,6 +220,18 @@ export async function confirmarRolloManual(
   return { ok: true }
 }
 
+// Estados que se pueden setear desde el form de edición. "reservado" /
+// "entregado" no se exponen porque dependen de pedidos/picking. "baja" sí
+// se permite — algunos usuarios prefieren dar de baja desde el form en
+// lugar de usar el botón dedicado.
+export const ESTADOS_EDITABLES = [
+  'pendiente',
+  'en_stock',
+  'segunda',
+  'baja',
+] as const
+export type EstadoEditable = (typeof ESTADOS_EDITABLES)[number]
+
 export type EditarRolloInput = {
   numero_pieza?: string
   ubicacion?: string | null
@@ -231,6 +243,7 @@ export type EditarRolloInput = {
   ancho_propio?: number | null
   gramaje_propio?: number | null
   gramaje_planilla?: number | null
+  estado?: EstadoEditable
 }
 
 function cleanText(v: string | null | undefined): string | null {
@@ -285,12 +298,28 @@ export async function editarRollo(
         error: 'No se puede editar un rollo dado de baja o ya entregado.',
       }
     }
+    if (rollo.estado === 'reservado') {
+      return {
+        ok: false,
+        error:
+          'No se puede editar un rollo reservado. Primero liberalo del pedido.',
+      }
+    }
 
     if (cambios.numero_pieza !== undefined) {
       const np = cambios.numero_pieza.trim()
       if (!np) return { ok: false, error: 'El número de pieza no puede estar vacío.' }
       if (np.length > 50) {
         return { ok: false, error: 'El número de pieza es demasiado largo (máx. 50).' }
+      }
+    }
+
+    if (cambios.estado !== undefined) {
+      if (!ESTADOS_EDITABLES.includes(cambios.estado)) {
+        return {
+          ok: false,
+          error: `Estado inválido: "${cambios.estado}".`,
+        }
       }
     }
 
@@ -307,6 +336,16 @@ export async function editarRollo(
     if (cambios.ancho_propio !== undefined) update.ancho_propio = cleanNumber(cambios.ancho_propio)
     if (cambios.gramaje_propio !== undefined) update.gramaje_propio = cleanNumber(cambios.gramaje_propio)
     if (cambios.gramaje_planilla !== undefined) update.gramaje_planilla = cleanNumber(cambios.gramaje_planilla)
+    if (cambios.estado !== undefined && cambios.estado !== rollo.estado) {
+      update.estado = cambios.estado
+      // Si sale de segunda hacia otro estado, limpio el detalle de la falla
+      // para que no quede inconsistente. Las fotos quedan asociadas igual
+      // (por si se vuelve a marcar como segunda más adelante).
+      if (rollo.estado === 'segunda' && cambios.estado !== 'segunda') {
+        update.falla_categoria = null
+        update.falla_descripcion = null
+      }
+    }
 
     if (Object.keys(update).length === 0) {
       return { ok: true }
