@@ -7,6 +7,7 @@ export type BulkEditChanges = {
   ubicacion?: string | null
   estado?: 'en_stock' | 'segunda' | 'baja' | 'pendiente'
   articulo_id?: string
+  color?: string
 }
 
 export type BulkEditResult =
@@ -30,7 +31,8 @@ export async function bulkEditRollos(
   if (
     changes.ubicacion === undefined &&
     changes.estado === undefined &&
-    changes.articulo_id === undefined
+    changes.articulo_id === undefined &&
+    changes.color === undefined
   ) {
     return { ok: false, error: 'No definiste qué cambiar.' }
   }
@@ -109,6 +111,13 @@ export async function bulkEditRollos(
       return { ok: false, error: 'Elegí un artículo válido.' }
     }
     update.articulo_id = changes.articulo_id
+  }
+  if (changes.color !== undefined) {
+    const colorClean = changes.color.trim()
+    if (!colorClean) {
+      return { ok: false, error: 'Elegí un color válido.' }
+    }
+    update.color = colorClean
   }
 
   const { error } = await supabase

@@ -21,13 +21,13 @@ export type StockRollo = {
   falla_descripcion: string | null
   created_at: string
   auditado_at: string | null
+  color: string | null
   articulos: { id: string; nombre: string } | null
   ingresos: {
     id: string
     fecha_despacho: string
     numero_remito: string | null
     numero_lote: string | null
-    color: string | null
     ot: string | null
     rem_tejeduria: string | null
     referencia: string | null
@@ -99,7 +99,7 @@ export default function StockList({
                     <p className="truncate font-medium">Pieza {r.numero_pieza}</p>
                     <p className="truncate text-sm text-muted-foreground">
                       {r.articulos?.nombre ?? '-'}
-                      {r.ingresos?.color ? ` - ${r.ingresos.color}` : ''}
+                      {r.color ? ` - ${r.color}` : ''}
                     </p>
                     {r.ingresos?.numero_lote && (
                       <p className="font-mono text-xs text-muted-foreground">
@@ -194,7 +194,7 @@ export default function StockList({
                       {r.ingresos?.numero_lote ?? '-'}
                     </td>
                     <td className="px-3 py-3">{r.articulos?.nombre ?? '-'}</td>
-                    <td className="px-3 py-3">{r.ingresos?.color ?? '-'}</td>
+                    <td className="px-3 py-3">{r.color ?? '-'}</td>
                     <td className="px-3 py-3 tabular-nums">
                       {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
                     </td>
@@ -298,7 +298,7 @@ function FabricSwatch({ rollo }: { rollo: StockRollo }) {
     )
   }
 
-  const label = (rollo.ingresos?.color ?? '-').slice(0, 2).toUpperCase()
+  const label = (rollo.color ?? '-').slice(0, 2).toUpperCase()
 
   return (
     <div className="flex size-10 items-center justify-center rounded-full border border-border bg-[linear-gradient(135deg,#f8fafc_0%,#dbeafe_45%,#e2e8f0_100%)] text-[10px] font-semibold text-muted-foreground sm:size-9">

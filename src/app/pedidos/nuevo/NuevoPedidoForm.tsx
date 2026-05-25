@@ -14,10 +14,10 @@ export type RolloDisponible = {
   ubicacion: string | null
   kilos: number | null
   metros: number | null
+  color: string | null
   articulos: { id: string; nombre: string } | null
   ingresos: {
     id: string
-    color: string | null
     numero_lote: string | null
     tintorerias: { id: string; nombre: string } | null
   } | null
@@ -267,7 +267,7 @@ export default function NuevoPedidoForm({
                     <span className="text-muted-foreground font-normal">
                       {' · '}
                       {r.articulos?.nombre ?? '—'}
-                      {r.ingresos?.color ? ` · ${r.ingresos.color}` : ''}
+                      {r.color ? ` · ${r.color}` : ''}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
@@ -588,7 +588,7 @@ function RolloCardMobile({
         <p className="font-medium truncate">Pieza {r.numero_pieza}</p>
         <p className="text-xs text-muted-foreground truncate">
           {r.articulos?.nombre ?? '—'}
-          {r.ingresos?.color ? ` · ${r.ingresos.color}` : ''}
+          {r.color ? ` · ${r.color}` : ''}
         </p>
         <p className="text-xs text-muted-foreground tabular-nums">
           {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
@@ -617,7 +617,7 @@ function RolloRowDesktop({
     <tr className="border-b last:border-0">
       <td className="px-3 py-2 font-medium">{r.numero_pieza}</td>
       <td className="px-3 py-2">{r.articulos?.nombre ?? '—'}</td>
-      <td className="px-3 py-2">{r.ingresos?.color ?? '—'}</td>
+      <td className="px-3 py-2">{r.color ?? '—'}</td>
       <td className="px-3 py-2 tabular-nums">
         {r.kilos != null ? Number(r.kilos).toFixed(2) : '—'}
       </td>

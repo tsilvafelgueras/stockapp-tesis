@@ -20,11 +20,15 @@ export type RolloExtraido = {
   ratio: Field<number>
   gramaje_planilla: Field<number>
   articulo: Field<string>
+  color: Field<string>
 }
 
 export type IngresoExtraido = {
   numero_remito: Field<string>
   fecha: Field<string> // ISO 'YYYY-MM-DD'
+  // Color del lote a nivel header — fallback opcional para planillas con
+  // un único color para todos los rollos. Si viene seteado y los rollos
+  // no traen color propio, la UI lo aplica como bulk a todos los rollos.
   color: Field<string>
   ot: Field<string>
   rem_tejeduria: Field<string>

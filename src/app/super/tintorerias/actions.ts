@@ -122,6 +122,27 @@ export async function asociarTintoreriaAEmpresa(input: {
   return { ok: true }
 }
 
+export async function reactivarTintoreriaDeEmpresa(input: {
+  tintoreriaId: string
+  empresaId: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireSuperAdmin()
+  if (!me) return { ok: false, error: 'No autorizado.' }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('empresa_tintorerias')
+    .update({ activo: true, fecha_baja: null })
+    .eq('empresa_id', input.empresaId)
+    .eq('tintoreria_id', input.tintoreriaId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/super/tintorerias')
+  revalidatePath(`/super/tintorerias/${input.tintoreriaId}`)
+  return { ok: true }
+}
+
 export async function desasociarTintoreriaDeEmpresa(input: {
   tintoreriaId: string
   empresaId: string

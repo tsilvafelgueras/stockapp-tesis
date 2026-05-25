@@ -9,18 +9,14 @@ type Catalog = { id: string; nombre: string }
 export default function EditarIngresoForm({
   ingreso,
   tintorerias,
-  articulos,
-  colores,
   cantidadRollosReal,
   sumaKilosReal,
 }: {
   ingreso: {
     id: string
     tintoreria_id: string | null
-    articulo_id: string | null
     fecha_despacho: string | null
     numero_remito: string | null
-    color: string | null
     ot: string | null
     rem_tejeduria: string | null
     referencia: string | null
@@ -28,18 +24,14 @@ export default function EditarIngresoForm({
     total_kilos_declarado: number | null
   }
   tintorerias: Catalog[]
-  articulos: Catalog[]
-  colores: Catalog[]
   cantidadRollosReal: number
   sumaKilosReal: number
 }) {
   const router = useRouter()
 
   const [tintoreriaId, setTintoreriaId] = useState(ingreso.tintoreria_id ?? '')
-  const [articuloId, setArticuloId] = useState(ingreso.articulo_id ?? '')
   const [fecha, setFecha] = useState(ingreso.fecha_despacho ?? '')
   const [numeroRemito, setNumeroRemito] = useState(ingreso.numero_remito ?? '')
-  const [color, setColor] = useState(ingreso.color ?? '')
   const [ot, setOt] = useState(ingreso.ot ?? '')
   const [remTejeduria, setRemTejeduria] = useState(ingreso.rem_tejeduria ?? '')
   const [referencia, setReferencia] = useState(ingreso.referencia ?? '')
@@ -78,10 +70,8 @@ export default function EditarIngresoForm({
     const result = await editarIngreso({
       ingresoId: ingreso.id,
       tintoreria_id: tintoreriaId,
-      articulo_id: articuloId,
       fecha,
       numero_remito: numeroRemito,
-      color,
       ot,
       rem_tejeduria: remTejeduria,
       referencia,
@@ -120,26 +110,6 @@ export default function EditarIngresoForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium">Artículo principal *</label>
-          <select
-            value={articuloId}
-            onChange={(e) => setArticuloId(e.target.value)}
-            required
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="">Seleccionar...</option>
-            {articulos.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nombre}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-muted-foreground">
-            Para cambiar el artículo de rollos individuales usá la vista &quot;Por rollo&quot; en /ingresos.
-          </p>
-        </div>
-
-        <div className="space-y-1">
           <label className="text-sm font-medium">Fecha *</label>
           <input
             type="date"
@@ -159,25 +129,6 @@ export default function EditarIngresoForm({
             placeholder="Ej: 49447"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Color</label>
-          <select
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="">Sin color</option>
-            {colores.map((c) => (
-              <option key={c.id} value={c.nombre}>
-                {c.nombre}
-              </option>
-            ))}
-            {color && !colores.find((c) => c.nombre === color) && (
-              <option value={color}>{color} (legacy)</option>
-            )}
-          </select>
         </div>
 
         <div className="space-y-1">
@@ -270,7 +221,6 @@ export default function EditarIngresoForm({
           disabled={
             submitting ||
             !tintoreriaId ||
-            !articuloId ||
             !fecha ||
             !validation.cantidadCoincide ||
             !validation.kilosCoinciden

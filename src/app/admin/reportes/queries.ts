@@ -46,7 +46,7 @@ export async function reporteStock(
   let query = supabase
     .from('rollos')
     .select(
-      'kilos, articulo_id, articulos!inner ( nombre ), ingresos!inner ( color, tintoreria_id )'
+      'kilos, articulo_id, color, articulos!inner ( nombre ), ingresos!inner ( tintoreria_id )'
     )
     .eq('estado', 'en_stock')
 
@@ -64,15 +64,15 @@ export async function reporteStock(
 
   type Raw = {
     kilos: number | null
+    color: string | null
     articulos: { nombre: string } | null
-    ingresos: { color: string | null } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
 
   const map = new Map<string, StockRow>()
   for (const r of rows) {
     const articulo = r.articulos?.nombre ?? '—'
-    const color = r.ingresos?.color ?? '—'
+    const color = r.color ?? '—'
     const key = `${articulo}|||${color}`
     const prev = map.get(key) ?? { articulo, color, rollos: 0, kilos: 0 }
     prev.rollos += 1
@@ -274,9 +274,9 @@ export async function reporteDiferencias(
   let query = supabase
     .from('rollos')
     .select(
-      `id, numero_pieza, kilos, kilos_propios, articulo_id,
+      `id, numero_pieza, kilos, kilos_propios, articulo_id, color,
        articulos ( nombre ),
-       ingresos!inner ( color, tintoreria_id )`
+       ingresos!inner ( tintoreria_id )`
     )
     .not('kilos_propios', 'is', null)
     .order('numero_pieza', { ascending: true })
@@ -298,8 +298,8 @@ export async function reporteDiferencias(
     numero_pieza: string
     kilos: number | null
     kilos_propios: number | null
+    color: string | null
     articulos: { nombre: string } | null
-    ingresos: { color: string | null } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
 
@@ -310,7 +310,7 @@ export async function reporteDiferencias(
       id: r.id,
       numero_pieza: r.numero_pieza,
       articulo: r.articulos?.nombre ?? '—',
-      color: r.ingresos?.color ?? '—',
+      color: r.color ?? '—',
       kilos: k,
       kilos_propios: kp,
       dif_kilos: kp - k,
@@ -345,7 +345,7 @@ export async function reporteMerma(
   let query = supabase
     .from('rollos')
     .select(
-      `kilos, kilos_propios, articulo_id, articulos ( nombre ), ingresos!inner ( color, tintoreria_id )`
+      `kilos, kilos_propios, articulo_id, color, articulos ( nombre ), ingresos!inner ( tintoreria_id )`
     )
     .not('kilos_propios', 'is', null)
     .not('kilos', 'is', null)
@@ -365,15 +365,15 @@ export async function reporteMerma(
   type Raw = {
     kilos: number | null
     kilos_propios: number | null
+    color: string | null
     articulos: { nombre: string } | null
-    ingresos: { color: string | null } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
 
   const map = new Map<string, MermaRow>()
   for (const r of rows) {
     const articulo = r.articulos?.nombre ?? '—'
-    const color = r.ingresos?.color ?? '—'
+    const color = r.color ?? '—'
     const key = `${articulo}|||${color}`
     const prev = map.get(key) ?? {
       articulo,
@@ -603,9 +603,9 @@ export async function reporteAntiguedad(
   let query = supabase
     .from('rollos')
     .select(
-      `id, numero_pieza, ubicacion, kilos, created_at, articulo_id,
+      `id, numero_pieza, ubicacion, kilos, created_at, articulo_id, color,
        articulos ( nombre ),
-       ingresos!inner ( color, tintoreria_id )`
+       ingresos!inner ( tintoreria_id )`
     )
     .eq('estado', 'en_stock')
     .lt('created_at', limiteIso)
@@ -629,8 +629,8 @@ export async function reporteAntiguedad(
     ubicacion: string | null
     kilos: number | null
     created_at: string
+    color: string | null
     articulos: { nombre: string } | null
-    ingresos: { color: string | null } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
   const ahora = Date.now()
@@ -642,7 +642,7 @@ export async function reporteAntiguedad(
       id: r.id,
       numero_pieza: r.numero_pieza,
       articulo: r.articulos?.nombre ?? '—',
-      color: r.ingresos?.color ?? '—',
+      color: r.color ?? '—',
       ubicacion: r.ubicacion ?? '—',
       kilos: Number(r.kilos ?? 0),
       created_at: r.created_at,

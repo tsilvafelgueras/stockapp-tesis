@@ -56,10 +56,10 @@ export default async function NuevoPedidoPage({
         ubicacion,
         kilos,
         metros,
+        color,
         articulos ( id, nombre ),
         ingresos!inner (
           id,
-          color,
           numero_lote,
           tintorerias ( id, nombre )
         )
@@ -72,7 +72,7 @@ export default async function NuevoPedidoPage({
   if (sp.articulo) query = query.eq('articulo_id', sp.articulo)
   if (sp.tintoreria) query = query.eq('ingresos.tintoreria_id', sp.tintoreria)
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
-  if (sp.color) query = query.ilike('ingresos.color', `%${sp.color.trim()}%`)
+  if (sp.color) query = query.ilike('color', `%${sp.color.trim()}%`)
 
   const { data: rollosRaw, error } = await query
   const rollos = (rollosRaw ?? []) as unknown as RolloDisponible[]

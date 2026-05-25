@@ -63,7 +63,7 @@ export default async function StockPage({
       .select('tintorerias ( id, nombre )')
       .eq('activo', true),
     supabase
-      .from('ingresos')
+      .from('rollos')
       .select('color')
       .not('color', 'is', null),
     supabase
@@ -115,13 +115,13 @@ export default async function StockPage({
         falla_descripcion,
         created_at,
         auditado_at,
+        color,
         articulos ( id, nombre ),
         ingresos!inner (
           id,
           fecha_despacho,
           numero_remito,
           numero_lote,
-          color,
           ot,
           rem_tejeduria,
           referencia,
@@ -139,7 +139,7 @@ export default async function StockPage({
   }
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
   if (sp.ubicacion) query = query.ilike('ubicacion', `%${sp.ubicacion.trim()}%`)
-  if (sp.color) query = query.eq('ingresos.color', sp.color)
+  if (sp.color) query = query.eq('color', sp.color)
   if (sp.lote) query = query.eq('ingresos.numero_lote', sp.lote)
 
   const { data: rollosRaw, error } = await query
@@ -152,13 +152,13 @@ export default async function StockPage({
 
   const { data: resumenRaw } = await supabase
     .from('rollos')
-    .select('kilos, articulos!inner ( nombre ), ingresos!inner ( color )')
+    .select('kilos, color, articulos!inner ( nombre )')
     .eq('estado', 'en_stock')
 
   type ResumenRow = {
     kilos: number | null
+    color: string | null
     articulos: { nombre: string } | null
-    ingresos: { color: string | null } | null
   }
   const resumenRows = (resumenRaw ?? []) as unknown as ResumenRow[]
 
@@ -173,7 +173,7 @@ export default async function StockPage({
   >()
   for (const r of resumenRows) {
     const articulo = r.articulos?.nombre ?? '-'
-    const color = r.ingresos?.color ?? '-'
+    const color = r.color ?? '-'
     const key = `${articulo}|||${color}`
     const prev = aggMap.get(key) ?? { articulo, color, kilos: 0 }
     prev.kilos += Number(r.kilos ?? 0)

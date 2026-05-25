@@ -334,7 +334,7 @@ export default function RolloDetailDialog({
             <h2 className="font-semibold">Pieza {rollo.numero_pieza}</h2>
             <p className="text-xs text-muted-foreground truncate">
               {rollo.articulos?.nombre ?? '—'}
-              {rollo.ingresos?.color ? ` · ${rollo.ingresos.color}` : ''}
+              {rollo.color ? ` · ${rollo.color}` : ''}
             </p>
           </div>
           <button
@@ -372,7 +372,7 @@ export default function RolloDetailDialog({
             ) : (
               <div className="text-center text-muted-foreground">
                 <p className="text-3xl font-bold tracking-wider">
-                  {(rollo.ingresos?.color ?? '—').slice(0, 3).toUpperCase()}
+                  {(rollo.color ?? '—').slice(0, 3).toUpperCase()}
                 </p>
                 <p className="text-xs mt-1">Sin foto</p>
               </div>

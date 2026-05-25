@@ -15,8 +15,8 @@ export default async function NuevaMuestraPage() {
         numero_pieza,
         kilos,
         estado,
-        articulos ( nombre ),
-        ingresos ( color )
+        color,
+        articulos ( nombre )
       `
     )
     .in('estado', ['en_stock', 'reservado'])
@@ -28,8 +28,8 @@ export default async function NuevaMuestraPage() {
     numero_pieza: string
     kilos: number | null
     estado: string
+    color: string | null
     articulos: { nombre: string } | null
-    ingresos: { color: string | null } | null
   }
   const rollos = ((rollosRaw ?? []) as unknown as Raw[]).map(
     (r): RolloOpcion => ({
@@ -38,7 +38,7 @@ export default async function NuevaMuestraPage() {
       kilos: r.kilos,
       estado: r.estado,
       articulo: r.articulos?.nombre ?? null,
-      color: r.ingresos?.color ?? null,
+      color: r.color ?? null,
     })
   )
 

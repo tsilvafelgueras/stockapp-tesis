@@ -43,8 +43,7 @@ export default async function IngresoDetailPage({
     .from('ingresos')
     .select(`
       *,
-      tintorerias ( nombre ),
-      articulos ( nombre )
+      tintorerias ( nombre )
     `)
     .eq('id', id)
     .single()
@@ -53,7 +52,7 @@ export default async function IngresoDetailPage({
 
   const { data: rollos } = await supabase
     .from('rollos')
-    .select('*')
+    .select('*, articulos ( id, nombre )')
     .eq('ingreso_id', id)
     .order('numero_pieza', { ascending: true })
 
@@ -62,6 +61,22 @@ export default async function IngresoDetailPage({
       (rollos ?? [])
         .map((r) => r.articulo_id as string | null)
         .filter((a): a is string => Boolean(a))
+    )
+  )
+
+  const articulosResumen = Array.from(
+    new Set(
+      (rollos ?? [])
+        .map((r) => (r.articulos as unknown as { nombre: string } | null)?.nombre)
+        .filter((n): n is string => Boolean(n))
+    )
+  )
+
+  const coloresResumen = Array.from(
+    new Set(
+      (rollos ?? [])
+        .map((r) => r.color as string | null)
+        .filter((c): c is string => Boolean(c))
     )
   )
 
@@ -76,9 +91,6 @@ export default async function IngresoDetailPage({
 
   const tintoreria = (
     ingreso.tintorerias as unknown as { nombre: string } | null
-  )?.nombre
-  const articulo = (
-    ingreso.articulos as unknown as { nombre: string } | null
   )?.nombre
   const estado = ESTADO_INGRESO[ingreso.estado] ?? ESTADO_INGRESO.borrador
 
@@ -153,14 +165,20 @@ export default async function IngresoDetailPage({
 
       <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <Field label="Tintorería" value={tintoreria ?? '—'} />
-        <Field label="Artículo" value={articulo ?? '—'} />
-        <Field label="Color" value={ingreso.color ?? '—'} />
         <Field label="Número de remito" value={ingreso.numero_remito ?? '—'} />
         <Field
           label="Total declarado"
           value={`${ingreso.total_rollos_declarado ?? '—'} rollos / ${
             ingreso.total_kilos_declarado ?? '—'
           } kg`}
+        />
+        <Field
+          label={articulosResumen.length === 1 ? 'Artículo' : 'Artículos'}
+          value={articulosResumen.length ? articulosResumen.join(', ') : '—'}
+        />
+        <Field
+          label={coloresResumen.length === 1 ? 'Color' : 'Colores'}
+          value={coloresResumen.length ? coloresResumen.join(', ') : '—'}
         />
         {ingreso.ot && <Field label="OT" value={ingreso.ot} />}
         {ingreso.rem_tejeduria && (
@@ -186,6 +204,9 @@ export default async function IngresoDetailPage({
           {rollos && rollos.length > 0 ? (
             rollos.map((r) => {
               const e = ESTADO_ROLLO[r.estado] ?? ESTADO_ROLLO.pendiente
+              const articuloNombre = (
+                r.articulos as unknown as { nombre: string } | null
+              )?.nombre
               return (
                 <div key={r.id} className="p-3">
                   <div className="flex items-start justify-between">
@@ -197,6 +218,8 @@ export default async function IngresoDetailPage({
                     </span>
                   </div>
                   <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>Art: {articuloNombre ?? '—'}</span>
+                    <span>Color: {r.color ?? '—'}</span>
                     <span>{r.kilos ?? '—'} kg</span>
                     <span>{r.metros ?? '—'} m</span>
                     <span>Ratio: {r.ratio_rendimiento ?? '—'}</span>
@@ -218,6 +241,8 @@ export default async function IngresoDetailPage({
             <thead className="border-b text-left">
               <tr>
                 <th className="px-4 py-2 font-medium">N° Pieza</th>
+                <th className="px-4 py-2 font-medium">Artículo</th>
+                <th className="px-4 py-2 font-medium">Color</th>
                 <th className="px-4 py-2 font-medium">Kilos</th>
                 <th className="px-4 py-2 font-medium">Metros</th>
                 <th className="px-4 py-2 font-medium">Ratio</th>
@@ -230,9 +255,14 @@ export default async function IngresoDetailPage({
               {rollos && rollos.length > 0 ? (
                 rollos.map((r) => {
                   const e = ESTADO_ROLLO[r.estado] ?? ESTADO_ROLLO.pendiente
+                  const articuloNombre = (
+                    r.articulos as unknown as { nombre: string } | null
+                  )?.nombre
                   return (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="px-4 py-2 font-medium">{r.numero_pieza}</td>
+                      <td className="px-4 py-2">{articuloNombre ?? '—'}</td>
+                      <td className="px-4 py-2">{r.color ?? '—'}</td>
                       <td className="px-4 py-2">{r.kilos ?? '—'}</td>
                       <td className="px-4 py-2">{r.metros ?? '—'}</td>
                       <td className="px-4 py-2">{r.ratio_rendimiento ?? '—'}</td>
@@ -255,7 +285,7 @@ export default async function IngresoDetailPage({
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Sin rollos cargados.

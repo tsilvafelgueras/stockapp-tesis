@@ -45,8 +45,9 @@ export default async function PickingDetailPage({
           numero_pieza,
           ubicacion,
           kilos,
+          color,
           articulos ( nombre ),
-          ingresos ( color, tintoreria_id )
+          ingresos ( tintoreria_id )
         )
       `
     )
@@ -60,8 +61,9 @@ export default async function PickingDetailPage({
       numero_pieza: string
       ubicacion: string | null
       kilos: number | null
+      color: string | null
       articulos: { nombre: string } | null
-      ingresos: { color: string | null; tintoreria_id: string | null } | null
+      ingresos: { tintoreria_id: string | null } | null
     } | null
   }
   const rows = (prRaw ?? []) as unknown as RolloRow[]
@@ -119,7 +121,7 @@ export default async function PickingDetailPage({
       ubicacion: r.rollos!.ubicacion,
       kilos: r.rollos!.kilos,
       articulo: r.rollos!.articulos?.nombre ?? null,
-      color: r.rollos!.ingresos?.color ?? null,
+      color: r.rollos!.color ?? null,
     }))
 
   const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente

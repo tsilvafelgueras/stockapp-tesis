@@ -19,18 +19,18 @@ export type RolloInput = {
   gramaje_planilla?: string
   ubicacion: string
   estado: 'en_stock' | 'pendiente'
-  /** Si está seteado, sobreescribe articulo_id del ingreso para este rollo. */
+  /** Artículo del rollo. Una planilla puede tener varios artículos distintos. */
   articulo_id?: string | null
+  /** Color del rollo. Una planilla puede tener varios colores distintos. */
+  color?: string | null
   /** Confianza promedio reportada por la IA para este rollo (0-1). Solo se setea en flow IA. */
   confianza_ia?: number
 }
 
 export type IngresoInput = {
   tintoreria_id: string
-  articulo_id: string
   fecha: string
   numero_remito: string
-  color: string
   ot?: string
   rem_tejeduria?: string
   referencia?: string
@@ -224,7 +224,6 @@ export async function crearIngreso(input: IngresoInput) {
   const supabase = await createClient()
 
   if (!input.tintoreria_id) return { error: 'Falta seleccionar la tintorería.' }
-  if (!input.articulo_id) return { error: 'Falta seleccionar el artículo.' }
   if (!input.fecha) return { error: 'Falta la fecha del ingreso.' }
   if (!input.rollos.length) return { error: 'Cargá al menos un rollo.' }
 
@@ -233,6 +232,9 @@ export async function crearIngreso(input: IngresoInput) {
   for (const r of input.rollos) {
     if (!r.numero_pieza.trim()) {
       return { error: 'Todos los rollos deben tener número de pieza.' }
+    }
+    if (!r.articulo_id) {
+      return { error: `El rollo "${r.numero_pieza.trim()}" no tiene artículo asignado.` }
     }
     if (origen === 'manual' && r.estado === 'en_stock' && !r.ubicacion.trim()) {
       return {
@@ -265,14 +267,14 @@ export async function crearIngreso(input: IngresoInput) {
     ingresoEstado = algunoPendiente ? 'borrador' : 'confirmado'
   }
 
+  // Nota: las columnas `ingresos.color` e `ingresos.articulo_id` quedaron
+  // deprecated en migración 036. El color y el artículo se cargan por rollo.
   const { data: ingreso, error: iError } = await supabase
     .from('ingresos')
     .insert({
       tintoreria_id: input.tintoreria_id,
-      articulo_id: input.articulo_id,
       fecha_despacho: input.fecha,
       numero_remito: input.numero_remito.trim() || null,
-      color: input.color.trim() || null,
       ot: input.ot?.trim() || null,
       rem_tejeduria: input.rem_tejeduria?.trim() || null,
       referencia: input.referencia?.trim() || null,
@@ -296,7 +298,8 @@ export async function crearIngreso(input: IngresoInput) {
 
   const rollosToInsert = input.rollos.map((r) => ({
     ingreso_id: ingreso.id,
-    articulo_id: r.articulo_id ?? input.articulo_id,
+    articulo_id: r.articulo_id ?? null,
+    color: r.color?.trim() || null,
     numero_pieza: r.numero_pieza.trim(),
     kilos: r.kilos ? parseFloat(r.kilos) : null,
     metros: r.metros ? parseFloat(r.metros) : null,
@@ -335,10 +338,8 @@ export async function crearIngreso(input: IngresoInput) {
 export type EditarIngresoInput = {
   ingresoId: string
   tintoreria_id: string
-  articulo_id: string
   fecha: string
   numero_remito: string
-  color: string
   ot: string
   rem_tejeduria: string
   referencia: string
@@ -368,10 +369,8 @@ export async function editarIngreso(input: EditarIngresoInput) {
     .from('ingresos')
     .update({
       tintoreria_id: input.tintoreria_id,
-      articulo_id: input.articulo_id,
       fecha_despacho: input.fecha,
       numero_remito: input.numero_remito.trim() || null,
-      color: input.color.trim() || null,
       ot: input.ot.trim() || null,
       rem_tejeduria: input.rem_tejeduria.trim() || null,
       referencia: input.referencia.trim() || null,

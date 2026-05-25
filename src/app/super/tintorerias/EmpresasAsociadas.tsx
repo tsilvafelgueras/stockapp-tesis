@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   asociarTintoreriaAEmpresa,
   desasociarTintoreriaDeEmpresa,
+  reactivarTintoreriaDeEmpresa,
 } from './actions'
 
 type Empresa = { id: string; nombre: string }
@@ -69,6 +70,21 @@ export default function EmpresasAsociadas({
     setError(null)
     startTransition(async () => {
       const res = await desasociarTintoreriaDeEmpresa({
+        tintoreriaId,
+        empresaId,
+      })
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  function reactivar(empresaId: string) {
+    setError(null)
+    startTransition(async () => {
+      const res = await reactivarTintoreriaDeEmpresa({
         tintoreriaId,
         empresaId,
       })
@@ -148,14 +164,26 @@ export default function EmpresasAsociadas({
                     {l.telefono && <span>· {l.telefono}</span>}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => desasociar(l.empresa_id)}
-                  disabled={pending}
-                  className="rounded-md border border-destructive/40 px-2.5 py-1 text-xs text-destructive hover:bg-destructive/5 disabled:opacity-50"
-                >
-                  Desasociar
-                </button>
+                <div className="flex gap-2">
+                  {!l.activo && (
+                    <button
+                      type="button"
+                      onClick={() => reactivar(l.empresa_id)}
+                      disabled={pending}
+                      className="rounded-md border border-success/40 px-2.5 py-1 text-xs text-success hover:bg-success/5 disabled:opacity-50"
+                    >
+                      Reactivar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => desasociar(l.empresa_id)}
+                    disabled={pending}
+                    className="rounded-md border border-destructive/40 px-2.5 py-1 text-xs text-destructive hover:bg-destructive/5 disabled:opacity-50"
+                  >
+                    Desasociar
+                  </button>
+                </div>
               </li>
             )
           })}

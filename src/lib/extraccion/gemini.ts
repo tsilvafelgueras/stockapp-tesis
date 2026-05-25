@@ -28,7 +28,7 @@ La planilla es un remito de una tintorería textil argentina. Extraé los datos 
 
 - numero_remito: número de la planilla. Aparece como "DESPACHO N°", "REMITO N°", "N° DE REMITO" o similar. Suele estar en una esquina, a veces con código de barras al lado.
 - fecha: en ISO 'YYYY-MM-DD'. Si la planilla la trae como 'DD/MM/YY' o 'DD/MM/YYYY', convertí. Si son 2 dígitos del año, asumí 20YY.
-- color: color del lote (ej "BLANCO", "NEGRO", "AZUL FRANCIA"). UN SOLO COLOR para toda la planilla.
+- color: color del lote a nivel header. Si la planilla declara un único color para TODA la planilla (caso típico: aparece en el header como "COLOR" o "PARTIDA EN COLOR"), ponelo acá. Si la planilla NO declara un color global y cada rollo tiene su propio color en una columna, dejá value: null acá y poné el color en cada rollo.
 - ot: número de orden de trabajo de la tintorería ("OT", "O.T.", "ORDEN").
 - rem_tejeduria: remito de tejeduría ("REM. TEJ.", "REM TEJEDURIA"), del proveedor de tela cruda.
 - referencia: código interno (ej "SBI"), suele ser 2-5 letras.
@@ -43,6 +43,7 @@ La planilla es un remito de una tintorería textil argentina. Extraé los datos 
 - ratio: rendimiento m/kg (decimal). A veces "Ratio", "Rdto", "Rto".
 - gramaje_planilla: g/m² (peso por m²). Suele aparecer como "Pm2", "Gramaje", "g/m²".
 - articulo: nombre del artículo/tela del rollo (ej "Algodón Pima", "Modal", "Lino"). Algunas planillas traen un único artículo en el header (en ese caso, copialo en todos los rollos). Otras traen una columna "Artículo" o "Tela" por rollo. Si no aparece en ninguna parte, devolvé value: null y confidence: 0.
+- color: color del rollo (ej "BLANCO", "NEGRO", "AZUL FRANCIA"). Solo poné value si la planilla tiene una columna "Color" por rollo Y el color de este rollo difiere del color global del header. Si la planilla declara un único color global en el header (y los rollos no tienen columna propia), dejá value: null acá — el color global del header ya cubre el caso. Si no aparece en ninguna parte, devolvé value: null y confidence: 0.
 
 # CONFIANZA
 
@@ -111,6 +112,7 @@ const SCHEMA: Schema = {
           ratio: fieldNumber(),
           gramaje_planilla: fieldNumber(),
           articulo: fieldString(),
+          color: fieldString(),
         },
         required: [
           'numero_pieza',
@@ -119,6 +121,7 @@ const SCHEMA: Schema = {
           'ratio',
           'gramaje_planilla',
           'articulo',
+          'color',
         ],
       },
     },
