@@ -11,13 +11,15 @@ import {
   subirFotoRollo,
   listarFotosRollo,
   editarRollo,
+  type RolloFotoConUrl,
+} from './actions'
+import {
   FALLA_CATEGORIAS,
   FALLA_CATEGORIA_LABEL,
   ESTADOS_EDITABLES,
   type FallaCategoria,
   type EstadoEditable,
-  type RolloFotoConUrl,
-} from './actions'
+} from './constants'
 import { UBICACIONES } from '@/lib/ubicaciones'
 
 const ESTADO_TEXT: Record<string, string> = {

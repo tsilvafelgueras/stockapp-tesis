@@ -7,27 +7,14 @@ import {
   getSignedUrl,
   MIME_TYPES_ACEPTADOS,
 } from '@/lib/storage/planillas'
+import {
+  FALLA_CATEGORIAS,
+  ESTADOS_EDITABLES,
+  type FallaCategoria,
+  type EstadoEditable,
+} from './constants'
 
 export type StockActionResult = { ok: true } | { ok: false; error: string }
-
-export const FALLA_CATEGORIAS = [
-  'mancha',
-  'agujero',
-  'color_disparejo',
-  'tono_diferente',
-  'rotura_tejido',
-  'otro',
-] as const
-export type FallaCategoria = (typeof FALLA_CATEGORIAS)[number]
-
-export const FALLA_CATEGORIA_LABEL: Record<FallaCategoria, string> = {
-  mancha: 'Mancha',
-  agujero: 'Agujero',
-  color_disparejo: 'Color disparejo',
-  tono_diferente: 'Tono diferente',
-  rotura_tejido: 'Rotura de tejido',
-  otro: 'Otro',
-}
 
 export async function moverUbicacion(
   rolloId: string,
@@ -219,18 +206,6 @@ export async function confirmarRolloManual(
   revalidatePath(`/ingresos/${rollo.ingreso_id}`)
   return { ok: true }
 }
-
-// Estados que se pueden setear desde el form de edición. "reservado" /
-// "entregado" no se exponen porque dependen de pedidos/picking. "baja" sí
-// se permite — algunos usuarios prefieren dar de baja desde el form en
-// lugar de usar el botón dedicado.
-export const ESTADOS_EDITABLES = [
-  'pendiente',
-  'en_stock',
-  'segunda',
-  'baja',
-] as const
-export type EstadoEditable = (typeof ESTADOS_EDITABLES)[number]
 
 export type EditarRolloInput = {
   numero_pieza?: string
