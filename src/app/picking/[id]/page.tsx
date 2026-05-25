@@ -89,6 +89,26 @@ export default async function PickingDetailPage({
 
   const patrones = patronesData ?? []
 
+  // Resolución del reader_type del pedido.
+  // Un pedido puede contener rollos de varias tintorerías. Solo restringimos
+  // el lector al específico si TODAS las tintorerías comparten el mismo
+  // reader_type. Si hay mezcla (o alguna sin configurar), caemos al lector
+  // unificado para no perder códigos.
+  let readerType: 'qr' | 'barcode' | null = null
+  if (tintoreriaIds.length > 0) {
+    const { data: tintsData } = await supabase
+      .from('tintorerias')
+      .select('reader_type')
+      .in('id', tintoreriaIds)
+    const tipos = new Set(
+      (tintsData ?? []).map((t) => t.reader_type as 'qr' | 'barcode' | null)
+    )
+    if (tipos.size === 1) {
+      const [unico] = Array.from(tipos)
+      readerType = unico ?? null
+    }
+  }
+
   const items: PickRollo[] = rows
     .filter((r) => r.rollos != null)
     .map((r) => ({
@@ -149,7 +169,12 @@ export default async function PickingDetailPage({
           </p>
         </div>
       ) : (
-        <PickingScanner pedidoId={id} items={items} patrones={patrones} />
+        <PickingScanner
+          pedidoId={id}
+          items={items}
+          patrones={patrones}
+          readerType={readerType}
+        />
       )}
     </div>
   )

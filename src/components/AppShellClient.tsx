@@ -61,7 +61,10 @@ function navForRole(role: Role): NavSection[] {
   if (role === 'super') {
     return [
       {
-        items: [{ href: '/super', label: 'Empresas', icon: Building2 }],
+        items: [
+          { href: '/super', label: 'Empresas', icon: Building2 },
+          { href: '/super/tintorerias', label: 'Tintorerías', icon: Factory },
+        ],
       },
     ]
   }

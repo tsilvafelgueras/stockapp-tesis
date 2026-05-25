@@ -16,7 +16,7 @@ export default async function ConfirmarIngresoPage({
     .select(`
       id, fecha_despacho, numero_remito, estado, total_rollos_declarado,
       tintoreria_id,
-      tintorerias ( nombre ),
+      tintorerias ( nombre, reader_type ),
       articulos ( nombre )
     `)
     .eq('id', id)
@@ -58,9 +58,11 @@ export default async function ConfirmarIngresoPage({
 
   const patrones = patronesData ?? []
 
-  const tintoreria = (
-    ingreso.tintorerias as unknown as { nombre: string } | null
-  )?.nombre
+  const tintoreriaInfo = ingreso.tintorerias as unknown as
+    | { nombre: string; reader_type: 'qr' | 'barcode' | null }
+    | null
+  const tintoreria = tintoreriaInfo?.nombre
+  const readerType: 'qr' | 'barcode' | null = tintoreriaInfo?.reader_type ?? null
   const articulo = (
     ingreso.articulos as unknown as { nombre: string } | null
   )?.nombre
@@ -91,6 +93,7 @@ export default async function ConfirmarIngresoPage({
           rollos={rollos ?? []}
           totalDeclarado={ingreso.total_rollos_declarado}
           patrones={patrones}
+          readerType={readerType}
         />
       )}
     </div>

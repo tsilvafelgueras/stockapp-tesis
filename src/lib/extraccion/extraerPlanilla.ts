@@ -51,9 +51,9 @@ export type ExtraccionResult =
  *
  * @param fileBuffer Buffer del archivo
  * @param mimeType MIME type del archivo
- * @param configKey Identificador de la config específica de la tintorería
- *   (matchea con un archivo en `./tintorerias/{key}.ts`). Si es null o no
- *   existe, se usa el prompt default genérico.
+ * @param customPrompt Prompt custom de la tintorería (campo
+ *   `tintorerias.extraction_prompt` en DB). Si es null/vacío, se usa el
+ *   prompt default genérico definido en `./gemini.ts`.
  *
  * Importa la implementación de Gemini "lazy" para que tests/builds que no
  * usan la IA no carguen el SDK.
@@ -61,10 +61,10 @@ export type ExtraccionResult =
 export async function extraerPlanilla(
   fileBuffer: Buffer,
   mimeType: string,
-  configKey: string | null
+  customPrompt: string | null
 ): Promise<ExtraccionResult> {
   const { extraerConGemini } = await import('./gemini')
-  return extraerConGemini(fileBuffer, mimeType, configKey)
+  return extraerConGemini(fileBuffer, mimeType, customPrompt)
 }
 
 /**

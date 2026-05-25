@@ -81,8 +81,8 @@ const MIME_ACEPTADOS = [
 ]
 
 /**
- * Procesa una planilla con IA aplicando la config de la tintorería elegida.
- * Si la tintorería no tiene `extraction_config_key`, usa el prompt default.
+ * Procesa una planilla con IA aplicando el prompt custom de la tintorería
+ * elegida. Si la tintorería no tiene `extraction_prompt`, usa el default.
  */
 export async function procesarPlanillaConIA(
   formData: FormData
@@ -129,15 +129,15 @@ export async function procesarPlanillaConIA(
     }
   }
 
-  // Lookup de la config de la tintorería elegida.
-  // Si no tiene `extraction_config_key`, queda null y se usa el default.
+  // Lookup del prompt custom de la tintorería elegida.
+  // Si no tiene `extraction_prompt`, queda null y se usa el default.
   const { data: tintoreria } = await supabase
     .from('tintorerias')
-    .select('extraction_config_key')
+    .select('extraction_prompt')
     .eq('id', tintoreriaId)
     .single()
 
-  const configKey = tintoreria?.extraction_config_key ?? null
+  const customPrompt = tintoreria?.extraction_prompt ?? null
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
@@ -146,7 +146,7 @@ export async function procesarPlanillaConIA(
     return { ok: false, error: upload.error, codigo: 'STORAGE_ERROR' }
   }
 
-  const extraccion = await extraerPlanilla(buffer, file.type, configKey)
+  const extraccion = await extraerPlanilla(buffer, file.type, customPrompt)
   if (!extraccion.ok) {
     return {
       ok: false,
@@ -356,7 +356,7 @@ export async function createTintoreriaInline(nombre: string) {
   const { data, error } = await supabase
     .from('tintorerias')
     .insert({ nombre: cleanName })
-    .select('id, nombre, extraction_config_key')
+    .select('id, nombre')
     .single()
 
   if (error || !data) return { error: error?.message ?? 'Error al crear.' }

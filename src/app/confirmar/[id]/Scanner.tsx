@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
+import { type CodeScannerResult } from '@/components/CodeScanner'
+import ScannerByReaderType, {
+  type ReaderType,
+} from '@/components/ScannerByReaderType'
 import { extraerCodigoRollo, type PatronCodigo } from '@/lib/scanner'
 import { confirmarRollo } from './actions'
 
@@ -12,6 +15,7 @@ type Props = {
   rollos: Rollo[]
   totalDeclarado: number | null
   patrones: PatronCodigo[]
+  readerType: ReaderType
 }
 
 type Mensaje = {
@@ -19,7 +23,13 @@ type Mensaje = {
   tipo: 'error' | 'success' | 'warning'
 }
 
-export default function Scanner({ ingresoId, rollos, totalDeclarado, patrones }: Props) {
+export default function Scanner({
+  ingresoId,
+  rollos,
+  totalDeclarado,
+  patrones,
+  readerType,
+}: Props) {
   const [rollosLocales, setRollosLocales] = useState<Rollo[]>(rollos)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [ubicacion, setUbicacion] = useState('')
@@ -159,10 +169,17 @@ export default function Scanner({ ingresoId, rollos, totalDeclarado, patrones }:
           Todos los rollos de este ingreso ya fueron confirmados.
         </div>
       ) : (
-        <CodeScanner
+        <ScannerByReaderType
+          readerType={readerType}
           onRead={handleLectura}
           paused={Boolean(pendingCode) || confirmando}
-          title="Escanear QR o código de barras"
+          title={
+            readerType === 'qr'
+              ? 'Escanear código QR'
+              : readerType === 'barcode'
+                ? 'Escanear código de barras'
+                : 'Escanear QR o código de barras'
+          }
           manualLabel="Ingresar código manualmente"
           manualPlaceholder="Ej: 204021911"
         />

@@ -170,12 +170,15 @@ CREATE TABLE IF NOT EXISTS tintorerias (
   empresa_id             UUID NOT NULL REFERENCES empresas(id),
   nombre                 TEXT NOT NULL,
   activo                 BOOLEAN NOT NULL DEFAULT TRUE,
-  extraction_config_key  TEXT,
+  extraction_prompt      TEXT,
+  reader_type            TEXT CHECK (reader_type IN ('qr', 'barcode')),
   created_at             TIMESTAMPTZ DEFAULT NOW()
 );
 
-COMMENT ON COLUMN tintorerias.extraction_config_key IS
-  'Clave que matchea con un archivo en src/lib/extraccion/tintorerias/{key}.ts. Si NULL, se usa el prompt default.';
+COMMENT ON COLUMN tintorerias.extraction_prompt IS
+  'Prompt custom que el superadmin pega para guiar la extracción de planillas con IA. NULL = prompt default genérico.';
+COMMENT ON COLUMN tintorerias.reader_type IS
+  'Tipo de lector para escanear códigos de rollos: qr (html5-qrcode), barcode (@zxing/browser). NULL = lector unificado fallback.';
 
 ALTER TABLE tintorerias ENABLE ROW LEVEL SECURITY;
 
@@ -185,11 +188,23 @@ CREATE POLICY "Autenticados leen tintorerias de su empresa"
   USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
 
 DROP POLICY IF EXISTS "Operario y admin gestionan tintorerias" ON tintorerias;
-CREATE POLICY "Operario y admin gestionan tintorerias"
+DROP POLICY IF EXISTS "Admin gestiona tintorerias" ON tintorerias;
+DROP POLICY IF EXISTS "Admin o super gestiona tintorerias" ON tintorerias;
+CREATE POLICY "Admin o super gestiona tintorerias"
   ON tintorerias FOR ALL TO authenticated
   USING (
-    empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+    public.is_super_admin()
+    OR (
+      empresa_id = public.current_empresa_id()
+      AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+    )
+  )
+  WITH CHECK (
+    public.is_super_admin()
+    OR (
+      empresa_id = public.current_empresa_id()
+      AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_tintorerias ON tintorerias;

@@ -3,7 +3,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
+import { type CodeScannerResult } from '@/components/CodeScanner'
+import ScannerByReaderType, {
+  type ReaderType,
+} from '@/components/ScannerByReaderType'
 import {
   extraerCodigoCandidato,
   extraerCodigoRollo,
@@ -26,10 +29,12 @@ export default function PickingScanner({
   pedidoId,
   items,
   patrones,
+  readerType,
 }: {
   pedidoId: string
   items: PickRollo[]
   patrones: PatronCodigo[]
+  readerType: ReaderType
 }) {
   const router = useRouter()
   const [itemsLocales, setItemsLocales] = useState<PickRollo[]>(items)
@@ -169,10 +174,17 @@ export default function PickingScanner({
           </p>
         </div>
       ) : (
-        <CodeScanner
+        <ScannerByReaderType
+          readerType={readerType}
           onRead={handleLectura}
           paused={Boolean(pendingCode) || confirmando}
-          title="Escanear QR o código de barras"
+          title={
+            readerType === 'qr'
+              ? 'Escanear código QR'
+              : readerType === 'barcode'
+                ? 'Escanear código de barras'
+                : 'Escanear QR o código de barras'
+          }
           manualLabel="Ingresar código manualmente"
           manualPlaceholder="Ej: 204021911"
         />
