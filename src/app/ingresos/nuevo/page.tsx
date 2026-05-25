@@ -10,16 +10,15 @@ export default async function NuevoIngresoPage() {
   } = await supabase.auth.getUser()
 
   const [
-    { data: tintorerias },
+    { data: empresaTints },
     { data: articulos },
     { data: colores },
     { data: profile },
   ] = await Promise.all([
     supabase
-      .from('tintorerias')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
+      .from('empresa_tintorerias')
+      .select('tintoreria_id, tintorerias ( id, nombre )')
+      .eq('activo', true),
     supabase
       .from('articulos')
       .select('id, nombre')
@@ -37,9 +36,18 @@ export default async function NuevoIngresoPage() {
       .single(),
   ])
 
+  type EmpresaTintRow = {
+    tintoreria_id: string
+    tintorerias: { id: string; nombre: string } | null
+  }
+  const tintorerias = (empresaTints ?? ([] as unknown as EmpresaTintRow[]))
+    .map((r) => (r as unknown as EmpresaTintRow).tintorerias)
+    .filter((t): t is { id: string; nombre: string } => t != null)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
+
   const role = (profile?.role ?? 'operario') as 'operario' | 'admin'
 
-  const sinCatalogos = !tintorerias?.length || !articulos?.length
+  const sinCatalogos = !tintorerias.length || !articulos?.length
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
@@ -66,19 +74,19 @@ export default async function NuevoIngresoPage() {
                 Crear artículo
               </Link>
             )}
-            {!tintorerias?.length && (
+            {!tintorerias.length && (
               <Link
                 href="/admin/tintorerias"
                 className="underline hover:no-underline"
               >
-                Crear tintorería
+                Asociar tintorería
               </Link>
             )}
           </div>
         </div>
       ) : (
         <NuevoIngresoForm
-          tintorerias={tintorerias!}
+          tintorerias={tintorerias}
           articulos={articulos!}
           colores={colores ?? []}
           role={role}

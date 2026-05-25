@@ -6,14 +6,17 @@ import { actualizarPromptYReader } from './actions'
 
 export default function EditTintoreriaForm({
   tintoreriaId,
+  initialNombre,
   initialReaderType,
   initialPrompt,
 }: {
   tintoreriaId: string
+  initialNombre: string
   initialReaderType: 'qr' | 'barcode' | null
   initialPrompt: string
 }) {
   const router = useRouter()
+  const [nombre, setNombre] = useState(initialNombre)
   const [readerType, setReaderType] = useState<'qr' | 'barcode' | ''>(
     initialReaderType ?? ''
   )
@@ -30,6 +33,7 @@ export default function EditTintoreriaForm({
 
     const result = await actualizarPromptYReader({
       tintoreriaId,
+      nombre,
       extractionPrompt: extractionPrompt || null,
       readerType: readerType === '' ? null : readerType,
     })
@@ -52,6 +56,17 @@ export default function EditTintoreriaForm({
       onSubmit={handleSubmit}
       className="rounded-lg border bg-white p-5 shadow-sm space-y-5"
     >
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Nombre *</label>
+        <input
+          type="text"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          required
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+      </div>
+
       <div className="space-y-1">
         <label className="text-sm font-medium">Tipo de lector</label>
         <select

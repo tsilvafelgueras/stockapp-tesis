@@ -21,7 +21,7 @@ export default async function NuevoPedidoPage({
   const sp = await searchParams
 
   // Catálogos para los dropdowns
-  const [{ data: articulos }, { data: tintorerias }, { data: clientes }] =
+  const [{ data: articulos }, { data: empresaTints }, { data: clientes }] =
     await Promise.all([
       supabase
         .from('articulos')
@@ -29,16 +29,21 @@ export default async function NuevoPedidoPage({
         .eq('activo', true)
         .order('nombre'),
       supabase
-        .from('tintorerias')
-        .select('id, nombre')
-        .eq('activo', true)
-        .order('nombre'),
+        .from('empresa_tintorerias')
+        .select('tintorerias ( id, nombre )')
+        .eq('activo', true),
       supabase
         .from('clientes')
         .select('id, nombre')
         .eq('activo', true)
         .order('nombre'),
     ])
+
+  type EmpresaTintRow = { tintorerias: { id: string; nombre: string } | null }
+  const tintorerias = ((empresaTints ?? []) as unknown as EmpresaTintRow[])
+    .map((r) => r.tintorerias)
+    .filter((t): t is { id: string; nombre: string } => t != null)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   // Rollos disponibles (en_stock) con filtros opcionales. !inner sobre
   // ingresos para poder filtrar por color y tintorería del ingreso.

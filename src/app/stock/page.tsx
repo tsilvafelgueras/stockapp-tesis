@@ -49,7 +49,7 @@ export default async function StockPage({
 
   const [
     { data: articulos },
-    { data: tintorerias },
+    { data: empresaTints },
     { data: coloresRaw },
     { data: lotesRaw },
   ] = await Promise.all([
@@ -59,10 +59,9 @@ export default async function StockPage({
       .eq('activo', true)
       .order('nombre'),
     supabase
-      .from('tintorerias')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre'),
+      .from('empresa_tintorerias')
+      .select('tintorerias ( id, nombre )')
+      .eq('activo', true),
     supabase
       .from('ingresos')
       .select('color')
@@ -72,6 +71,12 @@ export default async function StockPage({
       .select('numero_lote')
       .not('numero_lote', 'is', null),
   ])
+
+  type EmpresaTintRow = { tintorerias: { id: string; nombre: string } | null }
+  const tintorerias = ((empresaTints ?? []) as unknown as EmpresaTintRow[])
+    .map((r) => r.tintorerias)
+    .filter((t): t is { id: string; nombre: string } => t != null)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   const colores = Array.from(
     new Set(

@@ -164,12 +164,17 @@ CREATE TRIGGER set_empresa_articulos BEFORE INSERT ON articulos
 
 
 -- ── TINTORERIAS ─────────────────────────────────────────────
+--
+-- Modelo: tintorerias es un registro maestro GLOBAL (sin empresa_id).
+-- Los atributos intrínsecos al proveedor (nombre, prompt, reader_type)
+-- viven acá. Los atributos POR RELACIÓN con cada empresa-cliente
+-- (contacto, email, telefono, activo, fecha_baja) viven en la pivote
+-- empresa_tintorerias. Una tintorería puede estar asociada a muchas
+-- empresas y una empresa puede tener muchas tintorerías.
 
 CREATE TABLE IF NOT EXISTS tintorerias (
   id                     UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  empresa_id             UUID NOT NULL REFERENCES empresas(id),
   nombre                 TEXT NOT NULL,
-  activo                 BOOLEAN NOT NULL DEFAULT TRUE,
   extraction_prompt      TEXT,
   reader_type            TEXT CHECK (reader_type IN ('qr', 'barcode')),
   created_at             TIMESTAMPTZ DEFAULT NOW()
@@ -183,15 +188,50 @@ COMMENT ON COLUMN tintorerias.reader_type IS
 ALTER TABLE tintorerias ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Autenticados leen tintorerias de su empresa" ON tintorerias;
-CREATE POLICY "Autenticados leen tintorerias de su empresa"
+DROP POLICY IF EXISTS "Autenticados leen tintorerias" ON tintorerias;
+CREATE POLICY "Autenticados leen tintorerias"
   ON tintorerias FOR SELECT TO authenticated
-  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
+  USING (TRUE);
 
 DROP POLICY IF EXISTS "Operario y admin gestionan tintorerias" ON tintorerias;
 DROP POLICY IF EXISTS "Admin gestiona tintorerias" ON tintorerias;
 DROP POLICY IF EXISTS "Admin o super gestiona tintorerias" ON tintorerias;
-CREATE POLICY "Admin o super gestiona tintorerias"
+DROP POLICY IF EXISTS "Super gestiona tintorerias" ON tintorerias;
+CREATE POLICY "Super gestiona tintorerias"
   ON tintorerias FOR ALL TO authenticated
+  USING (public.is_super_admin())
+  WITH CHECK (public.is_super_admin());
+
+-- Pivote empresa_tintorerias: atributos por relación.
+
+CREATE TABLE IF NOT EXISTS empresa_tintorerias (
+  empresa_id     UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  tintoreria_id  UUID NOT NULL REFERENCES tintorerias(id) ON DELETE CASCADE,
+  contacto       TEXT,
+  email          TEXT,
+  telefono       TEXT,
+  activo         BOOLEAN NOT NULL DEFAULT TRUE,
+  fecha_baja     TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (empresa_id, tintoreria_id)
+);
+
+CREATE INDEX IF NOT EXISTS empresa_tintorerias_tintoreria_idx
+  ON empresa_tintorerias (tintoreria_id);
+
+ALTER TABLE empresa_tintorerias ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Autenticados leen sus empresa_tintorerias" ON empresa_tintorerias;
+CREATE POLICY "Autenticados leen sus empresa_tintorerias"
+  ON empresa_tintorerias FOR SELECT TO authenticated
+  USING (
+    empresa_id = public.current_empresa_id()
+    OR public.is_super_admin()
+  );
+
+DROP POLICY IF EXISTS "Admin o super gestiona empresa_tintorerias" ON empresa_tintorerias;
+CREATE POLICY "Admin o super gestiona empresa_tintorerias"
+  ON empresa_tintorerias FOR ALL TO authenticated
   USING (
     public.is_super_admin()
     OR (
@@ -207,8 +247,8 @@ CREATE POLICY "Admin o super gestiona tintorerias"
     )
   );
 
-DROP TRIGGER IF EXISTS set_empresa_tintorerias ON tintorerias;
-CREATE TRIGGER set_empresa_tintorerias BEFORE INSERT ON tintorerias
+DROP TRIGGER IF EXISTS set_empresa_empresa_tintorerias ON empresa_tintorerias;
+CREATE TRIGGER set_empresa_empresa_tintorerias BEFORE INSERT ON empresa_tintorerias
   FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
 
 

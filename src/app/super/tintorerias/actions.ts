@@ -25,6 +25,7 @@ async function requireSuperAdmin() {
 
 export async function actualizarPromptYReader(input: {
   tintoreriaId: string
+  nombre?: string
   extractionPrompt: string | null
   readerType: ReaderType
 }): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -36,13 +37,19 @@ export async function actualizarPromptYReader(input: {
   }
 
   const admin = createAdminClient()
-  const promptValue = input.extractionPrompt?.trim() || null
+  const update: Record<string, unknown> = {
+    extraction_prompt: input.extractionPrompt?.trim() || null,
+    reader_type: input.readerType,
+  }
+  if (typeof input.nombre === 'string') {
+    const nombre = input.nombre.trim()
+    if (!nombre) return { ok: false, error: 'El nombre no puede estar vacío.' }
+    update.nombre = nombre
+  }
+
   const { error } = await admin
     .from('tintorerias')
-    .update({
-      extraction_prompt: promptValue,
-      reader_type: input.readerType,
-    })
+    .update(update)
     .eq('id', input.tintoreriaId)
 
   if (error) return { ok: false, error: error.message }
@@ -53,20 +60,15 @@ export async function actualizarPromptYReader(input: {
 }
 
 export async function crearTintoreriaSuper(input: {
-  empresa_id: string
   nombre: string
   extractionPrompt: string | null
   readerType: ReaderType
-  contacto?: string
-  email?: string
-  telefono?: string
 }) {
   const me = await requireSuperAdmin()
   if (!me) return { error: 'No autorizado.' }
 
   const nombre = input.nombre.trim()
   if (!nombre) return { error: 'El nombre de la tintorería es obligatorio.' }
-  if (!input.empresa_id) return { error: 'Hay que elegir empresa.' }
   if (input.readerType !== null && input.readerType !== 'qr' && input.readerType !== 'barcode') {
     return { error: 'reader_type inválido.' }
   }
@@ -75,13 +77,9 @@ export async function crearTintoreriaSuper(input: {
   const { data, error } = await admin
     .from('tintorerias')
     .insert({
-      empresa_id: input.empresa_id,
       nombre,
       extraction_prompt: input.extractionPrompt?.trim() || null,
       reader_type: input.readerType,
-      contacto: input.contacto?.trim() || null,
-      email: input.email?.trim() || null,
-      telefono: input.telefono?.trim() || null,
     })
     .select('id')
     .single()
@@ -92,4 +90,71 @@ export async function crearTintoreriaSuper(input: {
 
   revalidatePath('/super/tintorerias')
   redirect(`/super/tintorerias/${data.id}`)
+}
+
+export async function asociarTintoreriaAEmpresa(input: {
+  tintoreriaId: string
+  empresaId: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireSuperAdmin()
+  if (!me) return { ok: false, error: 'No autorizado.' }
+
+  if (!input.tintoreriaId || !input.empresaId) {
+    return { ok: false, error: 'Faltan datos.' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('empresa_tintorerias').insert({
+    empresa_id: input.empresaId,
+    tintoreria_id: input.tintoreriaId,
+    activo: true,
+  })
+
+  if (error) {
+    if (error.code === '23505') {
+      return { ok: false, error: 'La empresa ya tiene esta tintorería asociada.' }
+    }
+    return { ok: false, error: error.message }
+  }
+
+  revalidatePath('/super/tintorerias')
+  revalidatePath(`/super/tintorerias/${input.tintoreriaId}`)
+  return { ok: true }
+}
+
+export async function desasociarTintoreriaDeEmpresa(input: {
+  tintoreriaId: string
+  empresaId: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireSuperAdmin()
+  if (!me) return { ok: false, error: 'No autorizado.' }
+
+  const admin = createAdminClient()
+
+  const { count, error: countError } = await admin
+    .from('ingresos')
+    .select('id', { count: 'exact', head: true })
+    .eq('tintoreria_id', input.tintoreriaId)
+    .eq('empresa_id', input.empresaId)
+
+  if (countError) return { ok: false, error: countError.message }
+  if ((count ?? 0) > 0) {
+    return {
+      ok: false,
+      error:
+        'No se puede desasociar: la empresa tiene ingresos cargados con esta tintorería.',
+    }
+  }
+
+  const { error } = await admin
+    .from('empresa_tintorerias')
+    .delete()
+    .eq('empresa_id', input.empresaId)
+    .eq('tintoreria_id', input.tintoreriaId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/super/tintorerias')
+  revalidatePath(`/super/tintorerias/${input.tintoreriaId}`)
+  return { ok: true }
 }

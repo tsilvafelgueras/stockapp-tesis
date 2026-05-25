@@ -4,7 +4,7 @@ import TintoreriaForm from './TintoreriaForm'
 import TintoreriaRow from './TintoreriaRow'
 
 type Tintoreria = {
-  id: string
+  tintoreria_id: string
   nombre: string
   activo: boolean
   created_at: string
@@ -14,18 +14,61 @@ type Tintoreria = {
   telefono: string | null
 }
 
+type EmpresaTintoreriaRow = {
+  tintoreria_id: string
+  activo: boolean
+  created_at: string
+  fecha_baja: string | null
+  contacto: string | null
+  email: string | null
+  telefono: string | null
+  tintorerias: { id: string; nombre: string } | null
+}
+
 export default async function TintoreriasPage() {
   const supabase = await createClient()
 
-  const { data: tintorerias } = await supabase
-    .from('tintorerias')
+  const { data: rows } = await supabase
+    .from('empresa_tintorerias')
     .select(
-      'id, nombre, activo, created_at, fecha_baja, contacto, email, telefono'
+      `
+      tintoreria_id,
+      activo,
+      created_at,
+      fecha_baja,
+      contacto,
+      email,
+      telefono,
+      tintorerias ( id, nombre )
+    `
     )
     .order('activo', { ascending: false })
-    .order('nombre', { ascending: true })
 
-  const lista = (tintorerias ?? []) as Tintoreria[]
+  const data = (rows ?? []) as unknown as EmpresaTintoreriaRow[]
+  const lista: Tintoreria[] = data
+    .filter((r) => r.tintorerias != null)
+    .map((r) => ({
+      tintoreria_id: r.tintoreria_id,
+      nombre: r.tintorerias!.nombre,
+      activo: r.activo,
+      created_at: r.created_at,
+      fecha_baja: r.fecha_baja,
+      contacto: r.contacto,
+      email: r.email,
+      telefono: r.telefono,
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  const yaAsociadas = new Set(lista.map((t) => t.tintoreria_id))
+
+  const { data: todasLasTints } = await supabase
+    .from('tintorerias')
+    .select('id, nombre')
+    .order('nombre')
+
+  const tintoreriasDisponibles = (todasLasTints ?? []).filter(
+    (t) => !yaAsociadas.has(t.id)
+  )
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -33,12 +76,14 @@ export default async function TintoreriasPage() {
         <DashboardBackButton />
         <h1 className="text-2xl font-bold mt-1">Tintorerías</h1>
         <p className="text-sm text-muted-foreground">
-          Proveedores que tiñen las telas. Dales de alta y de baja según la
-          relación comercial activa.
+          Proveedores que tiñen las telas. Asociá las que trabajan con tu
+          empresa, cargá los datos de contacto y dales de baja cuando termine
+          la relación. Si la tintorería que buscás no aparece, pedíle al
+          superadmin que la cree primero.
         </p>
       </div>
 
-      <TintoreriaForm />
+      <TintoreriaForm tintoreriasDisponibles={tintoreriasDisponibles} />
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -55,8 +100,8 @@ export default async function TintoreriasPage() {
               {lista.length > 0 ? (
                 lista.map((t) => (
                   <TintoreriaRow
-                    key={t.id}
-                    id={t.id}
+                    key={t.tintoreria_id}
+                    tintoreriaId={t.tintoreria_id}
                     nombre={t.nombre}
                     activo={t.activo}
                     createdAt={t.created_at}
@@ -72,7 +117,7 @@ export default async function TintoreriasPage() {
                     colSpan={4}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
-                    Todavía no cargaste ninguna tintorería.
+                    Todavía no asociaste ninguna tintorería a tu empresa.
                   </td>
                 </tr>
               )}

@@ -3,15 +3,8 @@
 import { useState } from 'react'
 import { crearTintoreriaSuper } from './actions'
 
-type Empresa = { id: string; nombre: string }
-
-export default function NuevaTintoreriaSuperForm({
-  empresas,
-}: {
-  empresas: Empresa[]
-}) {
+export default function NuevaTintoreriaSuperForm() {
   const [open, setOpen] = useState(false)
-  const [empresaId, setEmpresaId] = useState('')
   const [nombre, setNombre] = useState('')
   const [readerType, setReaderType] = useState<'qr' | 'barcode' | ''>('')
   const [extractionPrompt, setExtractionPrompt] = useState('')
@@ -24,7 +17,6 @@ export default function NuevaTintoreriaSuperForm({
     setError(null)
 
     const result = await crearTintoreriaSuper({
-      empresa_id: empresaId,
       nombre,
       extractionPrompt: extractionPrompt || null,
       readerType: readerType === '' ? null : readerType,
@@ -67,35 +59,20 @@ export default function NuevaTintoreriaSuperForm({
         </button>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Empresa *</label>
-          <select
-            value={empresaId}
-            onChange={(e) => setEmpresaId(e.target.value)}
-            required
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Elegí empresa…</option>
-            {empresas.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Nombre *</label>
-          <input
-            type="text"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            required
-            placeholder="Ej: Tintorería Galfione"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </div>
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Nombre *</label>
+        <input
+          type="text"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          required
+          placeholder="Ej: Tintorería Galfione"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+        <p className="text-xs text-muted-foreground">
+          Las asociaciones con cada empresa-cliente se cargan después desde el
+          detalle.
+        </p>
       </div>
 
       <div className="space-y-1">

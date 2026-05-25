@@ -102,9 +102,16 @@ Tablas principales:
 - Lo gestionan admin Y operario (lo deciden por flow real: a veces operario carga tintorerías nuevas en el momento)
 
 ### `tintorerias`
-- id, empresa_id, nombre, activo, created_at
-- **Post-008**: agrega `extraction_config_key TEXT NULL`. Es el identificador de la config de extracción IA específica de esa tintorería (matchea con un archivo en `src/lib/extraccion/tintorerias/{key}.ts`). Si NULL, se usa el prompt default. **Lo seteamos los devs vía SQL** cuando damos de alta una tintorería con formato específico — el admin de la empresa-cliente NO ve ni edita esto.
-- Mismas reglas RLS que articulos
+- id, nombre, extraction_prompt, reader_type, created_at
+- **Registro maestro GLOBAL** (sin `empresa_id`). Refactor M:N en migración **034** (2026-05-25): una tintorería puede estar asociada a muchas empresas y una empresa a muchas tintorerías.
+- `extraction_prompt TEXT NULL` (migración **033**): prompt custom que se inyecta a Gemini cuando se extrae una planilla de esa tintorería. Lo edita el superadmin desde `/super/tintorerias`. NULL = prompt default genérico. Reemplaza al sistema viejo de `extraction_config_key` + archivos `.ts` en `src/lib/extraccion/tintorerias/` (borrado en esta iteración).
+- `reader_type TEXT NULL` (migración **033**): `'qr'` | `'barcode'` | NULL. Indica qué lector usar en `/confirmar` y `/picking`: librería específica de QR (`html5-qrcode`), específica de barcode 1D (`@zxing/browser`), o el unificado fallback (`@yudiel/react-qr-scanner`). Lo edita el superadmin.
+- RLS: SELECT abierto a cualquier autenticado (el filtrado por empresa pasa por la pivote). INSERT/UPDATE/DELETE solo super.
+
+### `empresa_tintorerias` (pivote, migración 034)
+- (empresa_id, tintoreria_id) PK compuesta, contacto, email, telefono, activo, fecha_baja, created_at
+- Atributos POR RELACIÓN con cada empresa-cliente: contacto comercial, datos de baja. Los gestiona el admin de la empresa desde `/admin/tintorerias` (que ahora "asocia" tintorerías existentes en vez de crearlas).
+- RLS: SELECT por empresa propia + super. FOR ALL por admin de su empresa + super.
 
 ### `ingresos` (renombrada desde `despachos` en migración 008)
 - id, empresa_id, tintoreria_id, articulo_id, fecha_despacho, numero_remito, total_rollos_declarado, total_kilos_declarado, estado, **origen** (`manual`|`planilla_ia`), imagen_url, created_by, created_at
@@ -340,9 +347,17 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 023 | **Patrones de extracción de código de pieza** (iteración 2026-05-22). Tabla `tintoreria_codigo_patrones`: regex con prioridad por tintorería (o `tintoreria_id NULL` = patrón "interno" de fábrica que aplica a toda la empresa). El scanner consulta esta tabla en cada lectura para extraer el `numero_pieza` del payload del QR. Si ningún patrón matchea → scan rechazado (cero fallback peligroso). Seed inicial por empresa con `\b(\d{9})\b`. RLS: read para autenticados de la empresa, write solo admin. Trigger `set_empresa_id` reutilizado. |
 | 024 | **Notificaciones in-app** (iteración 2026-05-22). Tabla `notificaciones` (id, empresa_id, tipo TEXT CHECK IN ('stock_minimo'), titulo, mensaje, articulo_id, leida_at, resuelta_at, created_at). UNIQUE parcial sobre (empresa_id, tipo, articulo_id) WHERE resuelta_at IS NULL → dedupe sin spam. Triggers en `rollos` (INSERT/UPDATE de kilos/estado/articulo_id/DELETE) y `articulos` (UPDATE de stock_minimo_kg) que llaman al helper `procesar_notificacion_stock_minimo(p_articulo_id)`. Helper recalcula stock vs mínimo y: crea notificación si cruza hacia abajo, o marca `resuelta_at = NOW()` si vuelve sobre el mínimo (auto-resolve). RLS: read+update solo admin+ventas (operario no las ve). INSERT exclusivo de los triggers (SECURITY DEFINER). Seed: la propia migración recorre artículos con mínimo configurado y crea las notificaciones iniciales. |
 | 025 | **Color en artículos** (iteración 2026-05-22). Agrega `articulos.color TEXT NULL`. Es un color "principal" del artículo (ej: "Lycra ML40 Negro"), opcional, no reemplaza a `ingresos.color`. La normalización a sentence case ("BLANCO"/"blanco"/" Blanco " → "Blanco") la hace la app en las server actions `createArticulo`/`updateArticulo` — la migración solo agrega la columna. El form del admin usa `<datalist>` con los colores ya existentes en la empresa para autocompletar y evitar duplicados visuales. |
+| 026 | Pickear rollo a otro pedido (iteración previa 2026-05). |
+| 027 | Numero de lote en ingresos. |
+| 028 | Catálogo de colores. |
+| 029 | Detalle de segunda calidad. |
+| 030 | `tintorerias.fecha_baja` (después reemplazado por `empresa_tintorerias.fecha_baja` en 034). |
+| 031 | Fix `numero_lote` SECURITY DEFINER. |
+| 032 | Contacto/email/telefono en `tintorerias` (después movidos a `empresa_tintorerias` en 034). |
+| 033 | **Prompt + tipo de lector por tintorería** (iteración 2026-05-25). Agrega `tintorerias.extraction_prompt TEXT` y `tintorerias.reader_type` (CHECK `'qr'`/`'barcode'`). Borra `extraction_config_key` (reemplaza al sistema viejo de archivos `.ts`). RLS de `tintorerias` permite a `super` cross-empresa. |
+| 034 | **Tintorerías muchos-a-muchos** (iteración 2026-05-25). Refactor M:N: nueva pivote `empresa_tintorerias` con atributos por relación (contacto/email/telefono/activo/fecha_baja). DROP de `empresa_id`+`contacto`+`email`+`telefono`+`activo`+`fecha_baja` de `tintorerias` (que pasa a ser registro maestro global). Backfill: cada fila vieja queda como una tintorería pura linkeada a su empresa actual (no se unifica por nombre para no juntar negocios distintos por coincidencia). `tintoreria_codigo_patrones.empresa_id` pasa a NULLable → patrones globales por tintorería coexisten con patrones internos por empresa (caso "la empresa pega su QR propio"). |
 
-**Schema canónico**: ✅ `supabase/schema.sql` refleja migraciones 001..011 (regenerado en Etapa 7D).
-Las migraciones **012..023** (iteraciones mayo 2026) NO están incluidas en `schema.sql` todavía — para DB nueva: correr `schema.sql` y después las migraciones `009`..`023` en orden.
+**Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual de tintorerías (post-034). Para DB nueva: correr `schema.sql` y después las migraciones `009`..`034` en orden.
 
 ---
 
@@ -480,6 +495,7 @@ Después del primer test de la Etapa 3 base, el user identificó 6 cosas a corre
 - Mobile-first: cards apilados en mobile (≤640px), tabla densa en desktop.
 
 **3.5 — Sistema de configs por tintorería** (post-test correction)
+- ⚠️ **OBSOLETO desde iteración 2026-05-25 (sección 10.11)**. El registry de archivos `.ts` fue borrado; los prompts ahora viven en `tintorerias.extraction_prompt` (BD) y los edita el superadmin desde `/super/tintorerias`. Se deja la descripción histórica para entender la evolución.
 - `src/lib/extraccion/tintorerias/_types.ts`: tipo `TintoreriaConfig`.
 - `src/lib/extraccion/tintorerias/_default.ts`: config genérica (cuando `extraction_config_key = null`).
 - `src/lib/extraccion/tintorerias/_registry.ts`: mapa `key → config`. Función `getConfig(key | null)` que devuelve el default si no encuentra.
@@ -1426,6 +1442,106 @@ dropdown con nombre completo + rol + empresa + botón "Cerrar sesión".
 
 ---
 
+## 10.11. Iteración 2026-05-25 — Prompts en BD + lectores especializados + tintorerías M:N
+
+Tres cambios entrelazados arrastrados por la misma pregunta del cliente ("¿cómo configuro el lector y el prompt cuando una tintorería trabaja con varias empresas?"):
+
+### Bloque A — Prompts de extracción IA editables por superadmin (migración 033)
+
+- `tintorerias.extraction_prompt TEXT` reemplaza al sistema viejo de `extraction_config_key` + archivos `.ts` en `src/lib/extraccion/tintorerias/` (todo el directorio borrado, incluyendo `_registry.ts`/`_default.ts`/`_types.ts`/`muter-textil.ts`).
+- `src/lib/extraccion/gemini.ts` ahora recibe el prompt como string directo (vía `extraerPlanilla(buffer, mime, customPrompt)`). Si llega null, usa un `DEFAULT_INSTRUCTIONS` inline.
+- UI nueva en `/super/tintorerias/[id]`: textarea grande con el prompt, dropdown `qr`/`barcode`/sin-configurar. **Solo super lo edita**; el admin de empresa no ve estos campos. El comentario del registry viejo (*"el admin NO ve esto, lo manejamos los devs"*) sigue siendo el principio, pero ahora la edición es por UI en vez de por archivo `.ts` + deploy.
+
+### Bloque B — Lectores QR / Barcode especializados (migración 033)
+
+- `tintorerias.reader_type` (`'qr'`/`'barcode'`/NULL) elige qué librería usar en `/confirmar` y `/picking`:
+  - `'qr'` → `src/components/QRScanner.tsx` (usa `html5-qrcode`, solo lee QR).
+  - `'barcode'` → `src/components/BarcodeScanner.tsx` (usa `@zxing/browser`, solo lee barcodes 1D — code_128, ean_13/8, upc_a/e, code_39, itf).
+  - NULL → `src/components/CodeScanner.tsx` (el unificado actual con `@yudiel/react-qr-scanner`, fallback histórico).
+- `src/components/ScannerByReaderType.tsx` es el wrapper que decide en runtime. Las pantallas que escaneaban (`/confirmar/[id]/Scanner.tsx`, `/picking/[id]/PickingScanner.tsx`) ahora reciben `readerType` como prop y delegan a este wrapper.
+- En picking, donde el pedido puede mezclar rollos de varias tintorerías, se calcula el `readerType` server-side mirando todas las tintorerías de los rollos: si todas comparten el mismo reader_type, se usa; si hay mezcla, cae al unificado.
+- Razón del split: aumentar precisión vs. el escáner unificado que detecta ambos formatos y a veces se confunde. Cuando el cliente sabe que una tintorería SIEMPRE pega QR (o SIEMPRE barcode), el lector específico es notablemente más rápido y certero.
+
+### Bloque C — Refactor M:N empresas ↔ tintorerías (migración 034)
+
+Motivación: una misma tintorería real (ej. Galfione) puede trabajar con varias empresas-cliente. El modelo viejo (`tintorerias.empresa_id NOT NULL`) obligaba a duplicar la fila + duplicar prompt + duplicar reader_type por cada empresa. Insostenible.
+
+**Schema nuevo**:
+- `tintorerias` queda como **registro maestro global**: id, nombre, extraction_prompt, reader_type, created_at. Solo super la edita.
+- Nueva pivote `empresa_tintorerias`: (empresa_id, tintoreria_id) PK + contacto/email/telefono/activo/fecha_baja/created_at. Los gestiona el admin de la empresa.
+
+**Migración de datos** (no-unificar):
+- Cada fila existente en `tintorerias` queda como una tintorería pura, asociada a su empresa actual via la pivote. **No se mergean por nombre** — riesgo de juntar negocios distintos con coincidencia de nombre. Si "Galfione" aparece en dos empresas, el super después puede mergear manualmente (o dejar dos rows).
+- Las columnas que se mudaron (`empresa_id`, `contacto`, `email`, `telefono`, `activo`, `fecha_baja`) se DROPean de `tintorerias`. Los datos siguen vivos en la pivote.
+- `tintoreria_codigo_patrones.empresa_id` pasa a NULLable. Nueva semántica:
+  - `tintoreria_id NOT NULL + empresa_id NULL` → patrón global de esa tintorería (compartido entre todas las empresas que la usan).
+  - `tintoreria_id NULL + empresa_id NOT NULL` → patrón interno de la empresa (cubre el caso "la empresa pega su propio QR a los rollos al recibirlos", no respeta el formato de la tintorería).
+  - Ambas combinaciones pueden coexistir; el scanner las prueba por `prioridad` ascendente.
+  - Trigger `set_empresa_id_patron()` reemplaza al genérico — respeta `NULL` cuando el inserter es super.
+
+**Cambios de RLS**:
+- `tintorerias`: SELECT abierto a cualquier autenticado (necesario porque las pantallas filtran por empresa via la pivote). FOR ALL solo super.
+- `empresa_tintorerias`: SELECT por empresa propia + super. FOR ALL admin de su empresa + super.
+- `tintoreria_codigo_patrones`: SELECT permite `empresa_id IS NULL OR empresa_id matches`. FOR ALL admin de su empresa para internos + super para globales.
+
+**Gotcha al aplicar la migración 034**: las policies viejas tenían el nombre con tilde ("tintorerías"), no sin tilde como esperaba inicialmente. Se reescribió el bloque de DROP POLICY como un loop sobre `pg_policies` que elimina **todas** las policies de la tabla antes del DROP COLUMN, sin depender del nombre exacto. Ese cambio quedó documentado en la migración misma.
+
+### Bloque D — UI superadmin y admin reescritas
+
+- **`/super/tintorerias`** (nuevo):
+  - Listado cross-empresa con badges de lector y count de empresas asociadas activas.
+  - Crear tintorería pura (solo nombre + prompt + reader_type, sin empresa).
+  - Detalle con form de prompt + sección "Empresas asociadas" con dropdown para asociar/desasociar.
+  - Componente nuevo `src/app/super/tintorerias/EmpresasAsociadas.tsx`.
+- **`/admin/tintorerias`** (refactor):
+  - Antes: formulario "Nueva tintorería" (crea fila).
+  - Ahora: "Asociar tintorería" con dropdown de tintorerías existentes en el registro global que no estén ya asociadas. Si la tintorería deseada no aparece, el admin se la pide al super.
+  - El nombre lo gestiona el super; el admin solo edita contacto/email/teléfono y da de baja/reactiva/desasocia el link.
+- Se borró `createTintoreriaInline` de `src/app/ingresos/nuevo/actions.ts` y sus dos puntos de uso en `NuevoIngresoForm.tsx` (el admin ya no puede crear tintorerías "al vuelo" desde el form de ingreso — usa `/admin/tintorerias`).
+
+### Bloque E — Adaptación de queries existentes
+
+Todas las pantallas que listaban "tintorerías de mi empresa" pasaron a hacer `from('empresa_tintorerias').select('tintorerias ( id, nombre )').eq('activo', true)`:
+- `src/app/ingresos/nuevo/page.tsx`
+- `src/app/ingresos/[id]/editar/page.tsx`
+- `src/app/stock/page.tsx`
+- `src/app/admin/reportes/page.tsx`
+- `src/app/pedidos/nuevo/page.tsx`
+
+Los JOINs que ya tenían `tintorerias ( nombre )` para mostrar el nombre asociado a un ingreso siguen funcionando sin cambios (la tabla `tintorerias` mantiene `id` y `nombre`).
+
+### Pendiente para que esto funcione en producción
+
+1. **Aplicar migraciones 033 y 034 en orden** desde Supabase SQL Editor. Idempotentes.
+2. `npm install` (ya commiteado en `package.json`/`package-lock.json`): suma `html5-qrcode`, `@zxing/browser`, `@zxing/library`. La `@yudiel/react-qr-scanner` se conserva como fallback.
+3. Cargar la primera tintorería real ("Tintorería Galfione") desde `/super/tintorerias` con reader_type=`qr` y el prompt específico de su formato de planilla (bloques `ART...`, rollos con `N°`, columna `Cantidad`). El texto del prompt está en el plan de trabajo de esta iteración.
+4. Asociar Galfione a cada empresa-cliente que la use desde `/super/tintorerias/{id}` → sección "Empresas asociadas".
+
+### Archivos tocados en esta iteración
+
+**Nuevos (10)**:
+- `supabase/migrations/033_tintoreria_prompt_y_reader.sql`
+- `supabase/migrations/034_tintorerias_muchos_a_muchos.sql`
+- `src/components/{QRScanner,BarcodeScanner,ScannerByReaderType}.tsx`
+- `src/app/super/tintorerias/{page,actions,NuevaTintoreriaSuperForm,EditTintoreriaForm,EmpresasAsociadas}.tsx`
+- `src/app/super/tintorerias/[id]/page.tsx`
+
+**Modificados (~12)**:
+- `supabase/schema.sql` (registro maestro + pivote)
+- `src/lib/extraccion/{gemini,extraerPlanilla}.ts` (firma con `customPrompt`)
+- `src/app/ingresos/nuevo/{actions,page,NuevoIngresoForm}.tsx` (sin createTintoreriaInline; query por pivote)
+- `src/app/admin/tintorerias/{page,actions,TintoreriaForm,TintoreriaRow}.tsx` (asociar en vez de crear)
+- `src/app/confirmar/[id]/{page,Scanner}.tsx` (pasa `readerType`)
+- `src/app/picking/[id]/{page,PickingScanner}.tsx` (resuelve `readerType` agregando rollos)
+- `src/app/ingresos/[id]/editar/page.tsx`, `src/app/stock/page.tsx`, `src/app/admin/reportes/page.tsx`, `src/app/pedidos/nuevo/page.tsx` (query por pivote)
+- `src/components/AppShellClient.tsx` (link "Tintorerías" en sidebar de super)
+- `docs/CONTEXTO.md` (esta sección + sección 6 + tabla migraciones + gotcha 11)
+
+**Borrados**:
+- `src/lib/extraccion/tintorerias/` (todo el directorio: `_registry.ts`, `_default.ts`, `_types.ts`, `muter-textil.ts`)
+
+---
+
 ## 11. Decisiones de dominio importantes
 
 Surgidas de leer el documento de tesis con entrevistas a Mariela (experta WMS), visita a Muter, charlas con Texcom, Dakuba e ingeniera SIGE.
@@ -1500,13 +1616,10 @@ $0 actualmente. Free tiers de GitHub + Vercel + Supabase + Google AI Studio (cua
    - `admin@probando.com` (admin de Muter Textil — fake email, no recibe mails, password seteado a mano)
    - `tsilvafelgueras@itba.edu.ar` (super-admin de la plataforma — Trinidad)
 10. **Email rate limit 2/h en Supabase built-in**: durante todo el desarrollo del MVP nos vamos a chocar con esto si invitamos varios usuarios seguidos. Workarounds en dev: esperar 1 hora entre tandas, usar cuentas ya creadas con password seteado a mano desde Supabase Dashboard → Authentication → Users (no requiere mail), o resetear password manualmente. El fix definitivo (Resend) está agendado en Etapa 7D punto 25 — **antes del launch sí o sí**.
-11. **Activar config de tintorería en producción** (post deploy de Etapa 3): cuando creamos `src/lib/extraccion/tintorerias/{key}.ts` para una nueva tintorería, el código solo entra en juego si la fila correspondiente en la tabla `tintorerias` tiene `extraction_config_key = '{key}'`. Lo seteamos por SQL desde Supabase Dashboard. Para Muter Textil (config ya creada en `muter-textil.ts`), correr una vez por cada empresa-cliente que tenga Muter como tintorería:
-    ```sql
-    UPDATE tintorerias
-       SET extraction_config_key = 'muter-textil'
-     WHERE nombre ILIKE '%muter%';
-    ```
-    Si la fila tiene `extraction_config_key = NULL`, la IA usa el prompt default genérico (funciona pero menos preciso para layouts en bloques paralelos como el de Muter).
+11. **Activar config de tintorería en producción** (post iteración 2026-05-25): los prompts ya no viven en archivos `.ts` — viven en la columna `tintorerias.extraction_prompt` y los edita el superadmin desde `/super/tintorerias` (sección 10.11). Workflow nuevo:
+    1. Loguearte como `super` → `/super/tintorerias` → "+ Nueva tintorería" → cargar nombre + reader_type + extraction_prompt.
+    2. En el detalle de la tintorería, sección "Empresas asociadas", asociarla a la(s) empresa(s) que la usan.
+    3. El admin de empresa también puede asociar tintorerías existentes desde `/admin/tintorerias`, pero no puede editar el prompt ni el reader_type.
 
 ---
 

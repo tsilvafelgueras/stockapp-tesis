@@ -4,7 +4,6 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   crearIngreso,
-  createTintoreriaInline,
   createArticuloInline,
   createColorInline,
   procesarPlanillaConIA,
@@ -92,7 +91,6 @@ export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
   colores: initialColores,
-  role,
 }: {
   tintorerias: Catalog[]
   articulos: Catalog[]
@@ -102,7 +100,7 @@ export default function NuevoIngresoForm({
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [tintorerias, setTintorerias] = useState(initialTintorerias)
+  const tintorerias = initialTintorerias
   const [articulos, setArticulos] = useState(initialArticulos)
   const [colores, setColores] = useState(initialColores)
 
@@ -422,26 +420,14 @@ export default function NuevoIngresoForm({
                 </option>
               ))}
             </select>
-            {!tintoreriaBloqueada && role === 'admin' && (
-              <InlineCreator
-                label="+ Nueva tintorería"
-                placeholder="Nombre de la tintorería"
-                onCreate={async (nombre) => {
-                  const res = await createTintoreriaInline(nombre)
-                  if (res.success && res.data) {
-                    setTintorerias([
-                      ...tintorerias,
-                      { id: res.data.id, nombre: res.data.nombre },
-                    ])
-                    setTintoreriaId(res.data.id)
-                  }
-                  return res
-                }}
-              />
-            )}
             <p className="text-xs text-muted-foreground">
               La IA usa instrucciones específicas según el formato de cada
-              tintorería.
+              tintorería. Si tu tintorería no aparece en la lista, asociala
+              desde{' '}
+              <a href="/admin/tintorerias" className="underline">
+                administración
+              </a>
+              .
             </p>
           </div>
 
@@ -586,23 +572,13 @@ export default function NuevoIngresoForm({
                   </option>
                 ))}
               </select>
-              {role === 'admin' && (
-                <InlineCreator
-                  label="+ Nueva tintorería"
-                  placeholder="Nombre de la tintorería"
-                  onCreate={async (nombre) => {
-                    const res = await createTintoreriaInline(nombre)
-                    if (res.success && res.data) {
-                      setTintorerias([
-                        ...tintorerias,
-                        { id: res.data.id, nombre: res.data.nombre },
-                      ])
-                      setTintoreriaId(res.data.id)
-                    }
-                    return res
-                  }}
-                />
-              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Si no aparece tu tintorería, asociala desde{' '}
+                <a href="/admin/tintorerias" className="underline">
+                  administración
+                </a>
+                .
+              </p>
             </div>
           )}
 

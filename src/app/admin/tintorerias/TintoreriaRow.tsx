@@ -5,15 +5,15 @@ import { toast } from 'sonner'
 import { Mail, Phone, User } from 'lucide-react'
 import {
   darDeBajaTintoreria,
-  editarTintoreria,
-  eliminarTintoreria,
+  desasociarTintoreria,
+  editarRelacionTintoreria,
   reactivarTintoreria,
 } from './actions'
 
-type Mode = 'view' | 'edit' | 'confirmar-baja' | 'confirmar-eliminar'
+type Mode = 'view' | 'edit' | 'confirmar-baja' | 'confirmar-desasociar'
 
 export default function TintoreriaRow({
-  id,
+  tintoreriaId,
   nombre,
   activo,
   createdAt,
@@ -22,7 +22,7 @@ export default function TintoreriaRow({
   email,
   telefono,
 }: {
-  id: string
+  tintoreriaId: string
   nombre: string
   activo: boolean
   createdAt: string
@@ -32,28 +32,20 @@ export default function TintoreriaRow({
   telefono: string | null
 }) {
   const [mode, setMode] = useState<Mode>('view')
-  const [nombreVal, setNombreVal] = useState(nombre)
   const [contactoVal, setContactoVal] = useState(contacto ?? '')
   const [emailVal, setEmailVal] = useState(email ?? '')
   const [telefonoVal, setTelefonoVal] = useState(telefono ?? '')
   const [pending, startTransition] = useTransition()
 
   function resetForm() {
-    setNombreVal(nombre)
     setContactoVal(contacto ?? '')
     setEmailVal(email ?? '')
     setTelefonoVal(telefono ?? '')
   }
 
   function guardar() {
-    const limpio = nombreVal.trim()
-    if (!limpio) {
-      toast.error('El nombre no puede estar vacío.')
-      return
-    }
     startTransition(async () => {
-      const res = await editarTintoreria(id, {
-        nombre: limpio,
+      const res = await editarRelacionTintoreria(tintoreriaId, {
         contacto: contactoVal,
         email: emailVal,
         telefono: telefonoVal,
@@ -62,14 +54,14 @@ export default function TintoreriaRow({
         toast.error(res.error)
         return
       }
-      toast.success('Tintorería actualizada.')
+      toast.success('Datos de contacto actualizados.')
       setMode('view')
     })
   }
 
   function darDeBaja() {
     startTransition(async () => {
-      const res = await darDeBajaTintoreria(id)
+      const res = await darDeBajaTintoreria(tintoreriaId)
       if ('error' in res) {
         toast.error(res.error)
         return
@@ -81,7 +73,7 @@ export default function TintoreriaRow({
 
   function reactivar() {
     startTransition(async () => {
-      const res = await reactivarTintoreria(id)
+      const res = await reactivarTintoreria(tintoreriaId)
       if ('error' in res) {
         toast.error(res.error)
         return
@@ -90,15 +82,15 @@ export default function TintoreriaRow({
     })
   }
 
-  function eliminar() {
+  function desasociar() {
     startTransition(async () => {
-      const res = await eliminarTintoreria(id)
+      const res = await desasociarTintoreria(tintoreriaId)
       if ('error' in res) {
         toast.error(res.error)
         setMode('view')
         return
       }
-      toast.success(`"${nombre}" eliminada.`)
+      toast.success(`"${nombre}" desasociada.`)
     })
   }
 
@@ -107,18 +99,13 @@ export default function TintoreriaRow({
       <tr className="border-b last:border-0 bg-accent/40">
         <td colSpan={4} className="px-4 py-4">
           <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="font-medium">{nombre}</p>
+              <span className="text-xs text-muted-foreground">
+                El nombre lo gestiona el superadmin.
+              </span>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Nombre *
-                </label>
-                <input
-                  value={nombreVal}
-                  onChange={(e) => setNombreVal(e.target.value)}
-                  autoFocus
-                  className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
-                />
-              </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">
                   Persona de contacto
@@ -127,6 +114,7 @@ export default function TintoreriaRow({
                   value={contactoVal}
                   onChange={(e) => setContactoVal(e.target.value)}
                   placeholder="Ej: Juan Pérez"
+                  autoFocus
                   className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
                 />
               </div>
@@ -142,7 +130,7 @@ export default function TintoreriaRow({
                   className="w-full rounded-md border bg-white px-3 py-1.5 text-sm"
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 sm:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">
                   Teléfono
                 </label>
@@ -213,12 +201,13 @@ export default function TintoreriaRow({
     )
   }
 
-  if (mode === 'confirmar-eliminar') {
+  if (mode === 'confirmar-desasociar') {
     return (
       <tr className="border-b last:border-0 bg-destructive/5">
         <td className="px-4 py-3 text-sm" colSpan={3}>
-          ¿Eliminar <strong>{nombre}</strong>? Si tiene ingresos cargados, esta
-          acción va a fallar y vas a tener que darla de baja.
+          ¿Desasociar <strong>{nombre}</strong> de tu empresa? La tintorería
+          sigue existiendo en el registro global. Si tiene ingresos cargados,
+          la acción va a fallar y vas a tener que darla de baja.
         </td>
         <td className="px-4 py-3 text-right">
           <div className="flex justify-end gap-2">
@@ -232,11 +221,11 @@ export default function TintoreriaRow({
             </button>
             <button
               type="button"
-              onClick={eliminar}
+              onClick={desasociar}
               disabled={pending}
               className="rounded-md bg-destructive px-3 py-1 text-xs font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
             >
-              {pending ? 'Eliminando…' : 'Eliminar'}
+              {pending ? 'Desasociando…' : 'Desasociar'}
             </button>
           </div>
         </td>
@@ -312,7 +301,7 @@ export default function TintoreriaRow({
             disabled={pending}
             className="whitespace-nowrap rounded-md border px-2.5 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50"
           >
-            Editar
+            Editar contacto
           </button>
           {activo ? (
             <button
@@ -335,11 +324,11 @@ export default function TintoreriaRow({
           )}
           <button
             type="button"
-            onClick={() => setMode('confirmar-eliminar')}
+            onClick={() => setMode('confirmar-desasociar')}
             disabled={pending}
             className="whitespace-nowrap rounded-md border border-destructive/40 text-destructive px-2.5 py-1 text-xs hover:bg-destructive/5 disabled:opacity-50"
           >
-            Eliminar
+            Desasociar
           </button>
         </div>
       </td>

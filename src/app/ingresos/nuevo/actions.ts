@@ -330,39 +330,6 @@ export async function crearIngreso(input: IngresoInput) {
   redirect(`/ingresos/${ingreso.id}?creado=1`)
 }
 
-// ── Creación inline desde el form ───────────────────────────
-
-export async function createTintoreriaInline(nombre: string) {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Sesión expirada.' }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') {
-    return { error: 'Solo el administrador puede agregar tintorerías.' }
-  }
-
-  const cleanName = nombre.trim()
-  if (!cleanName) return { error: 'El nombre no puede estar vacío.' }
-
-  const { data, error } = await supabase
-    .from('tintorerias')
-    .insert({ nombre: cleanName })
-    .select('id, nombre')
-    .single()
-
-  if (error || !data) return { error: error?.message ?? 'Error al crear.' }
-  return { success: true, data }
-}
-
 // ── Edición de encabezado de ingreso (solo admin) ──────────
 
 export type EditarIngresoInput = {
