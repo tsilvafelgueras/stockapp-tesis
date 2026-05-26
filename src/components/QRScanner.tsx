@@ -6,7 +6,6 @@ import {
   Html5QrcodeSupportedFormats,
 } from 'html5-qrcode'
 import type { CodeScannerResult } from './CodeScanner'
-import { decodificarQRConApi } from '@/lib/qr-api'
 
 type ScannerStatus =
   | 'starting'
@@ -44,14 +43,11 @@ export default function QRScanner({
   const onReadRef = useRef(onRead)
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const html5QrcodeRef = useRef<Html5Qrcode | null>(null)
-  const containerRef = useRef<HTMLDivElement | null>(null)
   const containerId = `qr-scanner-${useId().replace(/:/g, '')}`
 
   const [status, setStatus] = useState<ScannerStatus>('starting')
   const [manualValue, setManualValue] = useState('')
   const [scanSuccess, setScanSuccess] = useState(false)
-  const [apiEnviando, setApiEnviando] = useState(false)
-  const [apiError, setApiError] = useState<string | null>(null)
 
   useEffect(() => {
     onReadRef.current = onRead
@@ -167,68 +163,6 @@ export default function QRScanner({
     setManualValue('')
   }
 
-  async function capturarFrameComoBlob(): Promise<Blob | null> {
-    const video = containerRef.current?.querySelector('video') ?? null
-    if (!video || !video.videoWidth || !video.videoHeight) return null
-
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85)
-    })
-  }
-
-  async function handleReintentar() {
-    if (apiEnviando) return
-    setApiError(null)
-    setApiEnviando(true)
-
-    const instance = html5QrcodeRef.current
-    let pausado = false
-    if (instance?.isScanning) {
-      try {
-        instance.pause(true)
-        pausado = true
-      } catch {
-        /* noop */
-      }
-    }
-
-    try {
-      const blob = await capturarFrameComoBlob()
-      if (!blob) {
-        setApiError('No pudimos capturar la imagen de la cámara.')
-        return
-      }
-
-      const formData = new FormData()
-      formData.append('file', blob, 'frame.jpg')
-
-      const result = await decodificarQRConApi(formData)
-      if (result.ok) {
-        emitRead({ texto: result.texto, formato: 'qr_code' })
-      } else {
-        setApiError(result.error)
-      }
-    } catch {
-      setApiError('Algo falló al procesar la imagen. Probá de nuevo.')
-    } finally {
-      setApiEnviando(false)
-      if (pausado) {
-        try {
-          instance?.resume()
-        } catch {
-          /* noop */
-        }
-      }
-    }
-  }
-
   const standalone = variant === 'standalone'
 
   return (
@@ -255,7 +189,6 @@ export default function QRScanner({
             <div className="relative aspect-[4/3] w-full">
               <div
                 id={containerId}
-                ref={containerRef}
                 className="absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
               />
 
@@ -295,22 +228,6 @@ export default function QRScanner({
                 </CameraOverlay>
               )}
             </div>
-          </div>
-        )}
-
-        {status === 'ready' && (
-          <div className="mt-3 space-y-2">
-            <button
-              type="button"
-              onClick={handleReintentar}
-              disabled={apiEnviando}
-              className="inline-flex w-full min-h-11 items-center justify-center rounded-md border border-input bg-white px-4 text-sm font-semibold transition-colors hover:bg-zinc-50 disabled:opacity-50"
-            >
-              {apiEnviando ? 'Procesando…' : 'Reintentar'}
-            </button>
-            {apiError && (
-              <p className="text-xs text-destructive">{apiError}</p>
-            )}
           </div>
         )}
 
