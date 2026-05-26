@@ -105,13 +105,29 @@ export default function QRScanner({
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: 'environment' } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
         })
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop())
           return
         }
         streamRef.current = stream
+
+        const track = stream.getVideoTracks()[0]
+        if (track) {
+          try {
+            await track.applyConstraints({
+              advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet],
+            })
+          } catch {
+            // focusMode no es soportado en todos los navegadores; ignorar.
+          }
+        }
+
         video!.srcObject = stream
         await video!.play()
         scanLoop()
