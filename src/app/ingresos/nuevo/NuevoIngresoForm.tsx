@@ -1536,51 +1536,49 @@ function InlineArticuloCreator({
   }
 
   return (
-    <div className="space-y-1">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input
-          type="text"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Nombre del artículo"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') reset()
-          }}
-          className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <select
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          required
-          className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="" disabled>
-            Color…
+    <div className="space-y-2 rounded-md border border-input bg-zinc-50/40 p-2">
+      <input
+        type="text"
+        value={nombre}
+        onChange={(e) => setNombre(e.target.value)}
+        placeholder="Nombre del artículo"
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') reset()
+        }}
+        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <select
+        value={color}
+        onChange={(e) => setColor(e.target.value)}
+        required
+        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <option value="" disabled>
+          Color…
+        </option>
+        {colores.map((c) => (
+          <option key={c.id} value={c.nombre}>
+            {c.nombre}
           </option>
-          {colores.map((c) => (
-            <option key={c.id} value={c.nombre}>
-              {c.nombre}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={loading || !nombre.trim() || !color}
-            className="flex-1 sm:flex-initial rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {loading ? '...' : 'Guardar'}
-          </button>
-          <button
-            type="button"
-            onClick={reset}
-            className="flex-1 sm:flex-initial rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
-          >
-            Cancelar
-          </button>
-        </div>
+        ))}
+      </select>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={loading || !nombre.trim() || !color}
+          className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {loading ? '...' : 'Guardar'}
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          className="flex-1 rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
+        >
+          Cancelar
+        </button>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
