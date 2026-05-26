@@ -16,6 +16,7 @@ import {
 } from '@/lib/extraccion/extraerPlanilla'
 
 type Catalog = { id: string; nombre: string }
+type ArticuloCatalog = { id: string; nombre: string; color: string }
 
 type Modo = 'manual' | 'ia'
 
@@ -95,7 +96,7 @@ export default function NuevoIngresoForm({
   colores: initialColores,
 }: {
   tintorerias: Catalog[]
-  articulos: Catalog[]
+  articulos: ArticuloCatalog[]
   colores: Catalog[]
   role: 'operario' | 'admin'
 }) {
@@ -165,7 +166,19 @@ export default function NuevoIngresoForm({
 
   function applyBulkArticulo() {
     if (!bulkArticuloId) return
-    setRollos(rollos.map((r) => ({ ...r, articulo_id: bulkArticuloId })))
+    // El artículo seleccionado en bulk es una fila concreta (nombre, color)
+    // del catálogo. Aplicar también el color asociado a cada rollo para que
+    // la combinación sea coherente. El usuario puede sobrescribir el color
+    // por rollo después si quiere.
+    const articuloPick = articulos.find((a) => a.id === bulkArticuloId)
+    if (!articuloPick) return
+    setRollos(
+      rollos.map((r) => ({
+        ...r,
+        articulo_id: bulkArticuloId,
+        color: articuloPick.color,
+      }))
+    )
   }
 
   function applyBulkColor() {
@@ -256,16 +269,33 @@ export default function NuevoIngresoForm({
     const colorGlobal = matchColor(datos.color.value)
     if (colorGlobal) setBulkColor(colorGlobal)
 
-    const articulosByName = new Map(
-      articulos.map((a) => [normNombre(a.nombre), a.id])
-    )
+    // Matching IA → catálogo: cada articulo del catálogo es una fila
+    // (nombre, color). Buscamos primero match exacto (nombre+color) para
+    // que la pre-selección sea fiel. Si no hay match exacto, caemos a
+    // cualquier articulo con ese nombre como punto de partida — el server
+    // resuelve la combinación final con lookup-or-create.
+    function articuloMatch(
+      nombreRaw: string,
+      colorRaw: string | null
+    ): string | null {
+      const nombreNorm = normNombre(nombreRaw)
+      if (!nombreNorm) return null
+      if (colorRaw) {
+        const exacto = articulos.find(
+          (a) => normNombre(a.nombre) === nombreNorm && a.color === colorRaw
+        )
+        if (exacto) return exacto.id
+      }
+      const porNombre = articulos.find((a) => normNombre(a.nombre) === nombreNorm)
+      return porNombre?.id ?? null
+    }
 
     const rollosFromIA: RolloInput[] = datos.rollos.map((r) => {
       const articuloNombre = r.articulo?.value?.trim() ?? ''
-      const articuloIdMatch = articuloNombre
-        ? articulosByName.get(normNombre(articuloNombre)) ?? null
-        : null
+      // Color por rollo si vino, sino fallback al global del header.
       const colorRolloMatch = matchColor(r.color?.value)
+      const colorEfectivo = colorRolloMatch ?? colorGlobal
+      const articuloIdMatch = articuloMatch(articuloNombre, colorEfectivo)
       return {
         numero_pieza: valOf(r.numero_pieza),
         kilos: fmt(r.kilos.value),
@@ -275,8 +305,7 @@ export default function NuevoIngresoForm({
         ubicacion: '',
         estado: 'pendiente',
         articulo_id: articuloIdMatch,
-        // Color por rollo si vino, sino fallback al global del header.
-        color: colorRolloMatch ?? colorGlobal,
+        color: colorEfectivo,
         confianza_ia: avg([
           r.numero_pieza.confidence,
           r.kilos.confidence,
@@ -340,6 +369,7 @@ export default function NuevoIngresoForm({
       totalKilosNum === null || Math.abs(totalKilosNum - sumaKilos) < 0.01
 
     const rollosSinArticulo = rollosConPieza.filter((r) => !r.articulo_id).length
+    const rollosSinColor = rollosConPieza.filter((r) => !r.color?.trim()).length
 
     return {
       sumaKilos,
@@ -348,6 +378,7 @@ export default function NuevoIngresoForm({
       cantidadCoincide,
       kilosCoinciden,
       rollosSinArticulo,
+      rollosSinColor,
     }
   }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
 
@@ -384,6 +415,7 @@ export default function NuevoIngresoForm({
     validations.cantidadRollos === 0 ||
     validations.duplicados.length > 0 ||
     validations.rollosSinArticulo > 0 ||
+    validations.rollosSinColor > 0 ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
 
@@ -718,7 +750,7 @@ export default function NuevoIngresoForm({
                 <option value="">Seleccionar...</option>
                 {articulos.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.nombre}
+                    {a.nombre} - {a.color}
                   </option>
                 ))}
               </select>
@@ -731,13 +763,14 @@ export default function NuevoIngresoForm({
                 Aplicar
               </button>
             </div>
-            <InlineCreator
-              label="+ Nuevo artículo"
-              placeholder="Nombre del artículo"
-              onCreate={async (nombre) => {
-                const res = await createArticuloInline(nombre)
+            <InlineArticuloCreator
+              colores={colores}
+              onCreate={async (nombre, color) => {
+                const res = await createArticuloInline(nombre, color)
                 if (res.success && res.data) {
-                  setArticulos([...articulos, res.data])
+                  if (!articulos.find((a) => a.id === res.data!.id)) {
+                    setArticulos([...articulos, res.data])
+                  }
                   setBulkArticuloId(res.data.id)
                 }
                 return res
@@ -904,7 +937,7 @@ export default function NuevoIngresoForm({
                         <option value="">Seleccionar...</option>
                         {articulos.map((a) => (
                           <option key={a.id} value={a.id}>
-                            {a.nombre}
+                            {a.nombre} - {a.color}
                           </option>
                         ))}
                       </select>
@@ -1026,6 +1059,7 @@ export default function NuevoIngresoForm({
       {/* Validaciones / warnings */}
       {(validations.duplicados.length > 0 ||
         validations.rollosSinArticulo > 0 ||
+        validations.rollosSinColor > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-3 sm:p-4 space-y-1 text-sm">
@@ -1039,6 +1073,12 @@ export default function NuevoIngresoForm({
             <p className="text-destructive">
               ⚠ {validations.rollosSinArticulo} rollo
               {validations.rollosSinArticulo === 1 ? '' : 's'} sin artículo asignado. Elegí el artículo en la tabla o usá &quot;Aplicar a todos&quot; arriba.
+            </p>
+          )}
+          {validations.rollosSinColor > 0 && (
+            <p className="text-destructive">
+              ⚠ {validations.rollosSinColor} rollo
+              {validations.rollosSinColor === 1 ? '' : 's'} sin color asignado. Elegí el color en la tabla o usá &quot;Aplicar a todos&quot; arriba.
             </p>
           )}
           {!validations.cantidadCoincide && (
@@ -1092,7 +1132,7 @@ function RolloCardMobile({
 }: {
   rollo: RolloInput
   index: number
-  articulos: Catalog[]
+  articulos: ArticuloCatalog[]
   colores: Catalog[]
   confianzas:
     | {
@@ -1156,7 +1196,7 @@ function RolloCardMobile({
           <option value="">Seleccionar...</option>
           {articulos.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.nombre}
+              {a.nombre} - {a.color}
             </option>
           ))}
         </select>
@@ -1308,7 +1348,6 @@ function UploadArea({
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf"
-        capture="environment"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0]
@@ -1420,6 +1459,116 @@ function InlineCreator({
             type="button"
             onClick={handleSave}
             disabled={loading || !value.trim()}
+            className="flex-1 sm:flex-initial rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {loading ? '...' : 'Guardar'}
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            className="flex-1 sm:flex-initial rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+// Creador inline de articulo: pide nombre + color (ambos obligatorios,
+// el color se elige del catálogo). La fila resultante en `articulos` es
+// una combinación concreta (nombre, color) — modelo definido por la
+// migración 038.
+function InlineArticuloCreator({
+  colores,
+  onCreate,
+}: {
+  colores: Catalog[]
+  onCreate: (
+    nombre: string,
+    color: string
+  ) => Promise<{
+    success?: boolean
+    data?: { id: string; nombre: string; color: string }
+    error?: string
+  }>
+}) {
+  const [open, setOpen] = useState(false)
+  const [nombre, setNombre] = useState('')
+  const [color, setColor] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    if (!nombre.trim() || !color) return
+    setLoading(true)
+    setError(null)
+    const res = await onCreate(nombre, color)
+    setLoading(false)
+    if (res.error) {
+      setError(res.error)
+    } else {
+      setNombre('')
+      setColor('')
+      setOpen(false)
+    }
+  }
+
+  function reset() {
+    setOpen(false)
+    setNombre('')
+    setColor('')
+    setError(null)
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs text-primary hover:underline"
+      >
+        + Nuevo artículo
+      </button>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Nombre del artículo"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') reset()
+          }}
+          className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <select
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          required
+          className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="" disabled>
+            Color…
+          </option>
+          {colores.map((c) => (
+            <option key={c.id} value={c.nombre}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading || !nombre.trim() || !color}
             className="flex-1 sm:flex-initial rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {loading ? '...' : 'Guardar'}

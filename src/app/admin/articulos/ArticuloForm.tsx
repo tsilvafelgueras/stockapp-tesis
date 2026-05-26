@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { createArticulo, updateArticulo, deleteArticulo } from './actions'
+import { createColorInline } from '@/app/ingresos/nuevo/actions'
 
 type Articulo = {
   id: string
@@ -15,41 +16,138 @@ type Articulo = {
 
 type Catalog = { id: string; nombre: string }
 
-function ColorSelect({
+/**
+ * Selector de color con creación inline. El catálogo `colores` es el
+ * source-of-truth; el botón "+" abre un mini-input para crear sobre
+ * la marcha (invoca createColorInline → dedupea/normaliza Title Case
+ * y la lista local se actualiza optimista).
+ *
+ * El color es siempre obligatorio (artículos requieren color desde
+ * migración 038). Mostramos placeholder disabled para guiar al
+ * usuario y `required` para que el browser bloquee submits vacíos.
+ *
+ * La opción "(legacy)" preserva valores de filas viejas que aún no
+ * están en el catálogo (ej. el placeholder '__sin_color__' que la
+ * migración 038 asigna a artículos huérfanos para que el admin los
+ * cure manualmente).
+ */
+function ColorPicker({
   value,
   onChange,
   colores,
+  onColorCreated,
   className,
 }: {
   value: string
   onChange: (v: string) => void
   colores: Catalog[]
+  onColorCreated: (c: Catalog) => void
   className?: string
 }) {
+  const [creating, setCreating] = useState(false)
+  const [nuevoNombre, setNuevoNombre] = useState('')
+  const [pending, startTransition] = useTransition()
+
+  function crear() {
+    const limpio = nuevoNombre.trim()
+    if (!limpio) return
+    startTransition(async () => {
+      const res = await createColorInline(limpio)
+      if ('error' in res) {
+        toast.error(res.error ?? 'No se pudo crear el color.')
+        return
+      }
+      const created = res.data as Catalog
+      onColorCreated(created)
+      onChange(created.nombre)
+      setNuevoNombre('')
+      setCreating(false)
+    })
+  }
+
+  if (creating) {
+    return (
+      <div className="flex gap-1">
+        <input
+          autoFocus
+          value={nuevoNombre}
+          onChange={(e) => setNuevoNombre(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              crear()
+            }
+            if (e.key === 'Escape') {
+              setCreating(false)
+              setNuevoNombre('')
+            }
+          }}
+          placeholder="Nuevo color…"
+          className={className}
+        />
+        <button
+          type="button"
+          onClick={crear}
+          disabled={pending || !nuevoNombre.trim()}
+          className="rounded-md bg-action px-2 py-1 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50"
+        >
+          {pending ? '…' : 'Crear'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setCreating(false)
+            setNuevoNombre('')
+          }}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-zinc-100"
+          aria-label="Cancelar"
+          title="Cancelar"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={className}
-    >
-      <option value="">Sin color</option>
-      {colores.map((c) => (
-        <option key={c.id} value={c.nombre}>
-          {c.nombre}
+    <div className="flex gap-1">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+        className={className}
+      >
+        <option value="" disabled>
+          Elegí un color…
         </option>
-      ))}
-      {value && !colores.find((c) => c.nombre === value) && (
-        <option value={value}>{value} (legacy)</option>
-      )}
-    </select>
+        {colores.map((c) => (
+          <option key={c.id} value={c.nombre}>
+            {c.nombre}
+          </option>
+        ))}
+        {value && !colores.find((c) => c.nombre === value) && (
+          <option value={value}>{value} (legacy)</option>
+        )}
+      </select>
+      <button
+        type="button"
+        onClick={() => setCreating(true)}
+        className="flex size-9 shrink-0 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-zinc-100"
+        aria-label="Crear color nuevo"
+        title="Crear color nuevo"
+      >
+        <Plus className="size-4" />
+      </button>
+    </div>
   )
 }
 
 export function NuevoArticuloForm({
-  colores = [],
+  colores: coloresIniciales = [],
 }: {
   colores?: Catalog[]
 }) {
+  const [colores, setColores] = useState(coloresIniciales)
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [color, setColor] = useState('')
@@ -59,6 +157,10 @@ export function NuevoArticuloForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!color) {
+      setError('El color es obligatorio.')
+      return
+    }
     setLoading(true)
     setError(null)
     const result = await createArticulo({
@@ -115,12 +217,17 @@ export function NuevoArticuloForm({
 
         <div className="space-y-1">
           <label htmlFor="color" className="text-sm font-medium">
-            Color
+            Color *
           </label>
-          <ColorSelect
+          <ColorPicker
             value={color}
             onChange={setColor}
             colores={colores}
+            onColorCreated={(c) =>
+              setColores((prev) =>
+                prev.find((p) => p.id === c.id) ? prev : [...prev, c]
+              )
+            }
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
@@ -147,7 +254,7 @@ export function NuevoArticuloForm({
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !color}
         className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
       >
         {loading ? 'Guardando...' : 'Agregar artículo'}
@@ -160,13 +267,14 @@ export function EditArticuloRow({
   articulo,
   forzarEdicion = false,
   onEliminado,
-  colores = [],
+  colores: coloresIniciales = [],
 }: {
   articulo: Articulo
   forzarEdicion?: boolean
   onEliminado?: (id: string) => void
   colores?: Catalog[]
 }) {
+  const [colores, setColores] = useState(coloresIniciales)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [nombre, setNombre] = useState(articulo.nombre)
   const [descripcion, setDescripcion] = useState(articulo.descripcion ?? '')
@@ -184,6 +292,11 @@ export function EditArticuloRow({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!color) {
+      setError('El color es obligatorio.')
+      toast.error('El color es obligatorio.')
+      return
+    }
     setLoading(true)
     setError(null)
     const result = await updateArticulo(articulo.id, {
@@ -272,10 +385,15 @@ export function EditArticuloRow({
           />
         </td>
         <td className="px-4 py-3">
-          <ColorSelect
+          <ColorPicker
             value={color}
             onChange={setColor}
             colores={colores}
+            onColorCreated={(c) =>
+              setColores((prev) =>
+                prev.find((p) => p.id === c.id) ? prev : [...prev, c]
+              )
+            }
             className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </td>
@@ -298,7 +416,7 @@ export function EditArticuloRow({
             )}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !color}
               className="rounded-md bg-action px-3 py-1.5 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Guardando…' : 'Guardar'}

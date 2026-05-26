@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { normalizarTitleCase } from '@/lib/text/normalize'
 
 type ArticuloFormData = {
   nombre: string
@@ -10,36 +11,44 @@ type ArticuloFormData = {
   stock_minimo_kg?: string
 }
 
-/**
- * Sentence case: trim + primera letra mayúscula, resto minúscula.
- * "BLANCO" → "Blanco"
- * "  blanco  " → "Blanco"
- * "AZUL MARINO" → "Azul marino"
- * Devuelve null si el input queda vacío después del trim.
- */
-function normalizarColor(raw: string | undefined | null): string | null {
-  if (!raw) return null
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
-}
-
 export async function createArticulo(formData: ArticuloFormData) {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
+  const color = normalizarTitleCase(formData.color)
   if (!nombre) return { error: 'El nombre es obligatorio.' }
+  if (!color) return { error: 'El color es obligatorio.' }
+
+  // Lookup-or-create: si ya existe (empresa, nombre, color), reusamos
+  // y reportamos como éxito (idempotente). Evita falsos errores cuando
+  // dos operarios crean el mismo artículo a la vez.
+  const { data: existente } = await supabase
+    .from('articulos')
+    .select('id')
+    .eq('nombre', nombre)
+    .eq('color', color)
+    .maybeSingle()
+
+  if (existente) {
+    revalidatePath('/admin/articulos')
+    return { success: true }
+  }
 
   const { error } = await supabase.from('articulos').insert({
     nombre,
+    color,
     descripcion: formData.descripcion.trim() || null,
-    color: normalizarColor(formData.color),
     stock_minimo_kg: formData.stock_minimo_kg
       ? parseFloat(formData.stock_minimo_kg)
       : null,
   })
 
-  if (error) return { error: error.message }
+  if (error) {
+    if (error.code === '23505') {
+      return { error: `Ya existe el artículo "${nombre} ${color}".` }
+    }
+    return { error: error.message }
+  }
 
   revalidatePath('/admin/articulos')
   return { success: true }
@@ -49,21 +58,28 @@ export async function updateArticulo(id: string, formData: ArticuloFormData) {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
+  const color = normalizarTitleCase(formData.color)
   if (!nombre) return { error: 'El nombre es obligatorio.' }
+  if (!color) return { error: 'El color es obligatorio.' }
 
   const { error } = await supabase
     .from('articulos')
     .update({
       nombre,
+      color,
       descripcion: formData.descripcion.trim() || null,
-      color: normalizarColor(formData.color),
       stock_minimo_kg: formData.stock_minimo_kg
         ? parseFloat(formData.stock_minimo_kg)
         : null,
     })
     .eq('id', id)
 
-  if (error) return { error: error.message }
+  if (error) {
+    if (error.code === '23505') {
+      return { error: `Ya existe el artículo "${nombre} ${color}".` }
+    }
+    return { error: error.message }
+  }
 
   revalidatePath('/admin/articulos')
   return { success: true }

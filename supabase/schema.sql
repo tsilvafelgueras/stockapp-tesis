@@ -133,14 +133,24 @@ CREATE TRIGGER on_auth_user_created
 
 
 -- ── ARTICULOS ───────────────────────────────────────────────
+--
+-- Modelo: una fila de `articulos` representa una combinación concreta
+-- (nombre, color). Ej: ("Lycra", "Rojo") y ("Lycra", "Azul") son dos
+-- filas distintas. Cada rollo apunta a la fila específica vía
+-- articulo_id, y el color del rollo deriva de articulos.color.
+-- Ver migración 038 para detalle.
 
 CREATE TABLE IF NOT EXISTS articulos (
-  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  empresa_id  UUID NOT NULL REFERENCES empresas(id),
-  nombre      TEXT NOT NULL,
-  descripcion TEXT,
-  activo      BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id      UUID NOT NULL REFERENCES empresas(id),
+  nombre          TEXT NOT NULL,
+  color           TEXT NOT NULL,
+  descripcion     TEXT,
+  activo          BOOLEAN NOT NULL DEFAULT TRUE,
+  stock_minimo_kg NUMERIC(10, 2),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT articulos_empresa_nombre_color_key
+    UNIQUE (empresa_id, nombre, color)
 );
 
 ALTER TABLE articulos ENABLE ROW LEVEL SECURITY;
@@ -307,6 +317,12 @@ CREATE TABLE IF NOT EXISTS rollos (
   ubicacion           TEXT,
   pantone             TEXT,
   foto_url            TEXT,
+  -- DEPRECATED desde migración 038: derivable de articulos.color via
+  -- articulo_id. Se mantiene por compat con queries existentes
+  -- (reportes, stock, picking, CSV) y la sincroniza el trigger
+  -- sync_rollo_color. NO escribir directo: cambiá articulo_id en su
+  -- lugar (apuntando a la fila (mismo_nombre, nuevo_color)).
+  color               TEXT,
   kilos               NUMERIC(10, 2),
   metros              NUMERIC(10, 2),
   ratio_rendimiento   NUMERIC(10, 4),
@@ -340,6 +356,28 @@ CREATE POLICY "Admin y operario gestionan rollos de su empresa"
 DROP TRIGGER IF EXISTS set_empresa_rollos ON rollos;
 CREATE TRIGGER set_empresa_rollos BEFORE INSERT ON rollos
   FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
+
+-- Sincroniza rollos.color desde articulos.color del articulo_id
+-- apuntado. Si articulo_id es NULL, no toca rollos.color (legacy).
+-- Ver migración 038.
+CREATE OR REPLACE FUNCTION public.sync_rollo_color_from_articulo()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.articulo_id IS NOT NULL THEN
+    SELECT color INTO NEW.color
+      FROM public.articulos
+     WHERE id = NEW.articulo_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_rollo_color ON rollos;
+CREATE TRIGGER sync_rollo_color
+  BEFORE INSERT OR UPDATE OF articulo_id, color ON rollos
+  FOR EACH ROW EXECUTE FUNCTION public.sync_rollo_color_from_articulo();
 
 
 -- ── PEDIDOS ─────────────────────────────────────────────────

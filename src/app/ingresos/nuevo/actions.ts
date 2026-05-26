@@ -8,6 +8,7 @@ import {
   UMBRAL_BAJA_CONFIANZA,
 } from '@/lib/extraccion/extraerPlanilla'
 import { subirPlanilla } from '@/lib/storage/planillas'
+import { normalizarTitleCase } from '@/lib/text/normalize'
 
 // ── Tipos del flow manual + IA ─────────────────────────────
 
@@ -236,6 +237,9 @@ export async function crearIngreso(input: IngresoInput) {
     if (!r.articulo_id) {
       return { error: `El rollo "${r.numero_pieza.trim()}" no tiene artículo asignado.` }
     }
+    if (!r.color?.trim()) {
+      return { error: `El rollo "${r.numero_pieza.trim()}" no tiene color asignado.` }
+    }
     if (origen === 'manual' && r.estado === 'en_stock' && !r.ubicacion.trim()) {
       return {
         error:
@@ -296,10 +300,80 @@ export async function crearIngreso(input: IngresoInput) {
     return { error: `No se pudo crear el ingreso: ${iError?.message}` }
   }
 
-  const rollosToInsert = input.rollos.map((r) => ({
+  // Resolución (articulo, color) por rollo. Cada rollo trae un
+  // articulo_id (apunta a una fila específica del catálogo, con su
+  // propio color) y un color elegido por el usuario. Si el color del
+  // rollo difiere del color del articulo apuntado, hay que reapuntar
+  // a la fila (mismo_nombre, nuevo_color) — la creamos si no existe.
+  // El catálogo articulos se mantiene como N filas, una por
+  // combinación (nombre, color).
+  const articulosIdsUnicos = Array.from(
+    new Set(input.rollos.map((r) => r.articulo_id).filter((id): id is string => !!id))
+  )
+  const { data: articulosBase, error: aError } = await supabase
+    .from('articulos')
+    .select('id, nombre, color')
+    .in('id', articulosIdsUnicos)
+  if (aError || !articulosBase) {
+    await supabase.from('ingresos').delete().eq('id', ingreso.id)
+    return { error: `No se pudieron leer los artículos: ${aError?.message}` }
+  }
+  const articuloById = new Map(articulosBase.map((a) => [a.id, a]))
+
+  // Para cada rollo, resolver el articulo_id que corresponde a la
+  // combinación (nombre del articulo apuntado, color elegido).
+  const rollosResueltos: Array<{ rollo: RolloInput; articulo_id: string }> = []
+  for (const r of input.rollos) {
+    const articulo = articuloById.get(r.articulo_id!)
+    if (!articulo) {
+      await supabase.from('ingresos').delete().eq('id', ingreso.id)
+      return { error: `El artículo del rollo "${r.numero_pieza.trim()}" no existe.` }
+    }
+    const colorNorm = normalizarTitleCase(r.color!)
+    if (articulo.color === colorNorm) {
+      rollosResueltos.push({ rollo: r, articulo_id: articulo.id })
+      continue
+    }
+    // Color difiere: buscar fila (mismo nombre, nuevo color) o crear.
+    const { data: existente } = await supabase
+      .from('articulos')
+      .select('id')
+      .eq('nombre', articulo.nombre)
+      .eq('color', colorNorm)
+      .maybeSingle()
+    let articuloIdFinal = existente?.id
+    if (!articuloIdFinal) {
+      const { data: creado, error: cError } = await supabase
+        .from('articulos')
+        .insert({ nombre: articulo.nombre, color: colorNorm })
+        .select('id')
+        .single()
+      if (cError && cError.code === '23505') {
+        // Race: otro request creó la fila entre el select y el insert.
+        const { data: retry } = await supabase
+          .from('articulos')
+          .select('id')
+          .eq('nombre', articulo.nombre)
+          .eq('color', colorNorm)
+          .maybeSingle()
+        articuloIdFinal = retry?.id
+      } else if (cError || !creado) {
+        await supabase.from('ingresos').delete().eq('id', ingreso.id)
+        return {
+          error: `No se pudo crear "${articulo.nombre} ${colorNorm}": ${cError?.message ?? 'error desconocido'}`,
+        }
+      } else {
+        articuloIdFinal = creado.id
+      }
+    }
+    rollosResueltos.push({ rollo: r, articulo_id: articuloIdFinal! })
+  }
+
+  const rollosToInsert = rollosResueltos.map(({ rollo: r, articulo_id }) => ({
     ingreso_id: ingreso.id,
-    articulo_id: r.articulo_id ?? null,
-    color: r.color?.trim() || null,
+    articulo_id,
+    // rollos.color lo sincroniza el trigger sync_rollo_color desde
+    // articulos.color, no hace falta setearlo acá.
     numero_pieza: r.numero_pieza.trim(),
     kilos: r.kilos ? parseFloat(r.kilos) : null,
     metros: r.metros ? parseFloat(r.metros) : null,
@@ -390,27 +464,48 @@ export async function editarIngreso(input: EditarIngresoInput) {
   redirect(`/ingresos/${input.ingresoId}?editado=1`)
 }
 
-export async function createArticuloInline(nombre: string) {
+export async function createArticuloInline(nombre: string, color: string) {
   const supabase = await createClient()
-  const cleanName = nombre.trim()
-  if (!cleanName) return { error: 'El nombre no puede estar vacío.' }
+  const cleanNombre = nombre.trim()
+  const cleanColor = normalizarTitleCase(color)
+
+  if (!cleanNombre) return { error: 'El nombre no puede estar vacío.' }
+  if (!cleanColor) return { error: 'El color es obligatorio.' }
+
+  const { data: existente } = await supabase
+    .from('articulos')
+    .select('id, nombre, color')
+    .eq('nombre', cleanNombre)
+    .eq('color', cleanColor)
+    .maybeSingle()
+
+  if (existente) return { success: true, data: existente }
 
   const { data, error } = await supabase
     .from('articulos')
-    .insert({ nombre: cleanName })
-    .select('id, nombre')
+    .insert({ nombre: cleanNombre, color: cleanColor })
+    .select('id, nombre, color')
     .single()
 
-  if (error || !data) return { error: error?.message ?? 'Error al crear.' }
+  if (error || !data) {
+    // Race: otro request creó la fila entre el lookup y el insert.
+    if (error?.code === '23505') {
+      const { data: retry } = await supabase
+        .from('articulos')
+        .select('id, nombre, color')
+        .eq('nombre', cleanNombre)
+        .eq('color', cleanColor)
+        .maybeSingle()
+      if (retry) return { success: true, data: retry }
+    }
+    return { error: error?.message ?? 'Error al crear.' }
+  }
   return { success: true, data }
 }
 
 export async function createColorInline(nombre: string) {
   const supabase = await createClient()
-  const normalizado = nombre
-    .trim()
-    .toLowerCase()
-    .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
+  const normalizado = normalizarTitleCase(nombre)
   if (!normalizado) return { error: 'El nombre no puede estar vacío.' }
 
   const { data: existente } = await supabase

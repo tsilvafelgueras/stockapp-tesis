@@ -21,7 +21,7 @@ export default async function NuevoIngresoPage() {
       .eq('activo', true),
     supabase
       .from('articulos')
-      .select('id, nombre')
+      .select('id, nombre, color')
       .eq('activo', true)
       .order('nombre'),
     supabase
