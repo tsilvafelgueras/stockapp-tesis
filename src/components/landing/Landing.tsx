@@ -42,7 +42,7 @@ function InstagramIcon({ className }: { className?: string }) {
 }
 import BrandMark from '@/components/BrandMark'
 
-const DEMO_EMAIL = 'hola@nudo.com.ar'
+const DEMO_EMAIL = 'nudostock@gmail.com'
 const DEMO_MAILTO = `mailto:${DEMO_EMAIL}?subject=Quiero%20una%20demo%20de%20NUDO&body=Hola%2C%20me%20gustar%C3%ADa%20conocer%20NUDO%20para%20mi%20f%C3%A1brica%20textil.%0A%0AEmpresa%3A%0ANombre%3A%0ATel%C3%A9fono%3A%0ACantidad%20aproximada%20de%20rollos%20por%20mes%3A%0A`
 
 export default function Landing() {

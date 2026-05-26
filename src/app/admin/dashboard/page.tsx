@@ -234,8 +234,8 @@ export default async function AdminDashboard() {
               Buen día, {profile?.nombre ?? 'equipo'}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/68">
-              Una vista rapida para entender que hay en deposito, que falta
-              verificar y donde conviene actuar primero.
+              Una vista rápida para entender que hay en deposito, qué falta
+              verificar y dónde conviene actuar primero.
             </p>
           </div>
           <Link
