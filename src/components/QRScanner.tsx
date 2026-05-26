@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Html5Qrcode,
-  Html5QrcodeSupportedFormats,
-} from 'html5-qrcode'
+  readBarcodes,
+  prepareZXingModule,
+  type ReaderOptions,
+} from 'zxing-wasm/reader'
 import type { CodeScannerResult } from './CodeScanner'
 
 type ScannerStatus =
@@ -16,13 +17,18 @@ type ScannerStatus =
 
 const STARTING_OVERLAY_MS = 1200
 const SUCCESS_MS = 800
-const FPS = 10
+const SCAN_INTERVAL_MS = 100
 
-/**
- * Lector específico para códigos QR (html5-qrcode). Misma API pública que
- * CodeScanner para ser usado por ScannerByReaderType cuando la tintorería
- * tiene reader_type='qr'. No lee códigos de barras 1D.
- */
+const READER_OPTIONS: ReaderOptions = {
+  formats: ['QRCode'],
+  tryHarder: true,
+  tryRotate: true,
+  tryInvert: true,
+  tryDownscale: true,
+  tryDenoise: true,
+  maxNumberOfSymbols: 1,
+}
+
 export default function QRScanner({
   onRead,
   paused = false,
@@ -41,9 +47,10 @@ export default function QRScanner({
   className?: string
 }) {
   const onReadRef = useRef(onRead)
+  const pausedRef = useRef(paused)
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const html5QrcodeRef = useRef<Html5Qrcode | null>(null)
-  const containerId = `qr-scanner-${useId().replace(/:/g, '')}`
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   const [status, setStatus] = useState<ScannerStatus>('starting')
   const [manualValue, setManualValue] = useState('')
@@ -52,6 +59,10 @@ export default function QRScanner({
   useEffect(() => {
     onReadRef.current = onRead
   }, [onRead])
+
+  useEffect(() => {
+    pausedRef.current = paused
+  }, [paused])
 
   const emitRead = useCallback((result: CodeScannerResult) => {
     const texto = result.texto.trim()
@@ -77,83 +88,100 @@ export default function QRScanner({
       return
     }
 
+    let cancelled = false
+    const video = videoRef.current
+    if (!video) return
+
     const startTimer = setTimeout(() => {
       setStatus((s) => (s === 'starting' ? 'ready' : s))
     }, STARTING_OVERLAY_MS)
 
-    const instance = new Html5Qrcode(containerId, {
-      verbose: false,
-      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-    })
-    html5QrcodeRef.current = instance
+    void prepareZXingModule({ fireImmediately: true }).catch(() => undefined)
 
-    instance
-      .start(
-        { facingMode: 'environment' },
-        {
-          fps: FPS,
-          aspectRatio: 4 / 3,
-          disableFlip: false,
-        },
-        (decodedText) => {
-          emitRead({ texto: decodedText, formato: 'qr_code' })
-        },
-        () => {
-          // Cada frame sin código dispara este callback. Lo ignoramos.
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: 'environment' } },
+        })
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
         }
-      )
-      .catch((err: unknown) => {
-        const msg = typeof err === 'string' ? err : (err as Error)?.message ?? ''
-        if (
-          msg.toLowerCase().includes('permission') ||
-          msg.toLowerCase().includes('notallowed')
-        ) {
+        streamRef.current = stream
+        video!.srcObject = stream
+        await video!.play()
+        scanLoop()
+      } catch (err) {
+        const name = (err as Error)?.name ?? ''
+        const msg = (err as Error)?.message ?? String(err)
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
           setStatus('permission-denied')
           return
         }
         if (
-          msg.toLowerCase().includes('insecure') ||
-          msg.toLowerCase().includes('not supported')
+          name === 'NotFoundError' ||
+          name === 'OverconstrainedError' ||
+          msg.toLowerCase().includes('insecure')
         ) {
           setStatus('unsupported')
           return
         }
         console.warn('QRScanner start error:', err)
         setStatus('error')
-      })
+      }
+    }
+
+    async function scanLoop() {
+      while (!cancelled) {
+        if (
+          !pausedRef.current &&
+          ctx &&
+          video!.readyState >= 2 &&
+          video!.videoWidth > 0
+        ) {
+          try {
+            if (canvas.width !== video!.videoWidth) {
+              canvas.width = video!.videoWidth
+              canvas.height = video!.videoHeight
+            }
+            ctx.drawImage(video!, 0, 0, canvas.width, canvas.height)
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const results = await readBarcodes(imageData, READER_OPTIONS)
+            if (cancelled) break
+            const hit = results[0]
+            if (hit?.text) {
+              emitRead({ texto: hit.text, formato: 'qr_code' })
+              await sleep(SUCCESS_MS)
+              continue
+            }
+          } catch {
+            // Frame inválido o wasm aún cargando; reintento en el próximo tick.
+          }
+        }
+        await sleep(SCAN_INTERVAL_MS)
+      }
+    }
+
+    void startCamera()
 
     return () => {
+      cancelled = true
       clearTimeout(startTimer)
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
-      const inst = html5QrcodeRef.current
-      html5QrcodeRef.current = null
-      if (inst && inst.isScanning) {
-        inst.stop().catch(() => undefined)
+      const stream = streamRef.current
+      streamRef.current = null
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop())
+      }
+      if (video) {
+        video.srcObject = null
       }
     }
-    // containerId is derived from useId() which is stable across renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emitRead])
-
-  useEffect(() => {
-    const inst = html5QrcodeRef.current
-    if (!inst) return
-    if (paused) {
-      if (inst.isScanning) {
-        try {
-          inst.pause(true)
-        } catch {
-          /* noop */
-        }
-      }
-    } else {
-      try {
-        inst.resume()
-      } catch {
-        /* noop */
-      }
-    }
-  }, [paused])
 
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -187,9 +215,11 @@ export default function QRScanner({
         ) : (
           <div className="mt-3 overflow-hidden rounded-lg bg-black">
             <div className="relative aspect-[4/3] w-full">
-              <div
-                id={containerId}
-                className="absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
+              <video
+                ref={videoRef}
+                className="absolute inset-0 h-full w-full object-cover"
+                muted
+                playsInline
               />
 
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
@@ -277,6 +307,10 @@ declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext
   }
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
 function beep() {
