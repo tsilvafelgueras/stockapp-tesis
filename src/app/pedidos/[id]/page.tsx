@@ -81,8 +81,9 @@ export default async function PedidoDetailPage({
           kilos,
           metros,
           estado,
+          color,
           articulos ( nombre ),
-          ingresos ( color, tintorerias ( nombre ) )
+          ingresos ( tintorerias ( nombre ) )
         )
       `
     )
@@ -98,9 +99,9 @@ export default async function PedidoDetailPage({
       kilos: number | null
       metros: number | null
       estado: string
+      color: string | null
       articulos: { nombre: string } | null
       ingresos: {
-        color: string | null
         tintorerias: { nombre: string } | null
       } | null
     } | null
@@ -190,9 +191,7 @@ export default async function PedidoDetailPage({
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {r.rollos.articulos?.nombre ?? '—'}
-                        {r.rollos.ingresos?.color
-                          ? ` · ${r.rollos.ingresos.color}`
-                          : ''}
+                        {r.rollos.color ? ` · ${r.rollos.color}` : ''}
                       </p>
                     </div>
                     <span
@@ -253,7 +252,7 @@ export default async function PedidoDetailPage({
                         {r.rollos.articulos?.nombre ?? '—'}
                       </td>
                       <td className="px-4 py-2">
-                        {r.rollos.ingresos?.color ?? '—'}
+                        {r.rollos.color ?? '—'}
                       </td>
                       <td className="px-4 py-2 tabular-nums">
                         {r.rollos.kilos != null

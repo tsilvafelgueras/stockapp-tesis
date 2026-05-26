@@ -3,23 +3,21 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { editarIngreso } from '@/app/ingresos/nuevo/actions'
+import { normalizarFechaISO } from '@/lib/fechas'
 
 type Catalog = { id: string; nombre: string }
 
 export default function EditarIngresoForm({
   ingreso,
   tintorerias,
-  articulos,
   cantidadRollosReal,
   sumaKilosReal,
 }: {
   ingreso: {
     id: string
     tintoreria_id: string | null
-    articulo_id: string | null
     fecha_despacho: string | null
     numero_remito: string | null
-    color: string | null
     ot: string | null
     rem_tejeduria: string | null
     referencia: string | null
@@ -27,17 +25,14 @@ export default function EditarIngresoForm({
     total_kilos_declarado: number | null
   }
   tintorerias: Catalog[]
-  articulos: Catalog[]
   cantidadRollosReal: number
   sumaKilosReal: number
 }) {
   const router = useRouter()
 
   const [tintoreriaId, setTintoreriaId] = useState(ingreso.tintoreria_id ?? '')
-  const [articuloId, setArticuloId] = useState(ingreso.articulo_id ?? '')
-  const [fecha, setFecha] = useState(ingreso.fecha_despacho ?? '')
+  const [fecha, setFecha] = useState(normalizarFechaISO(ingreso.fecha_despacho) ?? '')
   const [numeroRemito, setNumeroRemito] = useState(ingreso.numero_remito ?? '')
-  const [color, setColor] = useState(ingreso.color ?? '')
   const [ot, setOt] = useState(ingreso.ot ?? '')
   const [remTejeduria, setRemTejeduria] = useState(ingreso.rem_tejeduria ?? '')
   const [referencia, setReferencia] = useState(ingreso.referencia ?? '')
@@ -76,10 +71,8 @@ export default function EditarIngresoForm({
     const result = await editarIngreso({
       ingresoId: ingreso.id,
       tintoreria_id: tintoreriaId,
-      articulo_id: articuloId,
       fecha,
       numero_remito: numeroRemito,
-      color,
       ot,
       rem_tejeduria: remTejeduria,
       referencia,
@@ -118,23 +111,6 @@ export default function EditarIngresoForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium">Artículo *</label>
-          <select
-            value={articuloId}
-            onChange={(e) => setArticuloId(e.target.value)}
-            required
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="">Seleccionar...</option>
-            {articulos.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1">
           <label className="text-sm font-medium">Fecha *</label>
           <input
             type="date"
@@ -152,17 +128,6 @@ export default function EditarIngresoForm({
             value={numeroRemito}
             onChange={(e) => setNumeroRemito(e.target.value)}
             placeholder="Ej: 49447"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Color</label>
-          <input
-            type="text"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            placeholder="Ej: Blanco"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
@@ -257,7 +222,6 @@ export default function EditarIngresoForm({
           disabled={
             submitting ||
             !tintoreriaId ||
-            !articuloId ||
             !fecha ||
             !validation.cantidadCoincide ||
             !validation.kilosCoinciden

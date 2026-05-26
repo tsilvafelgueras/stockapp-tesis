@@ -12,12 +12,14 @@ type Articulo = {
   stock_minimo_kg: number | null
 }
 
+type Catalog = { id: string; nombre: string }
+
 export default function ArticulosTabla({
   articulos: initial,
-  coloresExistentes,
+  colores,
 }: {
   articulos: Articulo[]
-  coloresExistentes: string[]
+  colores: Catalog[]
 }) {
   const [articulos, setArticulos] = useState<Articulo[]>(initial)
   const [modoMasivo, setModoMasivo] = useState(false)
@@ -77,7 +79,7 @@ export default function ArticulosTabla({
                 articulo={a}
                 forzarEdicion={modoMasivo}
                 onEliminado={handleEliminar}
-                coloresExistentes={coloresExistentes}
+                colores={colores}
               />
             ))
           ) : (

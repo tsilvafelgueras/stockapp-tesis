@@ -15,6 +15,7 @@ import {
   Home,
   Menu,
   PackagePlus,
+  Palette,
   ScanLine,
   Scissors,
   Search,
@@ -60,7 +61,10 @@ function navForRole(role: Role): NavSection[] {
   if (role === 'super') {
     return [
       {
-        items: [{ href: '/super', label: 'Empresas', icon: Building2 }],
+        items: [
+          { href: '/super', label: 'Empresas', icon: Building2 },
+          { href: '/super/tintorerias', label: 'Tintorerías', icon: Factory },
+        ],
       },
     ]
   }
@@ -102,9 +106,6 @@ function navForRole(role: Role): NavSection[] {
       title: 'Operacion',
       items: [
         { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
-        { href: '/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
-        { href: '/picking', label: 'Picking', icon: ClipboardCheck },
-        { href: '/muestras', label: 'Muestras', icon: Scissors },
       ],
     },
     {
@@ -120,6 +121,7 @@ function navForRole(role: Role): NavSection[] {
       title: 'Administracion',
       items: [
         { href: '/admin/articulos', label: 'Articulos', icon: Boxes },
+        { href: '/admin/colores', label: 'Colores', icon: Palette },
         { href: '/admin/tintorerias', label: 'Tintorerias', icon: Factory },
         { href: '/admin/equipo', label: 'Equipo', icon: Users },
         { href: '/admin/reportes', label: 'Reportes', icon: BarChart3 },

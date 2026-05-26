@@ -99,6 +99,12 @@ export async function createEmpresaConAdmin(input: {
     return { error: `Error invitando admin: ${iError.message}` }
   }
 
+  // La empresa nueva tiene que aparecer también en el dropdown de
+  // "Asociar empresa" de /super/tintorerias/[id]. Esa página cachea
+  // la lista de empresas — sin invalidarla, la empresa recién creada
+  // no aparece hasta hacer hard refresh.
   revalidatePath('/super')
+  revalidatePath('/super/tintorerias')
+  revalidatePath('/super/tintorerias/[id]', 'page')
   return { success: true }
 }

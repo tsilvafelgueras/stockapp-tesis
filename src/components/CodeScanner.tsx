@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Html5Qrcode,
-  Html5QrcodeSupportedFormats,
-  type Html5QrcodeResult,
-} from 'html5-qrcode'
+  Scanner,
+  type IDetectedBarcode,
+  type IScannerError,
+} from '@yudiel/react-qr-scanner'
 
 export type CodeScannerResult = {
   texto: string
@@ -13,39 +13,21 @@ export type CodeScannerResult = {
 }
 
 type ScannerStatus =
-  | 'idle'
   | 'starting'
   | 'ready'
   | 'permission-denied'
   | 'unsupported'
   | 'error'
 
-type ImageCaptureConstructor = new (
-  track: MediaStreamTrack
-) => {
-  getPhotoCapabilities?: () => Promise<unknown>
-}
-
-type TorchConstraint = MediaTrackConstraintSet & {
-  torch?: boolean
-}
-
-declare global {
-  interface Window {
-    ImageCapture?: ImageCaptureConstructor
-    webkitAudioContext?: typeof AudioContext
-  }
-}
-
 const SUPPORTED_FORMATS = [
-  Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A,
-]
+  'qr_code',
+  'code_128',
+  'ean_13',
+  'ean_8',
+  'upc_a',
+] as const
 
-const SCAN_COOLDOWN_MS = 2000
+const STARTING_OVERLAY_MS = 1200
 const SUCCESS_MS = 800
 
 export default function CodeScanner({
@@ -65,46 +47,40 @@ export default function CodeScanner({
   variant?: 'standalone' | 'embedded'
   className?: string
 }) {
-  const reactId = useId()
-  const scannerElementId = `code-scanner-${reactId.replace(/:/g, '')}`
-
-  const containerRef = useRef<HTMLDivElement>(null)
-  const scannerRef = useRef<Html5Qrcode | null>(null)
   const onReadRef = useRef(onRead)
-  const lastReadRef = useRef<{ texto: string; at: number } | null>(null)
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [status, setStatus] = useState<ScannerStatus>('idle')
+  const [status, setStatus] = useState<ScannerStatus>('starting')
   const [manualValue, setManualValue] = useState('')
   const [scanSuccess, setScanSuccess] = useState(false)
-  const [torchOn, setTorchOn] = useState(false)
 
   useEffect(() => {
     onReadRef.current = onRead
   }, [onRead])
 
-  const releaseScanner = useCallback(async () => {
-    const scanner = scannerRef.current
-    if (!scanner) return
-    scannerRef.current = null
-    try {
-      if (scanner.isScanning) {
-        await scanner.stop()
-      }
-      scanner.clear()
-    } catch {
-      // best-effort cleanup
+  useEffect(() => {
+    if (
+      typeof navigator !== 'undefined' &&
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      queueMicrotask(() => setStatus('unsupported'))
+      return
+    }
+    const t = setTimeout(() => {
+      setStatus((s) => (s === 'starting' ? 'ready' : s))
+    }, STARTING_OVERLAY_MS)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
     }
   }, [])
 
   const emitRead = useCallback((result: CodeScannerResult) => {
     const texto = result.texto.trim()
     if (!texto) return
-
-    const now = Date.now()
-    const last = lastReadRef.current
-    if (last?.texto === texto && now - last.at < SCAN_COOLDOWN_MS) return
-    lastReadRef.current = { texto, at: now }
 
     setScanSuccess(true)
     if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
@@ -117,120 +93,28 @@ export default function CodeScanner({
     onReadRef.current({ texto, formato: result.formato })
   }, [])
 
-  useEffect(() => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      queueMicrotask(() => setStatus('unsupported'))
+  const handleScan = useCallback(
+    (codes: IDetectedBarcode[]) => {
+      const first = codes[0]
+      if (!first?.rawValue) return
+      if (status !== 'ready') setStatus('ready')
+      emitRead({ texto: first.rawValue, formato: first.format ?? null })
+    },
+    [emitRead, status]
+  )
+
+  const handleError = useCallback((err: IScannerError) => {
+    if (err.kind === 'permission-denied' || err.kind === 'security') {
+      setStatus('permission-denied')
       return
     }
-
-    let cancelled = false
-
-    async function startScanner() {
-      if (!containerRef.current) return
-
-      setStatus('starting')
-
-      const scanner = new Html5Qrcode(scannerElementId, {
-        formatsToSupport: SUPPORTED_FORMATS,
-        useBarCodeDetectorIfSupported: true,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        verbose: false,
-      })
-      scannerRef.current = scanner
-
-      try {
-        await scanner.start(
-          { facingMode: 'environment' },
-          {
-            fps: 20,
-            disableFlip: false,
-            videoConstraints: {
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-            },
-          },
-          (decodedText: string, decodedResult: Html5QrcodeResult) => {
-            const formato = decodedResult?.result?.format?.formatName ?? null
-            emitRead({ texto: decodedText, formato })
-          },
-          () => {
-            // per-frame errors are normal when no code is in view
-          }
-        )
-
-        if (cancelled) {
-          void releaseScanner()
-          return
-        }
-
-        setStatus('ready')
-      } catch (error) {
-        if (cancelled) return
-        void releaseScanner()
-
-        const message =
-          error instanceof Error
-            ? `${error.name}: ${error.message}`
-            : String(error)
-
-        if (
-          /NotAllowedError|Permission|denied/i.test(message)
-        ) {
-          setStatus('permission-denied')
-          return
-        }
-
-        console.warn('Scanner init error:', error)
-        setStatus('error')
-      }
+    if (err.kind === 'insecure-context' || err.kind === 'unsupported') {
+      setStatus('unsupported')
+      return
     }
-
-    if (paused) {
-      void releaseScanner().then(() => {
-        if (!cancelled) {
-          setStatus('idle')
-          setTorchOn(false)
-        }
-      })
-    } else {
-      void startScanner()
-    }
-
-    return () => {
-      cancelled = true
-      void releaseScanner()
-    }
-  }, [emitRead, paused, releaseScanner, scannerElementId])
-
-  useEffect(() => {
-    return () => {
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)
-    }
+    console.warn('Scanner error:', err)
+    setStatus('error')
   }, [])
-
-  async function toggleTorch() {
-    const video = containerRef.current?.querySelector('video')
-    const stream = video?.srcObject as MediaStream | null | undefined
-    const track = stream?.getVideoTracks()[0]
-    if (!track) return
-
-    try {
-      const ctor = window.ImageCapture as ImageCaptureConstructor | undefined
-      if (!ctor) return
-
-      const imageCapture = new ctor(track)
-      await imageCapture.getPhotoCapabilities?.()
-
-      const next = !torchOn
-      await track.applyConstraints({
-        advanced: [{ torch: next } as TorchConstraint],
-      })
-      setTorchOn(next)
-    } catch {
-      // Torch is not supported consistently across browsers/devices.
-    }
-  }
 
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -251,15 +135,6 @@ export default function CodeScanner({
       <div className="rounded-lg border bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-heading text-base font-semibold">{title}</h2>
-          {status !== 'unsupported' && (
-            <button
-              type="button"
-              onClick={toggleTorch}
-              className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium transition-colors hover:border-action/40 hover:bg-zinc-50"
-            >
-              {torchOn ? 'Apagar linterna' : 'Linterna'}
-            </button>
-          )}
         </div>
 
         {status === 'unsupported' ? (
@@ -270,11 +145,26 @@ export default function CodeScanner({
         ) : (
           <div className="mt-3 overflow-hidden rounded-lg bg-black">
             <div className="relative aspect-[4/3] w-full">
-              <div
-                id={scannerElementId}
-                ref={containerRef}
-                className="absolute inset-0 [&_video]:!absolute [&_video]:!inset-0 [&_video]:!h-full [&_video]:!w-full [&_video]:!max-w-none [&_video]:!object-cover"
+              <Scanner
+                onScan={handleScan}
+                onError={handleError}
+                formats={[...SUPPORTED_FORMATS]}
+                paused={paused}
+                allowMultiple={false}
+                constraints={{ facingMode: { ideal: 'environment' } }}
+                sound={false}
+                components={{
+                  finder: false,
+                  torch: true,
+                  zoom: false,
+                  onOff: false,
+                }}
+                classNames={{
+                  container: 'absolute inset-0',
+                  video: 'h-full w-full object-cover',
+                }}
               />
+
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                 <div
                   className={`relative size-52 max-h-[70vw] max-w-[70vw] transition-colors ${
@@ -341,7 +231,7 @@ export default function CodeScanner({
 
 function CameraOverlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 text-center text-sm text-white">
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/70 px-6 text-center text-sm text-white">
       <p>{children}</p>
     </div>
   )
@@ -354,6 +244,12 @@ function CameraMessage({ title, text }: { title: string; text: string }) {
       <p className="mt-1 text-muted-foreground">{text}</p>
     </div>
   )
+}
+
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext
+  }
 }
 
 function beep() {

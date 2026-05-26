@@ -4,8 +4,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   crearIngreso,
-  createTintoreriaInline,
   createArticuloInline,
+  createColorInline,
   procesarPlanillaConIA,
   type RolloInput,
 } from './actions'
@@ -14,7 +14,6 @@ import {
   type IngresoExtraido,
   type Field,
 } from '@/lib/extraccion/extraerPlanilla'
-import { UBICACIONES } from '@/lib/ubicaciones'
 
 type Catalog = { id: string; nombre: string }
 
@@ -23,7 +22,6 @@ type Modo = 'manual' | 'ia'
 type Confianzas = {
   numero_remito: number
   fecha: number
-  color: number
   ot: number
   rem_tejeduria: number
   referencia: number
@@ -35,10 +33,24 @@ type Confianzas = {
     metros: number
     ratio: number
     gramaje_planilla: number
+    articulo: number
+    color: number
   }>
 }
 
+function normNombre(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
 function emptyRollo(): RolloInput {
+  // Todos los rollos arrancan en "pendiente": el operario los confirma uno a
+  // uno escaneando el QR cuando llegan al depósito. No se permite saltarse
+  // ese paso desde la carga de planilla.
   return {
     numero_pieza: '',
     kilos: '',
@@ -46,7 +58,9 @@ function emptyRollo(): RolloInput {
     ratio_rendimiento: '',
     gramaje_planilla: '',
     ubicacion: '',
-    estado: 'en_stock',
+    estado: 'pendiente',
+    articulo_id: null,
+    color: null,
   }
 }
 
@@ -78,17 +92,19 @@ function celdaCls(confianza: number | undefined): string {
 export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
-  role,
+  colores: initialColores,
 }: {
   tintorerias: Catalog[]
   articulos: Catalog[]
+  colores: Catalog[]
   role: 'operario' | 'admin'
 }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [tintorerias, setTintorerias] = useState(initialTintorerias)
+  const tintorerias = initialTintorerias
   const [articulos, setArticulos] = useState(initialArticulos)
+  const [colores, setColores] = useState(initialColores)
 
   const [modo, setModo] = useState<Modo>('manual')
 
@@ -101,10 +117,8 @@ export default function NuevoIngresoForm({
   const [confianzas, setConfianzas] = useState<Confianzas | null>(null)
 
   const [tintoreriaId, setTintoreriaId] = useState('')
-  const [articuloId, setArticuloId] = useState('')
   const [fecha, setFecha] = useState(todayISO())
   const [numeroRemito, setNumeroRemito] = useState('')
-  const [color, setColor] = useState('')
   const [ot, setOt] = useState('')
   const [remTejeduria, setRemTejeduria] = useState('')
   const [referencia, setReferencia] = useState('')
@@ -113,6 +127,8 @@ export default function NuevoIngresoForm({
 
   const [rollos, setRollos] = useState<RolloInput[]>([emptyRollo()])
   const [bulkUbicacion, setBulkUbicacion] = useState('')
+  const [bulkArticuloId, setBulkArticuloId] = useState('')
+  const [bulkColor, setBulkColor] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -145,6 +161,16 @@ export default function NuevoIngresoForm({
   function applyBulkUbicacion() {
     if (!bulkUbicacion.trim()) return
     setRollos(rollos.map((r) => ({ ...r, ubicacion: bulkUbicacion.trim() })))
+  }
+
+  function applyBulkArticulo() {
+    if (!bulkArticuloId) return
+    setRollos(rollos.map((r) => ({ ...r, articulo_id: bulkArticuloId })))
+  }
+
+  function applyBulkColor() {
+    if (!bulkColor) return
+    setRollos(rollos.map((r) => ({ ...r, color: bulkColor })))
   }
 
   function resetIA() {
@@ -202,7 +228,6 @@ export default function NuevoIngresoForm({
   function aplicarDatosIA(datos: IngresoExtraido) {
     setNumeroRemito(valOf(datos.numero_remito))
     if (datos.fecha.value) setFecha(datos.fecha.value)
-    setColor(valOf(datos.color))
     setOt(valOf(datos.ot))
     setRemTejeduria(valOf(datos.rem_tejeduria))
     setReferencia(valOf(datos.referencia))
@@ -217,28 +242,55 @@ export default function NuevoIngresoForm({
         : ''
     )
 
-    const rollosFromIA: RolloInput[] = datos.rollos.map((r) => ({
-      numero_pieza: valOf(r.numero_pieza),
-      kilos: fmt(r.kilos.value),
-      metros: fmt(r.metros.value),
-      ratio_rendimiento: fmt(r.ratio.value),
-      gramaje_planilla: fmt(r.gramaje_planilla.value),
-      ubicacion: '',
-      estado: 'pendiente',
-      confianza_ia: avg([
-        r.numero_pieza.confidence,
-        r.kilos.confidence,
-        r.metros.confidence,
-        r.ratio.confidence,
-        r.gramaje_planilla.confidence,
-      ]),
-    }))
+    // Color global del header: si viene, se aplica como fallback a todo
+    // rollo que no traiga color propio. Match contra el catálogo por
+    // nombre normalizado (sentence case).
+    function matchColor(raw: string | null | undefined): string | null {
+      const trimmed = raw?.trim()
+      if (!trimmed) return null
+      const norm = trimmed
+        .toLowerCase()
+        .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
+      return colores.find((c) => c.nombre === norm)?.nombre ?? null
+    }
+    const colorGlobal = matchColor(datos.color.value)
+    if (colorGlobal) setBulkColor(colorGlobal)
+
+    const articulosByName = new Map(
+      articulos.map((a) => [normNombre(a.nombre), a.id])
+    )
+
+    const rollosFromIA: RolloInput[] = datos.rollos.map((r) => {
+      const articuloNombre = r.articulo?.value?.trim() ?? ''
+      const articuloIdMatch = articuloNombre
+        ? articulosByName.get(normNombre(articuloNombre)) ?? null
+        : null
+      const colorRolloMatch = matchColor(r.color?.value)
+      return {
+        numero_pieza: valOf(r.numero_pieza),
+        kilos: fmt(r.kilos.value),
+        metros: fmt(r.metros.value),
+        ratio_rendimiento: fmt(r.ratio.value),
+        gramaje_planilla: fmt(r.gramaje_planilla.value),
+        ubicacion: '',
+        estado: 'pendiente',
+        articulo_id: articuloIdMatch,
+        // Color por rollo si vino, sino fallback al global del header.
+        color: colorRolloMatch ?? colorGlobal,
+        confianza_ia: avg([
+          r.numero_pieza.confidence,
+          r.kilos.confidence,
+          r.metros.confidence,
+          r.ratio.confidence,
+          r.gramaje_planilla.confidence,
+        ]),
+      }
+    })
     setRollos(rollosFromIA.length > 0 ? rollosFromIA : [emptyRollo()])
 
     setConfianzas({
       numero_remito: datos.numero_remito.confidence,
       fecha: datos.fecha.confidence,
-      color: datos.color.confidence,
       ot: datos.ot.confidence,
       rem_tejeduria: datos.rem_tejeduria.confidence,
       referencia: datos.referencia.confidence,
@@ -250,6 +302,14 @@ export default function NuevoIngresoForm({
         metros: r.metros.confidence,
         ratio: r.ratio.confidence,
         gramaje_planilla: r.gramaje_planilla.confidence,
+        articulo: r.articulo?.confidence ?? 0,
+        // Confianza del color por rollo: si la IA no lo extrajo por rollo
+        // pero usamos el color global del header, heredamos esa confianza.
+        color: (r.color?.value?.trim()
+          ? r.color?.confidence
+          : datos.color.value?.trim()
+            ? datos.color.confidence
+            : 0) ?? 0,
       })),
     })
   }
@@ -259,7 +319,8 @@ export default function NuevoIngresoForm({
       (acc, r) => acc + (parseFloat(r.kilos) || 0),
       0
     )
-    const cantidadRollos = rollos.filter((r) => r.numero_pieza.trim()).length
+    const rollosConPieza = rollos.filter((r) => r.numero_pieza.trim())
+    const cantidadRollos = rollosConPieza.length
 
     const numeros = rollos.map((r) => r.numero_pieza.trim()).filter(Boolean)
     const seen = new Set<string>()
@@ -278,15 +339,7 @@ export default function NuevoIngresoForm({
     const kilosCoinciden =
       totalKilosNum === null || Math.abs(totalKilosNum - sumaKilos) < 0.01
 
-    const ubicacionesFaltantes =
-      modo === 'manual'
-        ? rollos.filter(
-            (r) =>
-              r.numero_pieza.trim() &&
-              r.estado === 'en_stock' &&
-              !r.ubicacion.trim()
-          ).length
-        : 0
+    const rollosSinArticulo = rollosConPieza.filter((r) => !r.articulo_id).length
 
     return {
       sumaKilos,
@@ -294,9 +347,9 @@ export default function NuevoIngresoForm({
       duplicados,
       cantidadCoincide,
       kilosCoinciden,
-      ubicacionesFaltantes,
+      rollosSinArticulo,
     }
-  }, [rollos, totalRollosDeclarado, totalKilosDeclarado, modo])
+  }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -305,10 +358,8 @@ export default function NuevoIngresoForm({
 
     const result = await crearIngreso({
       tintoreria_id: tintoreriaId,
-      articulo_id: articuloId,
       fecha,
       numero_remito: numeroRemito,
-      color,
       ot,
       rem_tejeduria: remTejeduria,
       referencia,
@@ -329,11 +380,10 @@ export default function NuevoIngresoForm({
     submitting ||
     extrayendo ||
     !tintoreriaId ||
-    !articuloId ||
     !fecha ||
     validations.cantidadRollos === 0 ||
     validations.duplicados.length > 0 ||
-    validations.ubicacionesFaltantes > 0 ||
+    validations.rollosSinArticulo > 0 ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
 
@@ -396,26 +446,14 @@ export default function NuevoIngresoForm({
                 </option>
               ))}
             </select>
-            {!tintoreriaBloqueada && role === 'admin' && (
-              <InlineCreator
-                label="+ Nueva tintorería"
-                placeholder="Nombre de la tintorería"
-                onCreate={async (nombre) => {
-                  const res = await createTintoreriaInline(nombre)
-                  if (res.success && res.data) {
-                    setTintorerias([
-                      ...tintorerias,
-                      { id: res.data.id, nombre: res.data.nombre },
-                    ])
-                    setTintoreriaId(res.data.id)
-                  }
-                  return res
-                }}
-              />
-            )}
             <p className="text-xs text-muted-foreground">
               La IA usa instrucciones específicas según el formato de cada
-              tintorería.
+              tintorería. Si tu tintorería no aparece en la lista, asociala
+              desde{' '}
+              <a href="/admin/tintorerias" className="underline">
+                administración
+              </a>
+              .
             </p>
           </div>
 
@@ -560,54 +598,15 @@ export default function NuevoIngresoForm({
                   </option>
                 ))}
               </select>
-              {role === 'admin' && (
-                <InlineCreator
-                  label="+ Nueva tintorería"
-                  placeholder="Nombre de la tintorería"
-                  onCreate={async (nombre) => {
-                    const res = await createTintoreriaInline(nombre)
-                    if (res.success && res.data) {
-                      setTintorerias([
-                        ...tintorerias,
-                        { id: res.data.id, nombre: res.data.nombre },
-                      ])
-                      setTintoreriaId(res.data.id)
-                    }
-                    return res
-                  }}
-                />
-              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Si no aparece tu tintorería, asociala desde{' '}
+                <a href="/admin/tintorerias" className="underline">
+                  administración
+                </a>
+                .
+              </p>
             </div>
           )}
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Artículo *</label>
-            <select
-              value={articuloId}
-              onChange={(e) => setArticuloId(e.target.value)}
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">Seleccionar...</option>
-              {articulos.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.nombre}
-                </option>
-              ))}
-            </select>
-            <InlineCreator
-              label="+ Nuevo artículo"
-              placeholder="Nombre del artículo"
-              onCreate={async (nombre) => {
-                const res = await createArticuloInline(nombre)
-                if (res.success && res.data) {
-                  setArticulos([...articulos, res.data])
-                  setArticuloId(res.data.id)
-                }
-                return res
-              }}
-            />
-          </div>
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Fecha *</label>
@@ -628,17 +627,6 @@ export default function NuevoIngresoForm({
               onChange={(e) => setNumeroRemito(e.target.value)}
               placeholder="Ej: 49447"
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.numero_remito)}`}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Color</label>
-            <input
-              type="text"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              placeholder="Ej: Blanco"
-              className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.color)}`}
             />
           </div>
 
@@ -705,6 +693,118 @@ export default function NuevoIngresoForm({
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.referencia)}`}
             />
           </div>
+
+        </div>
+      </div>
+
+      {/* Atajos para asignar valores comunes a todos los rollos */}
+      <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm space-y-3">
+        <div>
+          <h2 className="font-semibold">Asignar a todos los rollos</h2>
+          <p className="text-xs text-muted-foreground">
+            Atajo opcional. Lo que pongas acá se copia a todos los rollos de la tabla; podés sobrescribirlos individualmente.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Artículo</label>
+            <div className="flex gap-2">
+              <select
+                value={bulkArticuloId}
+                onChange={(e) => setBulkArticuloId(e.target.value)}
+                className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Seleccionar...</option>
+                {articulos.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={applyBulkArticulo}
+                disabled={!bulkArticuloId}
+                className="shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                Aplicar
+              </button>
+            </div>
+            <InlineCreator
+              label="+ Nuevo artículo"
+              placeholder="Nombre del artículo"
+              onCreate={async (nombre) => {
+                const res = await createArticuloInline(nombre)
+                if (res.success && res.data) {
+                  setArticulos([...articulos, res.data])
+                  setBulkArticuloId(res.data.id)
+                }
+                return res
+              }}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Color</label>
+            <div className="flex gap-2">
+              <select
+                value={bulkColor}
+                onChange={(e) => setBulkColor(e.target.value)}
+                className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Seleccionar...</option>
+                {colores.map((c) => (
+                  <option key={c.id} value={c.nombre}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={applyBulkColor}
+                disabled={!bulkColor}
+                className="shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                Aplicar
+              </button>
+            </div>
+            <InlineCreator
+              label="+ Nuevo color"
+              placeholder="Nombre del color"
+              onCreate={async (nombre) => {
+                const res = await createColorInline(nombre)
+                if (res.success && res.data) {
+                  if (!colores.find((c) => c.id === res.data.id)) {
+                    setColores([...colores, res.data])
+                  }
+                  setBulkColor(res.data.nombre)
+                }
+                return res
+              }}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Ubicación</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={bulkUbicacion}
+                onChange={(e) => setBulkUbicacion(e.target.value)}
+                placeholder="Ej. A1"
+                className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={applyBulkUbicacion}
+                disabled={!bulkUbicacion.trim()}
+                className="shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -717,30 +817,6 @@ export default function NuevoIngresoForm({
             {validations.sumaKilos.toFixed(2)} kg
           </span>
         </div>
-        <div className="px-3 sm:px-4 py-2 border-b bg-zinc-50/60 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Ubicación para todos:</span>
-          <input
-            type="text"
-            list="ubicaciones-list"
-            value={bulkUbicacion}
-            onChange={(e) => setBulkUbicacion(e.target.value)}
-            placeholder="Ej. A1"
-            className="rounded border border-input bg-background px-2 py-1 text-xs w-24 focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <datalist id="ubicaciones-list">
-            {UBICACIONES.map((u) => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
-          <button
-            type="button"
-            onClick={applyBulkUbicacion}
-            disabled={!bulkUbicacion.trim()}
-            className="rounded bg-primary text-primary-foreground px-2 py-1 text-xs font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
-          >
-            Aplicar
-          </button>
-        </div>
 
         {/* Mobile: cards apilados */}
         <div className="sm:hidden divide-y">
@@ -749,16 +825,12 @@ export default function NuevoIngresoForm({
               key={i}
               rollo={r}
               index={i}
+              articulos={articulos}
+              colores={colores}
               confianzas={confianzas?.rollos[i]}
               isDuplicate={
                 !!r.numero_pieza.trim() &&
                 validations.duplicados.includes(r.numero_pieza.trim())
-              }
-              ubicacionFaltante={
-                modo === 'manual' &&
-                !!r.numero_pieza.trim() &&
-                r.estado === 'en_stock' &&
-                !r.ubicacion.trim()
               }
               onUpdate={(field, value) => updateRollo(i, field, value)}
               onRemove={() => removeRow(i)}
@@ -773,6 +845,8 @@ export default function NuevoIngresoForm({
               <tr>
                 <th className="px-3 py-2 font-medium w-10">#</th>
                 <th className="px-3 py-2 font-medium">N° Pieza *</th>
+                <th className="px-3 py-2 font-medium w-40">Artículo *</th>
+                <th className="px-3 py-2 font-medium w-32">Color</th>
                 <th className="px-3 py-2 font-medium w-24">Kilos</th>
                 <th className="px-3 py-2 font-medium w-24">Metros</th>
                 <th className="px-3 py-2 font-medium w-20">Ratio</th>
@@ -788,11 +862,6 @@ export default function NuevoIngresoForm({
                 const isDuplicate =
                   r.numero_pieza.trim() &&
                   validations.duplicados.includes(r.numero_pieza.trim())
-                const ubicacionFaltante =
-                  modo === 'manual' &&
-                  r.numero_pieza.trim() &&
-                  r.estado === 'en_stock' &&
-                  !r.ubicacion.trim()
                 return (
                   <tr
                     key={i}
@@ -815,6 +884,46 @@ export default function NuevoIngresoForm({
                             : celdaCls(conf?.numero_pieza)
                         }`}
                       />
+                    </td>
+                    <td className="px-3 py-1">
+                      <select
+                        value={r.articulo_id ?? ''}
+                        onChange={(e) =>
+                          updateRollo(
+                            i,
+                            'articulo_id',
+                            e.target.value || null
+                          )
+                        }
+                        className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+                          r.numero_pieza.trim() && !r.articulo_id
+                            ? 'border-destructive'
+                            : celdaCls(conf?.articulo)
+                        }`}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {articulos.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-1">
+                      <select
+                        value={r.color ?? ''}
+                        onChange={(e) =>
+                          updateRollo(i, 'color', e.target.value || null)
+                        }
+                        className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.color)}`}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {colores.map((c) => (
+                          <option key={c.id} value={c.nombre}>
+                            {c.nombre}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-1">
                       <input
@@ -871,37 +980,19 @@ export default function NuevoIngresoForm({
                       />
                     </td>
                     <td className="px-3 py-1">
-                      <select
-                        value={r.estado}
-                        onChange={(e) =>
-                          updateRollo(
-                            i,
-                            'estado',
-                            e.target.value as RolloInput['estado']
-                          )
-                        }
-                        className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        <option value="en_stock">En stock</option>
-                        <option value="pendiente">Pendiente</option>
-                      </select>
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-warning">
+                        Pendiente
+                      </span>
                     </td>
                     <td className="px-3 py-1">
                       <input
                         type="text"
-                        list="ubicaciones-list"
                         value={r.ubicacion}
                         onChange={(e) =>
                           updateRollo(i, 'ubicacion', e.target.value)
                         }
-                        placeholder={
-                          r.estado === 'en_stock' ? 'A1' : 'opcional'
-                        }
-                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
-                          ubicacionFaltante
-                            ? 'border-destructive'
-                            : 'border-input'
-                        }`}
+                        placeholder="opcional"
+                        className="w-full rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </td>
                     <td className="px-3 py-1 text-center">
@@ -934,7 +1025,7 @@ export default function NuevoIngresoForm({
 
       {/* Validaciones / warnings */}
       {(validations.duplicados.length > 0 ||
-        validations.ubicacionesFaltantes > 0 ||
+        validations.rollosSinArticulo > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-3 sm:p-4 space-y-1 text-sm">
@@ -944,11 +1035,10 @@ export default function NuevoIngresoForm({
               {validations.duplicados.join(', ')}
             </p>
           )}
-          {validations.ubicacionesFaltantes > 0 && (
+          {validations.rollosSinArticulo > 0 && (
             <p className="text-destructive">
-              ⚠ Faltan ubicaciones en {validations.ubicacionesFaltantes}{' '}
-              {validations.ubicacionesFaltantes === 1 ? 'rollo' : 'rollos'} con
-              estado &quot;en stock&quot;.
+              ⚠ {validations.rollosSinArticulo} rollo
+              {validations.rollosSinArticulo === 1 ? '' : 's'} sin artículo asignado. Elegí el artículo en la tabla o usá &quot;Aplicar a todos&quot; arriba.
             </p>
           )}
           {!validations.cantidadCoincide && (
@@ -993,14 +1083,17 @@ export default function NuevoIngresoForm({
 function RolloCardMobile({
   rollo,
   index,
+  articulos,
+  colores,
   confianzas,
   isDuplicate,
-  ubicacionFaltante,
   onUpdate,
   onRemove,
 }: {
   rollo: RolloInput
   index: number
+  articulos: Catalog[]
+  colores: Catalog[]
   confianzas:
     | {
         numero_pieza: number
@@ -1008,10 +1101,11 @@ function RolloCardMobile({
         metros: number
         ratio: number
         gramaje_planilla: number
+        articulo: number
+        color: number
       }
     | undefined
   isDuplicate: boolean
-  ubicacionFaltante: boolean
   onUpdate: <K extends keyof RolloInput>(field: K, value: RolloInput[K]) => void
   onRemove: () => void
 }) {
@@ -1044,6 +1138,46 @@ function RolloCardMobile({
               : celdaCls(confianzas?.numero_pieza)
           }`}
         />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Artículo *
+        </label>
+        <select
+          value={rollo.articulo_id ?? ''}
+          onChange={(e) => onUpdate('articulo_id', e.target.value || null)}
+          className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+            rollo.numero_pieza.trim() && !rollo.articulo_id
+              ? 'border-destructive'
+              : celdaCls(confianzas?.articulo)
+          }`}
+        >
+          <option value="">Seleccionar...</option>
+          {articulos.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.nombre}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Color
+        </label>
+        <select
+          value={rollo.color ?? ''}
+          onChange={(e) => onUpdate('color', e.target.value || null)}
+          className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.color)}`}
+        >
+          <option value="">Seleccionar...</option>
+          {colores.map((c) => (
+            <option key={c.id} value={c.nombre}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -1111,16 +1245,11 @@ function RolloCardMobile({
           <label className="text-xs font-medium text-muted-foreground">
             Estado
           </label>
-          <select
-            value={rollo.estado}
-            onChange={(e) =>
-              onUpdate('estado', e.target.value as RolloInput['estado'])
-            }
-            className="w-full rounded border border-input bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="en_stock">En stock</option>
-            <option value="pendiente">Pendiente</option>
-          </select>
+          <div className="flex h-[42px] items-center rounded border border-input bg-background px-3">
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-warning">
+              Pendiente
+            </span>
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">
@@ -1128,13 +1257,10 @@ function RolloCardMobile({
           </label>
           <input
             type="text"
-            list="ubicaciones-list"
             value={rollo.ubicacion}
             onChange={(e) => onUpdate('ubicacion', e.target.value)}
-            placeholder={rollo.estado === 'en_stock' ? 'A1' : 'opcional'}
-            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
-              ubicacionFaltante ? 'border-destructive' : 'border-input'
-            }`}
+            placeholder="opcional"
+            className="w-full rounded border border-input px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
       </div>

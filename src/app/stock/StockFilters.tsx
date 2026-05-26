@@ -10,20 +10,33 @@ export type StockFiltersState = {
   q: string
   articulo: string
   color: string
+  lote: string
   tintoreria: string
   ubicacion: string
   estado: string
+  orden: string
 }
+
+export const ORDEN_OPCIONES: { value: string; label: string }[] = [
+  { value: 'reciente', label: 'Ingreso (más reciente primero)' },
+  { value: 'antiguo', label: 'Ingreso (más antiguo primero)' },
+  { value: 'kilos_desc', label: 'Kilos (mayor a menor)' },
+  { value: 'kilos_asc', label: 'Kilos (menor a mayor)' },
+  { value: 'articulo_asc', label: 'Artículo (A-Z)' },
+  { value: 'articulo_desc', label: 'Artículo (Z-A)' },
+]
 
 export default function StockFilters({
   articulos,
   tintorerias,
   colores,
+  lotes,
   current,
 }: {
   articulos: Catalogo[]
   tintorerias: Catalogo[]
   colores: string[]
+  lotes: string[]
   current: StockFiltersState
 }) {
   const router = useRouter()
@@ -50,9 +63,11 @@ export default function StockFilters({
     !!current.q ||
     !!current.articulo ||
     !!current.color ||
+    !!current.lote ||
     !!current.tintoreria ||
     !!current.ubicacion ||
-    current.estado !== 'en_stock'
+    current.estado !== 'en_stock' ||
+    current.orden !== 'reciente'
 
   return (
     <form
@@ -113,6 +128,21 @@ export default function StockFilters({
           </select>
         </Field>
 
+        <Field label="Lote">
+          <select
+            value={current.lote}
+            onChange={(e) => update('lote', e.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Todos</option>
+            {lotes.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="Tintorería">
           <select
             value={current.tintoreria}
@@ -161,6 +191,20 @@ export default function StockFilters({
             <option value="entregado">Entregado</option>
             <option value="baja">Baja</option>
             <option value="todos">Todos</option>
+          </select>
+        </Field>
+
+        <Field label="Ordenar por">
+          <select
+            value={current.orden}
+            onChange={(e) => update('orden', e.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            {ORDEN_OPCIONES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </Field>
       </div>

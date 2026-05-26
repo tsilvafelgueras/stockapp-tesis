@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
+import { homePathForRole } from '@/lib/auth/home-path'
 
 export default async function PickingLayout({
   children,
@@ -20,8 +21,8 @@ export default async function PickingLayout({
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'operario' && profile?.role !== 'admin') {
-    redirect('/')
+  if (profile?.role !== 'operario') {
+    redirect(`${homePathForRole(profile?.role)}?denegado=picking`)
   }
 
   const empresaNombre =

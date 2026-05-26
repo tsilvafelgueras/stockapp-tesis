@@ -6,22 +6,18 @@ import ArticulosTabla from './ArticulosTabla'
 export default async function ArticulosPage() {
   const supabase = await createClient()
 
-  const { data: articulos } = await supabase
-    .from('articulos')
-    .select('id, nombre, descripcion, color, stock_minimo_kg')
-    .eq('activo', true)
-    .order('created_at', { ascending: false })
-
-  // Lista de colores únicos ya usados en la empresa, para sugerir en el
-  // datalist del form (evita que el usuario tipee "Blanco" cuando ya
-  // existe el mismo color).
-  const coloresExistentes = Array.from(
-    new Set(
-      (articulos ?? [])
-        .map((a) => a.color)
-        .filter((c): c is string => Boolean(c))
-    )
-  ).sort((a, b) => a.localeCompare(b, 'es'))
+  const [{ data: articulos }, { data: colores }] = await Promise.all([
+    supabase
+      .from('articulos')
+      .select('id, nombre, descripcion, color, stock_minimo_kg')
+      .eq('activo', true)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('colores')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+  ])
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -35,11 +31,11 @@ export default async function ArticulosPage() {
         </div>
       </div>
 
-      <NuevoArticuloForm coloresExistentes={coloresExistentes} />
+      <NuevoArticuloForm colores={colores ?? []} />
 
       <ArticulosTabla
         articulos={articulos ?? []}
-        coloresExistentes={coloresExistentes}
+        colores={colores ?? []}
       />
     </div>
   )

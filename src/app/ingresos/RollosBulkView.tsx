@@ -15,10 +15,10 @@ export type RolloBulk = {
   estado: string
   articulo_id: string | null
   articulo_nombre: string | null
+  color: string | null
   ingreso_id: string
   ingreso_fecha: string | null
   ingreso_remito: string | null
-  ingreso_color: string | null
   ingreso_ot: string | null
   ingreso_rem_tejeduria: string | null
   ingreso_referencia: string | null
@@ -70,10 +70,12 @@ const EMPTY_FILTERS: FilterState = {
 export default function RollosBulkView({
   rollos,
   articulos,
+  colores,
   role,
 }: {
   rollos: RolloBulk[]
   articulos: Catalogo[]
+  colores: Catalogo[]
   role: 'operario' | 'admin'
 }) {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
@@ -82,13 +84,14 @@ export default function RollosBulkView({
   const [pending, startTransition] = useTransition()
 
   const [bulkMode, setBulkMode] = useState<
-    null | 'ubicacion' | 'estado' | 'articulo'
+    null | 'ubicacion' | 'estado' | 'articulo' | 'color'
   >(null)
   const [bulkUbicacion, setBulkUbicacion] = useState('')
   const [bulkEstado, setBulkEstado] = useState<
     'en_stock' | 'segunda' | 'baja' | 'pendiente'
   >('en_stock')
   const [bulkArticulo, setBulkArticulo] = useState('')
+  const [bulkColor, setBulkColor] = useState('')
 
   // Opciones para cada filtro derivadas de los rollos cargados.
   const filterOptions = useMemo(() => {
@@ -105,7 +108,7 @@ export default function RollosBulkView({
     for (const r of rollos) {
       addOpt(acc.tintoreria, r.tintoreria_id ?? '', r.tintoreria_nombre ?? '')
       addOpt(acc.articulo, r.articulo_id ?? '', r.articulo_nombre ?? '')
-      addOpt(acc.color, r.ingreso_color ?? '', r.ingreso_color ?? '')
+      addOpt(acc.color, r.color ?? '', r.color ?? '')
       addOpt(acc.ot, r.ingreso_ot ?? '', r.ingreso_ot ?? '')
       addOpt(
         acc.rem_tejeduria,
@@ -140,7 +143,7 @@ export default function RollosBulkView({
       if (filters.articulo.length && !filters.articulo.includes(r.articulo_id ?? '')) {
         return false
       }
-      if (filters.color.length && !filters.color.includes(r.ingreso_color ?? '')) {
+      if (filters.color.length && !filters.color.includes(r.color ?? '')) {
         return false
       }
       if (filters.ot.length && !filters.ot.includes(r.ingreso_ot ?? '')) {
@@ -219,11 +222,12 @@ export default function RollosBulkView({
     setSelectedIds(new Set())
   }
 
-  function openBulk(mode: 'ubicacion' | 'estado' | 'articulo') {
+  function openBulk(mode: 'ubicacion' | 'estado' | 'articulo' | 'color') {
     setBulkMode(mode)
     setBulkUbicacion('')
     setBulkEstado('en_stock')
     setBulkArticulo('')
+    setBulkColor('')
   }
 
   function applyBulk() {
@@ -251,6 +255,13 @@ export default function RollosBulkView({
       }
       changes = { articulo_id: bulkArticulo }
       descripcion = `artículo`
+    } else if (bulkMode === 'color') {
+      if (!bulkColor) {
+        toast.error('Elegí un color.')
+        return
+      }
+      changes = { color: bulkColor }
+      descripcion = `color → ${bulkColor}`
     } else {
       return
     }
@@ -401,6 +412,14 @@ export default function RollosBulkView({
           >
             Artículo
           </button>
+          <button
+            type="button"
+            onClick={() => openBulk('color')}
+            disabled={!someSelected}
+            className="rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            Color
+          </button>
         </div>
       </div>
 
@@ -423,6 +442,7 @@ export default function RollosBulkView({
                 {bulkMode === 'ubicacion' && 'Asignar nueva ubicación a todos.'}
                 {bulkMode === 'estado' && 'Cambiar estado de todos.'}
                 {bulkMode === 'articulo' && 'Reasignar artículo de todos.'}
+                {bulkMode === 'color' && 'Reasignar color de todos.'}
               </p>
             </div>
             <div className="p-4 space-y-3">
@@ -494,6 +514,26 @@ export default function RollosBulkView({
                     {articulos.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {bulkMode === 'color' && (
+                <div>
+                  <label className="text-sm font-medium block mb-1">
+                    Nuevo color
+                  </label>
+                  <select
+                    value={bulkColor}
+                    onChange={(e) => setBulkColor(e.target.value)}
+                    className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {colores.map((c) => (
+                      <option key={c.id} value={c.nombre}>
+                        {c.nombre}
                       </option>
                     ))}
                   </select>
@@ -584,7 +624,7 @@ export default function RollosBulkView({
                       </td>
                       <td className="px-3 py-2 font-medium">{r.numero_pieza}</td>
                       <td className="px-3 py-2">{r.articulo_nombre ?? '—'}</td>
-                      <td className="px-3 py-2">{r.ingreso_color ?? '—'}</td>
+                      <td className="px-3 py-2">{r.color ?? '—'}</td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {r.ingreso_ot ?? '—'}
                       </td>

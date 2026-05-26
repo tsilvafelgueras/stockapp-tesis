@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
+import { homePathForRole } from '@/lib/auth/home-path'
 
 export default async function IngresosLayout({
   children,
@@ -21,7 +22,7 @@ export default async function IngresosLayout({
     .single()
 
   if (profile?.role !== 'operario' && profile?.role !== 'admin') {
-    redirect('/')
+    redirect(`${homePathForRole(profile?.role)}?denegado=ingresos`)
   }
 
   const empresaNombre =

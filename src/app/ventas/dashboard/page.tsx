@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowLeft, Clock3, Search, ShoppingCart, Users, type LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import NotificationBanner from '@/components/NotificationBanner'
+import SeccionDenegadaBanner from '@/components/SeccionDenegadaBanner'
 
 const actions: {
   href: string
@@ -35,7 +36,16 @@ const actions: {
   },
 ]
 
-export default async function VentasDashboard() {
+type VentasDashboardSearchParams = {
+  denegado?: string
+}
+
+export default async function VentasDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<VentasDashboardSearchParams>
+}) {
+  const sp = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -72,6 +82,8 @@ export default async function VentasDashboard() {
           reserva rollos y evita prometer mercadería que ya está comprometida.
         </p>
       </div>
+
+      <SeccionDenegadaBanner denegado={sp.denegado} />
 
       <NotificationBanner />
 

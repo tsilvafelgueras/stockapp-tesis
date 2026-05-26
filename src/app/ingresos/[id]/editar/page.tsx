@@ -25,8 +25,7 @@ export default async function EditarIngresoPage({
 
   const [
     { data: ingreso },
-    { data: tintorerias },
-    { data: articulos },
+    { data: empresaTints },
     { data: rollos },
   ] = await Promise.all([
     supabase
@@ -34,12 +33,20 @@ export default async function EditarIngresoPage({
       .select('*')
       .eq('id', id)
       .single(),
-    supabase.from('tintorerias').select('id, nombre').eq('activo', true).order('nombre'),
-    supabase.from('articulos').select('id, nombre').eq('activo', true).order('nombre'),
+    supabase
+      .from('empresa_tintorerias')
+      .select('tintorerias ( id, nombre )')
+      .eq('activo', true),
     supabase.from('rollos').select('kilos').eq('ingreso_id', id),
   ])
 
   if (!ingreso) notFound()
+
+  type EmpresaTintRow = { tintorerias: { id: string; nombre: string } | null }
+  const tintorerias = ((empresaTints ?? []) as unknown as EmpresaTintRow[])
+    .map((r) => r.tintorerias)
+    .filter((t): t is { id: string; nombre: string } => t != null)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   const cantidadRollos = rollos?.length ?? 0
   const sumaKilos =
@@ -57,8 +64,7 @@ export default async function EditarIngresoPage({
 
       <EditarIngresoForm
         ingreso={ingreso}
-        tintorerias={tintorerias ?? []}
-        articulos={articulos ?? []}
+        tintorerias={tintorerias}
         cantidadRollosReal={cantidadRollos}
         sumaKilosReal={sumaKilos}
       />

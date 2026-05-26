@@ -21,7 +21,7 @@ export default async function NuevoPedidoPage({
   const sp = await searchParams
 
   // Catálogos para los dropdowns
-  const [{ data: articulos }, { data: tintorerias }, { data: clientes }] =
+  const [{ data: articulos }, { data: empresaTints }, { data: clientes }] =
     await Promise.all([
       supabase
         .from('articulos')
@@ -29,16 +29,21 @@ export default async function NuevoPedidoPage({
         .eq('activo', true)
         .order('nombre'),
       supabase
-        .from('tintorerias')
-        .select('id, nombre')
-        .eq('activo', true)
-        .order('nombre'),
+        .from('empresa_tintorerias')
+        .select('tintorerias ( id, nombre )')
+        .eq('activo', true),
       supabase
         .from('clientes')
         .select('id, nombre')
         .eq('activo', true)
         .order('nombre'),
     ])
+
+  type EmpresaTintRow = { tintorerias: { id: string; nombre: string } | null }
+  const tintorerias = ((empresaTints ?? []) as unknown as EmpresaTintRow[])
+    .map((r) => r.tintorerias)
+    .filter((t): t is { id: string; nombre: string } => t != null)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   // Rollos disponibles (en_stock) con filtros opcionales. !inner sobre
   // ingresos para poder filtrar por color y tintorería del ingreso.
@@ -51,10 +56,11 @@ export default async function NuevoPedidoPage({
         ubicacion,
         kilos,
         metros,
+        color,
         articulos ( id, nombre ),
         ingresos!inner (
           id,
-          color,
+          numero_lote,
           tintorerias ( id, nombre )
         )
       `
@@ -66,7 +72,7 @@ export default async function NuevoPedidoPage({
   if (sp.articulo) query = query.eq('articulo_id', sp.articulo)
   if (sp.tintoreria) query = query.eq('ingresos.tintoreria_id', sp.tintoreria)
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
-  if (sp.color) query = query.ilike('ingresos.color', `%${sp.color.trim()}%`)
+  if (sp.color) query = query.ilike('color', `%${sp.color.trim()}%`)
 
   const { data: rollosRaw, error } = await query
   const rollos = (rollosRaw ?? []) as unknown as RolloDisponible[]

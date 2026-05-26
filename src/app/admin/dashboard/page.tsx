@@ -2,7 +2,6 @@ import Link from 'next/link'
 import {
   BarChart3,
   Boxes,
-  ClipboardCheck,
   Factory,
   PackagePlus,
   Search,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import NotificationBanner from '@/components/NotificationBanner'
+import SeccionDenegadaBanner from '@/components/SeccionDenegadaBanner'
 
 type AlertaStockMinimo = {
   articuloId: string
@@ -26,8 +26,6 @@ type ResumenDiario = {
   pedidosCreados: number
   pedidosEntregados: number
   pedidosActivos: number
-  muestras: number
-  muestrasKilos: number
 }
 
 async function getAlertasStockMinimo(
@@ -81,7 +79,6 @@ async function getResumenDiario(
     { count: pedidosCreados },
     { count: pedidosEntregados },
     { count: pedidosActivos },
-    { data: muestrasHoy },
   ] = await Promise.all([
     supabase
       .from('rollos')
@@ -103,11 +100,6 @@ async function getResumenDiario(
       .from('pedidos')
       .select('id', { count: 'exact', head: true })
       .in('estado', ['pendiente', 'en_preparacion', 'lista']),
-    supabase
-      .from('muestras')
-      .select('kilos_descontados')
-      .gte('created_at', desde)
-      .lt('created_at', hasta),
   ])
 
   return {
@@ -117,12 +109,6 @@ async function getResumenDiario(
     pedidosCreados: pedidosCreados ?? 0,
     pedidosEntregados: pedidosEntregados ?? 0,
     pedidosActivos: pedidosActivos ?? 0,
-    muestras: muestrasHoy?.length ?? 0,
-    muestrasKilos:
-      muestrasHoy?.reduce(
-        (acc, m) => acc + Number(m.kilos_descontados ?? 0),
-        0
-      ) ?? 0,
   }
 }
 
@@ -145,13 +131,6 @@ const cards: {
     title: 'Inventario',
     description: 'Stock disponible, ubicaciones, reservas y bajas.',
     icon: Search,
-    section: 'Operación',
-  },
-  {
-    href: '/picking',
-    title: 'Picking',
-    description: 'Preparación de pedidos con scanner QR.',
-    icon: ClipboardCheck,
     section: 'Operación',
   },
   {
@@ -191,7 +170,17 @@ const cards: {
   },
 ]
 
-export default async function AdminDashboard() {
+type AdminDashboardSearchParams = {
+  denegado?: string
+}
+
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<AdminDashboardSearchParams>
+}) {
+  const sp = await searchParams
+
   const supabase = await createClient()
   const {
     data: { user },
@@ -247,6 +236,8 @@ export default async function AdminDashboard() {
         </div>
       </section>
 
+      <SeccionDenegadaBanner denegado={sp.denegado} />
+
       <section className="grid gap-3 sm:grid-cols-3">
         <Metric label="Rollos en stock" value={rollosEnStock ?? 0} />
         <Metric label="Pendientes de verificar" value={pendientes ?? 0} />
@@ -270,7 +261,7 @@ export default async function AdminDashboard() {
             Ver reportes
           </Link>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryTile
             label="Ingresos"
             value={resumenDiario.ingresosRollos}
@@ -287,13 +278,6 @@ export default async function AdminDashboard() {
             label="Pedidos activos"
             value={resumenDiario.pedidosActivos}
             detail="Pendientes, en preparación o listos"
-          />
-          <SummaryTile
-            label="Muestras"
-            value={resumenDiario.muestras}
-            detail={`${resumenDiario.muestrasKilos.toLocaleString('es-AR', {
-              maximumFractionDigits: 2,
-            })} kg descontados`}
           />
         </div>
       </section>

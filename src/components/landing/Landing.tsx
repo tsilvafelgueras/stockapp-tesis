@@ -53,6 +53,7 @@ export default function Landing() {
         <Hero />
         <Features />
         <HowItWorks />
+        <Privacy />
         <FinalCta />
       </main>
       <LandingFooter />
@@ -77,6 +78,9 @@ function LandingNav() {
           </a>
           <a className="transition-colors hover:text-foreground" href="#como-funciona">
             Cómo funciona
+          </a>
+          <a className="transition-colors hover:text-foreground" href="#privacidad">
+            Privacidad
           </a>
           <a className="transition-colors hover:text-foreground" href="#contacto">
             Contacto
@@ -291,8 +295,8 @@ const FEATURES = [
   },
   {
     icon: Building2,
-    title: 'Multi-empresa',
-    text: 'Cada fábrica con sus propios datos, usuarios y tintorerías. Aislamiento total: nadie ve lo que no es suyo.',
+    title: 'Multi-empresa con datos aislados',
+    text: 'Cada empresa ve sólo sus datos. No mezclamos, no cruzamos, no usamos tu información para entrenar modelos ni para otros clientes. Tus rollos, pedidos y clientes son tuyos.',
   },
 ]
 
@@ -401,6 +405,60 @@ function HowItWorks() {
             </li>
           ))}
         </ol>
+      </div>
+    </section>
+  )
+}
+
+function Privacy() {
+  return (
+    <section id="privacidad" className="border-t border-border bg-background py-20 sm:py-24">
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:gap-16 lg:px-8">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-action/25 bg-action/10 px-3 py-1 text-xs font-medium text-foreground">
+            <ShieldCheck className="size-3.5 text-action" />
+            Privacidad y seguridad
+          </div>
+          <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+            Tus datos son tuyos.
+          </h2>
+          <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
+            En este rubro, la información de tu fábrica vale. Por eso lo
+            tratamos como tal: cada empresa ve sólo sus propios datos, y nunca
+            usamos información de un cliente para nadie más.
+          </p>
+        </div>
+
+        <ul className="space-y-5 rounded-2xl border border-border bg-white p-6 shadow-sm sm:p-8">
+          {[
+            {
+              title: 'Aislamiento total por empresa',
+              text: 'Cada empresa tiene su propio espacio. Tus rollos, pedidos y clientes no se cruzan con los de otros usuarios ni se comparten entre fábricas.',
+            },
+            {
+              title: 'No usamos tus datos para nada más',
+              text: 'No entrenamos modelos con tu información, no la vendemos y no la compartimos con terceros. Punto.',
+            },
+            {
+              title: 'Acceso controlado por rol',
+              text: 'Vos definís quién ve qué. Operario, ventas y admin tienen permisos distintos, y cada cambio queda registrado con nombre y fecha.',
+            },
+            {
+              title: 'Servidores en Argentina (São Paulo)',
+              text: 'Infraestructura en la región, sin saltos innecesarios al exterior. Conexión cifrada de extremo a extremo.',
+            },
+          ].map((item) => (
+            <li key={item.title} className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
+              <div>
+                <p className="font-semibold text-foreground">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {item.text}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   )

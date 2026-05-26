@@ -92,12 +92,12 @@ async function IngresosListView() {
     .from('ingresos')
     .select(`
       id,
+      numero_lote,
       fecha_despacho,
       numero_remito,
       estado,
       tintorerias ( nombre ),
-      articulos ( nombre ),
-      rollos ( kilos )
+      rollos ( kilos, articulos ( nombre ) )
     `)
     .order('fecha_despacho', { ascending: false })
 
@@ -111,16 +111,22 @@ async function IngresosListView() {
             const tintoreria = (
               d.tintorerias as unknown as { nombre: string } | null
             )?.nombre
-            const articulo = (
-              d.articulos as unknown as { nombre: string } | null
-            )?.nombre
             const rollosArr =
-              (d.rollos as unknown as { kilos: number | null }[] | null) ?? []
+              (d.rollos as unknown as
+                | { kilos: number | null; articulos: { nombre: string } | null }[]
+                | null) ?? []
             const cantidadRollos = rollosArr.length
             const sumaKilos = rollosArr.reduce(
               (acc, r) => acc + Number(r.kilos ?? 0),
               0
             )
+            const articulosResumen = Array.from(
+              new Set(
+                rollosArr
+                  .map((r) => r.articulos?.nombre)
+                  .filter((n): n is string => Boolean(n))
+              )
+            ).join(', ')
             return (
               <Link
                 key={d.id}
@@ -129,9 +135,12 @@ async function IngresosListView() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium">{d.fecha_despacho}</p>
+                    <p className="font-medium">
+                      {d.numero_lote ? `${d.numero_lote} · ` : ''}
+                      {d.fecha_despacho}
+                    </p>
                     <p className="text-sm text-muted-foreground truncate">
-                      {tintoreria ?? '—'} · {articulo ?? '—'}
+                      {tintoreria ?? '—'} · {articulosResumen || '—'}
                     </p>
                   </div>
                   <span
@@ -163,9 +172,10 @@ async function IngresosListView() {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 border-b">
               <tr className="text-left">
+                <th className="px-4 py-3 font-medium">Lote</th>
                 <th className="px-4 py-3 font-medium">Fecha</th>
                 <th className="px-4 py-3 font-medium">Tintorería</th>
-                <th className="px-4 py-3 font-medium">Artículo</th>
+                <th className="px-4 py-3 font-medium">Artículos</th>
                 <th className="px-4 py-3 font-medium">Remito</th>
                 <th className="px-4 py-3 font-medium">Rollos</th>
                 <th className="px-4 py-3 font-medium">Kilos</th>
@@ -179,33 +189,41 @@ async function IngresosListView() {
                   const tintoreria = (
                     d.tintorerias as unknown as { nombre: string } | null
                   )?.nombre
-                  const articulo = (
-                    d.articulos as unknown as { nombre: string } | null
-                  )?.nombre
                   const rollosArr =
                     (d.rollos as unknown as
-                      | { kilos: number | null }[]
+                      | {
+                          kilos: number | null
+                          articulos: { nombre: string } | null
+                        }[]
                       | null) ?? []
                   const cantidadRollos = rollosArr.length
                   const sumaKilos = rollosArr.reduce(
                     (acc, r) => acc + Number(r.kilos ?? 0),
                     0
                   )
+                  const articulosResumen = Array.from(
+                    new Set(
+                      rollosArr
+                        .map((r) => r.articulos?.nombre)
+                        .filter((n): n is string => Boolean(n))
+                    )
+                  ).join(', ')
                   return (
                     <tr
                       key={d.id}
                       className="border-b last:border-0 hover:bg-zinc-50"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 font-mono text-xs">
                         <Link
                           href={`/ingresos/${d.id}`}
                           className="font-medium hover:underline"
                         >
-                          {d.fecha_despacho}
+                          {d.numero_lote ?? '—'}
                         </Link>
                       </td>
+                      <td className="px-4 py-3">{d.fecha_despacho}</td>
                       <td className="px-4 py-3">{tintoreria ?? '—'}</td>
-                      <td className="px-4 py-3">{articulo ?? '—'}</td>
+                      <td className="px-4 py-3">{articulosResumen || '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {d.numero_remito ?? '—'}
                       </td>
@@ -226,7 +244,7 @@ async function IngresosListView() {
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Todavía no cargaste ningún ingreso.
@@ -244,7 +262,7 @@ async function IngresosListView() {
 async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
   const supabase = await createClient()
 
-  const [{ data: rollosRaw }, { data: articulos }] = await Promise.all([
+  const [{ data: rollosRaw }, { data: articulos }, { data: colores }] = await Promise.all([
     supabase
       .from('rollos')
       .select(
@@ -256,13 +274,13 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
           ubicacion,
           estado,
           articulo_id,
+          color,
           articulos ( nombre ),
           ingreso_id,
           ingresos!inner (
             id,
             fecha_despacho,
             numero_remito,
-            color,
             ot,
             rem_tejeduria,
             referencia,
@@ -278,6 +296,11 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
       .select('id, nombre')
       .eq('activo', true)
       .order('nombre'),
+    supabase
+      .from('colores')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
   ])
 
   type Row = {
@@ -288,12 +311,12 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
     ubicacion: string | null
     estado: string
     articulo_id: string | null
+    color: string | null
     articulos: { nombre: string } | null
     ingreso_id: string
     ingresos: {
       fecha_despacho: string | null
       numero_remito: string | null
-      color: string | null
       ot: string | null
       rem_tejeduria: string | null
       referencia: string | null
@@ -312,10 +335,10 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
       estado: r.estado,
       articulo_id: r.articulo_id,
       articulo_nombre: r.articulos?.nombre ?? null,
+      color: r.color,
       ingreso_id: r.ingreso_id,
       ingreso_fecha: r.ingresos?.fecha_despacho ?? null,
       ingreso_remito: r.ingresos?.numero_remito ?? null,
-      ingreso_color: r.ingresos?.color ?? null,
       ingreso_ot: r.ingresos?.ot ?? null,
       ingreso_rem_tejeduria: r.ingresos?.rem_tejeduria ?? null,
       ingreso_referencia: r.ingresos?.referencia ?? null,
@@ -328,6 +351,7 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
     <RollosBulkView
       rollos={rollos}
       articulos={articulos ?? []}
+      colores={colores ?? []}
       role={role}
     />
   )

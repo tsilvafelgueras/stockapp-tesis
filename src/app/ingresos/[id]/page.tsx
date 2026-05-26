@@ -43,34 +43,54 @@ export default async function IngresoDetailPage({
     .from('ingresos')
     .select(`
       *,
-      tintorerias ( nombre ),
-      articulos ( nombre )
+      tintorerias ( nombre )
     `)
     .eq('id', id)
     .single()
 
   if (!ingreso) notFound()
 
-  const [{ data: rollos }, { data: demandasCoincidentes }] = await Promise.all([
-    supabase
-      .from('rollos')
-      .select('*')
-      .eq('ingreso_id', id)
-      .order('numero_pieza', { ascending: true }),
-    ingreso.articulo_id
-      ? supabase
+  const { data: rollos } = await supabase
+    .from('rollos')
+    .select('*, articulos ( id, nombre )')
+    .eq('ingreso_id', id)
+    .order('numero_pieza', { ascending: true })
+
+  const articulosDelIngreso = Array.from(
+    new Set(
+      (rollos ?? [])
+        .map((r) => r.articulo_id as string | null)
+        .filter((a): a is string => Boolean(a))
+    )
+  )
+
+  const articulosResumen = Array.from(
+    new Set(
+      (rollos ?? [])
+        .map((r) => (r.articulos as unknown as { nombre: string } | null)?.nombre)
+        .filter((n): n is string => Boolean(n))
+    )
+  )
+
+  const coloresResumen = Array.from(
+    new Set(
+      (rollos ?? [])
+        .map((r) => r.color as string | null)
+        .filter((c): c is string => Boolean(c))
+    )
+  )
+
+  const { data: demandasCoincidentes } =
+    articulosDelIngreso.length > 0
+      ? await supabase
           .from('pedidos_pendientes')
           .select('id, cliente, color, metros_estimados, kilos_estimados')
-          .eq('articulo_id', ingreso.articulo_id)
+          .in('articulo_id', articulosDelIngreso)
           .eq('estado', 'activo')
-      : Promise.resolve({ data: [] }),
-  ])
+      : { data: [] as Array<{ id: string; cliente: string; color: string | null; metros_estimados: number | null; kilos_estimados: number | null }> }
 
   const tintoreria = (
     ingreso.tintorerias as unknown as { nombre: string } | null
-  )?.nombre
-  const articulo = (
-    ingreso.articulos as unknown as { nombre: string } | null
   )?.nombre
   const estado = ESTADO_INGRESO[ingreso.estado] ?? ESTADO_INGRESO.borrador
 
@@ -122,7 +142,9 @@ export default async function IngresoDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-3 mt-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-bold">
-              Ingreso del {ingreso.fecha_despacho}
+              {ingreso.numero_lote
+                ? `Lote ${ingreso.numero_lote} · ${ingreso.fecha_despacho}`
+                : `Ingreso del ${ingreso.fecha_despacho}`}
             </h1>
             <span
               className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}
@@ -143,14 +165,20 @@ export default async function IngresoDetailPage({
 
       <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <Field label="Tintorería" value={tintoreria ?? '—'} />
-        <Field label="Artículo" value={articulo ?? '—'} />
-        <Field label="Color" value={ingreso.color ?? '—'} />
         <Field label="Número de remito" value={ingreso.numero_remito ?? '—'} />
         <Field
           label="Total declarado"
           value={`${ingreso.total_rollos_declarado ?? '—'} rollos / ${
             ingreso.total_kilos_declarado ?? '—'
           } kg`}
+        />
+        <Field
+          label={articulosResumen.length === 1 ? 'Artículo' : 'Artículos'}
+          value={articulosResumen.length ? articulosResumen.join(', ') : '—'}
+        />
+        <Field
+          label={coloresResumen.length === 1 ? 'Color' : 'Colores'}
+          value={coloresResumen.length ? coloresResumen.join(', ') : '—'}
         />
         {ingreso.ot && <Field label="OT" value={ingreso.ot} />}
         {ingreso.rem_tejeduria && (
@@ -176,6 +204,9 @@ export default async function IngresoDetailPage({
           {rollos && rollos.length > 0 ? (
             rollos.map((r) => {
               const e = ESTADO_ROLLO[r.estado] ?? ESTADO_ROLLO.pendiente
+              const articuloNombre = (
+                r.articulos as unknown as { nombre: string } | null
+              )?.nombre
               return (
                 <div key={r.id} className="p-3">
                   <div className="flex items-start justify-between">
@@ -187,6 +218,8 @@ export default async function IngresoDetailPage({
                     </span>
                   </div>
                   <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>Art: {articuloNombre ?? '—'}</span>
+                    <span>Color: {r.color ?? '—'}</span>
                     <span>{r.kilos ?? '—'} kg</span>
                     <span>{r.metros ?? '—'} m</span>
                     <span>Ratio: {r.ratio_rendimiento ?? '—'}</span>
@@ -208,6 +241,8 @@ export default async function IngresoDetailPage({
             <thead className="border-b text-left">
               <tr>
                 <th className="px-4 py-2 font-medium">N° Pieza</th>
+                <th className="px-4 py-2 font-medium">Artículo</th>
+                <th className="px-4 py-2 font-medium">Color</th>
                 <th className="px-4 py-2 font-medium">Kilos</th>
                 <th className="px-4 py-2 font-medium">Metros</th>
                 <th className="px-4 py-2 font-medium">Ratio</th>
@@ -220,9 +255,14 @@ export default async function IngresoDetailPage({
               {rollos && rollos.length > 0 ? (
                 rollos.map((r) => {
                   const e = ESTADO_ROLLO[r.estado] ?? ESTADO_ROLLO.pendiente
+                  const articuloNombre = (
+                    r.articulos as unknown as { nombre: string } | null
+                  )?.nombre
                   return (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="px-4 py-2 font-medium">{r.numero_pieza}</td>
+                      <td className="px-4 py-2">{articuloNombre ?? '—'}</td>
+                      <td className="px-4 py-2">{r.color ?? '—'}</td>
                       <td className="px-4 py-2">{r.kilos ?? '—'}</td>
                       <td className="px-4 py-2">{r.metros ?? '—'}</td>
                       <td className="px-4 py-2">{r.ratio_rendimiento ?? '—'}</td>
@@ -245,7 +285,7 @@ export default async function IngresoDetailPage({
               ) : (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Sin rollos cargados.

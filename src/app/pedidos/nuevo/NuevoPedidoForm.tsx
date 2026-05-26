@@ -14,10 +14,11 @@ export type RolloDisponible = {
   ubicacion: string | null
   kilos: number | null
   metros: number | null
+  color: string | null
   articulos: { id: string; nombre: string } | null
   ingresos: {
     id: string
-    color: string | null
+    numero_lote: string | null
     tintorerias: { id: string; nombre: string } | null
   } | null
 }
@@ -64,6 +65,14 @@ export default function NuevoPedidoForm({
     (acc, r) => acc + Number(r.kilos ?? 0),
     0
   )
+
+  // Agrupación por lote: solo cuando hay filtro de artículo activo. La idea
+  // es priorizar lotes con poco stock disponible para liquidarlos antes y
+  // evitar quedar con rollos huérfanos repartidos en varios lotes.
+  const agruparPorLote = !!currentFilters.articulo
+  const lotesOrdenados = agruparPorLote
+    ? agruparRollosPorLote(rollosNoEnCarrito)
+    : null
 
   function updateFilter(field: keyof Filters, value: string) {
     const params = new URLSearchParams(sp.toString())
@@ -258,7 +267,7 @@ export default function NuevoPedidoForm({
                     <span className="text-muted-foreground font-normal">
                       {' · '}
                       {r.articulos?.nombre ?? '—'}
-                      {r.ingresos?.color ? ` · ${r.ingresos.color}` : ''}
+                      {r.color ? ` · ${r.color}` : ''}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
@@ -403,36 +412,27 @@ export default function NuevoPedidoForm({
               ? 'No hay rollos en stock que coincidan con los filtros.'
               : 'Todos los rollos del filtro ya están en el carrito.'}
           </div>
+        ) : lotesOrdenados ? (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Agrupado por lote. Los lotes con menos stock disponible aparecen
+              primero para liquidarlos antes y no quedar con rollos sueltos.
+            </p>
+            {lotesOrdenados.map((grupo, idx) => (
+              <LoteGroup
+                key={grupo.key}
+                grupo={grupo}
+                priorizar={idx === 0 && lotesOrdenados.length > 1}
+                onAgregar={agregar}
+              />
+            ))}
+          </div>
         ) : (
           <>
             {/* Mobile: cards */}
             <ul className="sm:hidden divide-y border rounded-md">
               {rollosNoEnCarrito.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between gap-3 px-3 py-2"
-                >
-                  <div className="min-w-0 text-sm">
-                    <p className="font-medium truncate">
-                      Pieza {r.numero_pieza}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {r.articulos?.nombre ?? '—'}
-                      {r.ingresos?.color ? ` · ${r.ingresos.color}` : ''}
-                    </p>
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                      {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
-                      {r.ubicacion ? ` · ${r.ubicacion}` : ''}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => agregar(r)}
-                    className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 shrink-0"
-                  >
-                    Agregar
-                  </button>
-                </li>
+                <RolloCardMobile key={r.id} r={r} onAgregar={agregar} />
               ))}
             </ul>
 
@@ -452,33 +452,7 @@ export default function NuevoPedidoForm({
                 </thead>
                 <tbody>
                   {rollosNoEnCarrito.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0">
-                      <td className="px-3 py-2 font-medium">
-                        {r.numero_pieza}
-                      </td>
-                      <td className="px-3 py-2">
-                        {r.articulos?.nombre ?? '—'}
-                      </td>
-                      <td className="px-3 py-2">
-                        {r.ingresos?.color ?? '—'}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">
-                        {r.kilos != null ? Number(r.kilos).toFixed(2) : '—'}
-                      </td>
-                      <td className="px-3 py-2">{r.ubicacion ?? '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {r.ingresos?.tintorerias?.nombre ?? '—'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => agregar(r)}
-                          className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-                        >
-                          Agregar
-                        </button>
-                      </td>
-                    </tr>
+                    <RolloRowDesktop key={r.id} r={r} onAgregar={agregar} />
                   ))}
                 </tbody>
               </table>
@@ -487,5 +461,179 @@ export default function NuevoPedidoForm({
         )}
       </section>
     </div>
+  )
+}
+
+type LoteGrupo = {
+  key: string
+  numero_lote: string | null
+  rollos: RolloDisponible[]
+  totalKilos: number
+}
+
+function agruparRollosPorLote(rollos: RolloDisponible[]): LoteGrupo[] {
+  const mapa = new Map<string, LoteGrupo>()
+  for (const r of rollos) {
+    const numero_lote = r.ingresos?.numero_lote ?? null
+    // Si un rollo no tiene lote asignado, lo agrupamos aparte bajo "sin-lote"
+    // para que no rompa la UI; en la práctica todos deberían tener lote por
+    // la migración 027.
+    const key = numero_lote ?? '__sin_lote__'
+    const existing = mapa.get(key)
+    if (existing) {
+      existing.rollos.push(r)
+      existing.totalKilos += Number(r.kilos ?? 0)
+    } else {
+      mapa.set(key, {
+        key,
+        numero_lote,
+        rollos: [r],
+        totalKilos: Number(r.kilos ?? 0),
+      })
+    }
+  }
+  // Orden: stock disponible ASC (lotes casi vacíos primero), tiebreak por lote.
+  const grupos = Array.from(mapa.values())
+  for (const g of grupos) {
+    g.rollos.sort((a, b) =>
+      a.numero_pieza.localeCompare(b.numero_pieza, 'es', { numeric: true })
+    )
+  }
+  grupos.sort((a, b) => {
+    if (a.totalKilos !== b.totalKilos) return a.totalKilos - b.totalKilos
+    const an = a.numero_lote ?? ''
+    const bn = b.numero_lote ?? ''
+    return an.localeCompare(bn, 'es')
+  })
+  return grupos
+}
+
+function LoteGroup({
+  grupo,
+  priorizar,
+  onAgregar,
+}: {
+  grupo: LoteGrupo
+  priorizar: boolean
+  onAgregar: (r: RolloDisponible) => void
+}) {
+  const titulo = grupo.numero_lote ?? 'Sin lote asignado'
+  return (
+    <div
+      className={`rounded-md border bg-white ${
+        priorizar ? 'border-amber-300 ring-1 ring-amber-200/60' : ''
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-zinc-50 px-3 py-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-base">📦</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">Lote {titulo}</p>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {grupo.rollos.length}{' '}
+              {grupo.rollos.length === 1 ? 'rollo' : 'rollos'} ·{' '}
+              {grupo.totalKilos.toFixed(2)} kg disponibles
+            </p>
+          </div>
+        </div>
+        {priorizar && (
+          <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+            Priorizar — menos stock
+          </span>
+        )}
+      </div>
+
+      {/* Mobile: cards */}
+      <ul className="sm:hidden divide-y">
+        {grupo.rollos.map((r) => (
+          <RolloCardMobile key={r.id} r={r} onAgregar={onAgregar} />
+        ))}
+      </ul>
+
+      {/* Desktop: tabla */}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-zinc-50/50 border-b">
+            <tr className="text-left">
+              <th className="px-3 py-2 font-medium">Pieza</th>
+              <th className="px-3 py-2 font-medium">Artículo</th>
+              <th className="px-3 py-2 font-medium">Color</th>
+              <th className="px-3 py-2 font-medium">Kilos</th>
+              <th className="px-3 py-2 font-medium">Ubicación</th>
+              <th className="px-3 py-2 font-medium">Tintorería</th>
+              <th className="px-3 py-2 font-medium w-20"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {grupo.rollos.map((r) => (
+              <RolloRowDesktop key={r.id} r={r} onAgregar={onAgregar} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function RolloCardMobile({
+  r,
+  onAgregar,
+}: {
+  r: RolloDisponible
+  onAgregar: (r: RolloDisponible) => void
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3 px-3 py-2">
+      <div className="min-w-0 text-sm">
+        <p className="font-medium truncate">Pieza {r.numero_pieza}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {r.articulos?.nombre ?? '—'}
+          {r.color ? ` · ${r.color}` : ''}
+        </p>
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
+          {r.ubicacion ? ` · ${r.ubicacion}` : ''}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onAgregar(r)}
+        className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 shrink-0"
+      >
+        Agregar
+      </button>
+    </li>
+  )
+}
+
+function RolloRowDesktop({
+  r,
+  onAgregar,
+}: {
+  r: RolloDisponible
+  onAgregar: (r: RolloDisponible) => void
+}) {
+  return (
+    <tr className="border-b last:border-0">
+      <td className="px-3 py-2 font-medium">{r.numero_pieza}</td>
+      <td className="px-3 py-2">{r.articulos?.nombre ?? '—'}</td>
+      <td className="px-3 py-2">{r.color ?? '—'}</td>
+      <td className="px-3 py-2 tabular-nums">
+        {r.kilos != null ? Number(r.kilos).toFixed(2) : '—'}
+      </td>
+      <td className="px-3 py-2">{r.ubicacion ?? '—'}</td>
+      <td className="px-3 py-2 text-muted-foreground">
+        {r.ingresos?.tintorerias?.nombre ?? '—'}
+      </td>
+      <td className="px-3 py-2 text-right">
+        <button
+          type="button"
+          onClick={() => onAgregar(r)}
+          className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+        >
+          Agregar
+        </button>
+      </td>
+    </tr>
   )
 }
