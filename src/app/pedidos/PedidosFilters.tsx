@@ -15,8 +15,8 @@ const ESTADO_OPCIONES: Array<{ value: string; label: string }> = [
   { value: '', label: 'Todos' },
   { value: 'pendiente', label: 'Pendientes' },
   { value: 'en_preparacion', label: 'En preparación' },
-  { value: 'lista', label: 'Lista (esperando venta)' },
-  { value: 'confirmada_venta', label: 'Venta confirmada' },
+  { value: 'lista', label: 'Lista (esperando egreso)' },
+  { value: 'confirmada_egreso', label: 'Egreso confirmado' },
   { value: 'entregada', label: 'Entregados' },
   { value: 'cancelada', label: 'Cancelados' },
 ]

@@ -15,7 +15,8 @@ export type RolloBulk = {
   estado: string
   articulo_id: string | null
   articulo_nombre: string | null
-  color: string | null
+  color_id: string | null
+  color_nombre: string | null
   ingreso_id: string
   ingreso_fecha: string | null
   ingreso_remito: string | null
@@ -108,7 +109,7 @@ export default function RollosBulkView({
     for (const r of rollos) {
       addOpt(acc.tintoreria, r.tintoreria_id ?? '', r.tintoreria_nombre ?? '')
       addOpt(acc.articulo, r.articulo_id ?? '', r.articulo_nombre ?? '')
-      addOpt(acc.color, r.color ?? '', r.color ?? '')
+      addOpt(acc.color, r.color_id ?? '', r.color_nombre ?? '')
       addOpt(acc.ot, r.ingreso_ot ?? '', r.ingreso_ot ?? '')
       addOpt(
         acc.rem_tejeduria,
@@ -143,7 +144,7 @@ export default function RollosBulkView({
       if (filters.articulo.length && !filters.articulo.includes(r.articulo_id ?? '')) {
         return false
       }
-      if (filters.color.length && !filters.color.includes(r.color ?? '')) {
+      if (filters.color.length && !filters.color.includes(r.color_id ?? '')) {
         return false
       }
       if (filters.ot.length && !filters.ot.includes(r.ingreso_ot ?? '')) {
@@ -260,8 +261,9 @@ export default function RollosBulkView({
         toast.error('Elegí un color.')
         return
       }
-      changes = { color: bulkColor }
-      descripcion = `color → ${bulkColor}`
+      const colorMeta = colores.find((c) => c.id === bulkColor)
+      changes = { color_id: bulkColor }
+      descripcion = `color → ${colorMeta?.nombre ?? bulkColor}`
     } else {
       return
     }
@@ -532,7 +534,7 @@ export default function RollosBulkView({
                   >
                     <option value="">Seleccionar...</option>
                     {colores.map((c) => (
-                      <option key={c.id} value={c.nombre}>
+                      <option key={c.id} value={c.id}>
                         {c.nombre}
                       </option>
                     ))}
@@ -624,7 +626,7 @@ export default function RollosBulkView({
                       </td>
                       <td className="px-3 py-2 font-medium">{r.numero_pieza}</td>
                       <td className="px-3 py-2">{r.articulo_nombre ?? '—'}</td>
-                      <td className="px-3 py-2">{r.color ?? '—'}</td>
+                      <td className="px-3 py-2">{r.color_nombre ?? '—'}</td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {r.ingreso_ot ?? '—'}
                       </td>

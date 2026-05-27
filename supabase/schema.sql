@@ -134,23 +134,22 @@ CREATE TRIGGER on_auth_user_created
 
 -- ── ARTICULOS ───────────────────────────────────────────────
 --
--- Modelo: una fila de `articulos` representa una combinación concreta
--- (nombre, color). Ej: ("Lycra", "Rojo") y ("Lycra", "Azul") son dos
--- filas distintas. Cada rollo apunta a la fila específica vía
--- articulo_id, y el color del rollo deriva de articulos.color.
--- Ver migración 038 para detalle.
+-- Modelo (post migración 039): el artículo es una entidad por sí
+-- mismo (ej. "Lycra ML40", "SET", "Interlock"). Los colores que se
+-- desarrollan sobre ese artículo viven en la pivot `articulo_colores`
+-- (M:N contra `colores`). Cada rollo apunta a un (articulo_id,
+-- color_id) que debe existir en la pivot — FK compuesta.
 
 CREATE TABLE IF NOT EXISTS articulos (
   id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   empresa_id      UUID NOT NULL REFERENCES empresas(id),
   nombre          TEXT NOT NULL,
-  color           TEXT NOT NULL,
   descripcion     TEXT,
   activo          BOOLEAN NOT NULL DEFAULT TRUE,
   stock_minimo_kg NUMERIC(10, 2),
   created_at      TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT articulos_empresa_nombre_color_key
-    UNIQUE (empresa_id, nombre, color)
+  CONSTRAINT articulos_empresa_nombre_key
+    UNIQUE (empresa_id, nombre)
 );
 
 ALTER TABLE articulos ENABLE ROW LEVEL SECURITY;
@@ -306,36 +305,88 @@ CREATE TRIGGER set_empresa_ingresos BEFORE INSERT ON ingresos
   FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
 
 
+-- ── ARTICULO_COLORES (pivot M:N) ────────────────────────────
+--
+-- Catálogo de qué colores se desarrollan sobre cada artículo.
+-- Sirve para filtrar opciones de color al ingresar rollos y
+-- como referente de la FK compuesta de rollos.
+
+CREATE TABLE IF NOT EXISTS articulo_colores (
+  empresa_id  UUID NOT NULL REFERENCES empresas(id),
+  articulo_id UUID NOT NULL REFERENCES articulos(id) ON DELETE CASCADE,
+  color_id    UUID NOT NULL REFERENCES colores(id) ON DELETE RESTRICT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (articulo_id, color_id)
+);
+
+CREATE INDEX IF NOT EXISTS articulo_colores_color_idx
+  ON articulo_colores (color_id);
+CREATE INDEX IF NOT EXISTS articulo_colores_empresa_idx
+  ON articulo_colores (empresa_id);
+
+ALTER TABLE articulo_colores ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Autenticados leen articulo_colores de su empresa" ON articulo_colores;
+CREATE POLICY "Autenticados leen articulo_colores de su empresa"
+  ON articulo_colores FOR SELECT TO authenticated
+  USING (empresa_id = public.current_empresa_id() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "Operario y admin gestionan articulo_colores" ON articulo_colores;
+CREATE POLICY "Operario y admin gestionan articulo_colores"
+  ON articulo_colores FOR ALL TO authenticated
+  USING (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+  )
+  WITH CHECK (
+    empresa_id = public.current_empresa_id()
+    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+  );
+
+DROP TRIGGER IF EXISTS set_empresa_articulo_colores ON articulo_colores;
+CREATE TRIGGER set_empresa_articulo_colores BEFORE INSERT ON articulo_colores
+  FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
+
+
 -- ── ROLLOS ──────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS rollos (
   id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   empresa_id          UUID NOT NULL REFERENCES empresas(id),
   ingreso_id          UUID NOT NULL REFERENCES ingresos(id),
-  articulo_id         UUID REFERENCES articulos(id),
+  articulo_id         UUID NOT NULL REFERENCES articulos(id),
+  color_id            UUID NOT NULL REFERENCES colores(id),
   numero_pieza        TEXT NOT NULL,
   ubicacion           TEXT,
   pantone             TEXT,
   foto_url            TEXT,
-  -- DEPRECATED desde migración 038: derivable de articulos.color via
-  -- articulo_id. Se mantiene por compat con queries existentes
-  -- (reportes, stock, picking, CSV) y la sincroniza el trigger
-  -- sync_rollo_color. NO escribir directo: cambiá articulo_id en su
-  -- lugar (apuntando a la fila (mismo_nombre, nuevo_color)).
-  color               TEXT,
   kilos               NUMERIC(10, 2),
   metros              NUMERIC(10, 2),
-  ratio_rendimiento   NUMERIC(10, 4),
+  rinde               NUMERIC(10, 4),
   kilos_propios       NUMERIC(10, 2),
   metros_propios      NUMERIC(10, 2),
   ancho_propio        NUMERIC(10, 2),
   gramaje_propio      NUMERIC(10, 2),
   estado              TEXT NOT NULL DEFAULT 'pendiente'
-                       CHECK (estado IN ('pendiente', 'en_stock', 'reservado', 'entregado', 'baja')),
+                       CHECK (estado IN ('pendiente', 'en_stock', 'reservado', 'entregado', 'baja', 'segunda')),
+  falla_categoria     TEXT
+                       CHECK (
+                         falla_categoria IS NULL
+                         OR falla_categoria IN (
+                           'mancha', 'agujero', 'color_disparejo',
+                           'tono_diferente', 'rotura_tejido', 'otro'
+                         )
+                       ),
+  falla_descripcion   TEXT,
   confianza_ia        NUMERIC(4, 3),
   gramaje_planilla    NUMERIC(5, 2),
   created_at          TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT rollos_ingreso_id_numero_pieza_key UNIQUE (ingreso_id, numero_pieza)
+  CONSTRAINT rollos_ingreso_id_numero_pieza_key UNIQUE (ingreso_id, numero_pieza),
+  -- FK compuesta: cada rollo debe apuntar a una combinación
+  -- (articulo, color) que el admin ya haya asociado en la pivot.
+  CONSTRAINT rollos_articulo_color_fk
+    FOREIGN KEY (articulo_id, color_id)
+    REFERENCES articulo_colores (articulo_id, color_id)
 );
 
 ALTER TABLE rollos ENABLE ROW LEVEL SECURITY;
@@ -357,41 +408,24 @@ DROP TRIGGER IF EXISTS set_empresa_rollos ON rollos;
 CREATE TRIGGER set_empresa_rollos BEFORE INSERT ON rollos
   FOR EACH ROW EXECUTE FUNCTION public.set_empresa_id();
 
--- Sincroniza rollos.color desde articulos.color del articulo_id
--- apuntado. Si articulo_id es NULL, no toca rollos.color (legacy).
--- Ver migración 038.
-CREATE OR REPLACE FUNCTION public.sync_rollo_color_from_articulo()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  IF NEW.articulo_id IS NOT NULL THEN
-    SELECT color INTO NEW.color
-      FROM public.articulos
-     WHERE id = NEW.articulo_id;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS sync_rollo_color ON rollos;
-CREATE TRIGGER sync_rollo_color
-  BEFORE INSERT OR UPDATE OF articulo_id, color ON rollos
-  FOR EACH ROW EXECUTE FUNCTION public.sync_rollo_color_from_articulo();
-
 
 -- ── PEDIDOS ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS pedidos (
-  id                    UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  empresa_id            UUID NOT NULL REFERENCES empresas(id),
-  numero_pedido         TEXT UNIQUE,
-  cliente               TEXT NOT NULL,
-  numero_remito_externo TEXT,
-  estado                TEXT NOT NULL DEFAULT 'pendiente'
-                         CHECK (estado IN ('pendiente', 'en_preparacion', 'lista', 'entregada', 'cancelada')),
-  created_by            UUID REFERENCES profiles(id),
-  created_at            TIMESTAMPTZ DEFAULT NOW()
+  id                       UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id               UUID NOT NULL REFERENCES empresas(id),
+  numero_pedido            TEXT UNIQUE,
+  cliente                  TEXT NOT NULL,
+  numero_remito_externo    TEXT,
+  estado                   TEXT NOT NULL DEFAULT 'pendiente'
+                            CHECK (estado IN (
+                              'pendiente', 'en_preparacion', 'lista',
+                              'confirmada_egreso', 'entregada', 'cancelada'
+                            )),
+  confirmada_egreso_at     TIMESTAMPTZ,
+  confirmada_egreso_por    UUID REFERENCES auth.users(id),
+  created_by               UUID REFERENCES profiles(id),
+  created_at               TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;

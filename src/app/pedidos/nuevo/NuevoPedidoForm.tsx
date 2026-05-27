@@ -14,8 +14,9 @@ export type RolloDisponible = {
   ubicacion: string | null
   kilos: number | null
   metros: number | null
-  color: string | null
+  created_at: string
   articulos: { id: string; nombre: string } | null
+  colores: { id: string; nombre: string } | null
   ingresos: {
     id: string
     numero_lote: string | null
@@ -28,17 +29,25 @@ type Filters = {
   articulo: string
   color: string
   tintoreria: string
+  diasMinimos: string
+}
+
+function diasEnInventario(createdAt: string): number {
+  const ms = Date.now() - new Date(createdAt).getTime()
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)))
 }
 
 export default function NuevoPedidoForm({
   rollosDisponibles,
   articulos,
+  colores,
   tintorerias,
   clientes: clientesIniciales,
   currentFilters,
 }: {
   rollosDisponibles: RolloDisponible[]
   articulos: Catalogo[]
+  colores: Catalogo[]
   tintorerias: Catalogo[]
   clientes: Catalogo[]
   currentFilters: Filters
@@ -145,7 +154,8 @@ export default function NuevoPedidoForm({
     !!currentFilters.q ||
     !!currentFilters.articulo ||
     !!currentFilters.color ||
-    !!currentFilters.tintoreria
+    !!currentFilters.tintoreria ||
+    !!currentFilters.diasMinimos
 
   return (
     <div className="space-y-4">
@@ -267,7 +277,7 @@ export default function NuevoPedidoForm({
                     <span className="text-muted-foreground font-normal">
                       {' · '}
                       {r.articulos?.nombre ?? '—'}
-                      {r.color ? ` · ${r.color}` : ''}
+                      {r.colores?.nombre ? ` · ${r.colores.nombre}` : ''}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
@@ -353,22 +363,18 @@ export default function NuevoPedidoForm({
             <label className="text-xs font-medium text-muted-foreground">
               Color
             </label>
-            <input
-              type="text"
-              defaultValue={currentFilters.color}
-              onBlur={(e) => {
-                if (e.target.value !== currentFilters.color)
-                  updateFilter('color', e.target.value)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  updateFilter('color', (e.target as HTMLInputElement).value)
-                }
-              }}
-              placeholder="Ej. Negro"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-            />
+            <select
+              value={currentFilters.color}
+              onChange={(e) => updateFilter('color', e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Todos</option>
+              {colores.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
@@ -386,6 +392,43 @@ export default function NuevoPedidoForm({
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* Filtro por días de inventario (FIFO Azcano) */}
+        <div className="flex flex-wrap items-end gap-3 pt-1">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Mínimo en inventario
+            </label>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                defaultValue={currentFilters.diasMinimos}
+                onBlur={(e) => {
+                  if (e.target.value !== currentFilters.diasMinimos)
+                    updateFilter('diasMinimos', e.target.value)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    updateFilter(
+                      'diasMinimos',
+                      (e.target as HTMLInputElement).value
+                    )
+                  }
+                }}
+                placeholder="Ej. 30"
+                className="w-24 rounded-md border px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-muted-foreground">días</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Útil para sacar primero los rollos que llevan más tiempo enrollados
+              (ej. Azcano).
+            </p>
           </div>
         </div>
 
@@ -447,6 +490,9 @@ export default function NuevoPedidoForm({
                     <th className="px-3 py-2 font-medium">Kilos</th>
                     <th className="px-3 py-2 font-medium">Ubicación</th>
                     <th className="px-3 py-2 font-medium">Tintorería</th>
+                    <th className="px-3 py-2 font-medium" title="Días en inventario">
+                      Antig.
+                    </th>
                     <th className="px-3 py-2 font-medium w-20"></th>
                   </tr>
                 </thead>
@@ -575,6 +621,28 @@ function LoteGroup({
   )
 }
 
+function AntiguedadBadge({ dias }: { dias: number }) {
+  // Umbral pedido por la clienta: 30 días enrollados es el límite donde
+  // las telas Azcano empiezan a perder propiedades.
+  const critico = dias >= 30
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${
+        critico
+          ? 'bg-amber-100 text-amber-800'
+          : 'bg-zinc-100 text-zinc-600'
+      }`}
+      title={
+        critico
+          ? 'Más de 30 días en depósito — sacar prioritariamente'
+          : 'Días en inventario'
+      }
+    >
+      {dias}d
+    </span>
+  )
+}
+
 function RolloCardMobile({
   r,
   onAgregar,
@@ -582,13 +650,17 @@ function RolloCardMobile({
   r: RolloDisponible
   onAgregar: (r: RolloDisponible) => void
 }) {
+  const dias = diasEnInventario(r.created_at)
   return (
     <li className="flex items-center justify-between gap-3 px-3 py-2">
       <div className="min-w-0 text-sm">
-        <p className="font-medium truncate">Pieza {r.numero_pieza}</p>
+        <p className="font-medium truncate flex items-center gap-1.5">
+          Pieza {r.numero_pieza}
+          <AntiguedadBadge dias={dias} />
+        </p>
         <p className="text-xs text-muted-foreground truncate">
           {r.articulos?.nombre ?? '—'}
-          {r.color ? ` · ${r.color}` : ''}
+          {r.colores?.nombre ? ` · ${r.colores.nombre}` : ''}
         </p>
         <p className="text-xs text-muted-foreground tabular-nums">
           {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
@@ -613,17 +685,21 @@ function RolloRowDesktop({
   r: RolloDisponible
   onAgregar: (r: RolloDisponible) => void
 }) {
+  const dias = diasEnInventario(r.created_at)
   return (
     <tr className="border-b last:border-0">
       <td className="px-3 py-2 font-medium">{r.numero_pieza}</td>
       <td className="px-3 py-2">{r.articulos?.nombre ?? '—'}</td>
-      <td className="px-3 py-2">{r.color ?? '—'}</td>
+      <td className="px-3 py-2">{r.colores?.nombre ?? '—'}</td>
       <td className="px-3 py-2 tabular-nums">
         {r.kilos != null ? Number(r.kilos).toFixed(2) : '—'}
       </td>
       <td className="px-3 py-2">{r.ubicacion ?? '—'}</td>
       <td className="px-3 py-2 text-muted-foreground">
         {r.ingresos?.tintorerias?.nombre ?? '—'}
+      </td>
+      <td className="px-3 py-2">
+        <AntiguedadBadge dias={dias} />
       </td>
       <td className="px-3 py-2 text-right">
         <button

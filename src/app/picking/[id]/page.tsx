@@ -2,7 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
 import { notFound } from 'next/navigation'
 import { formatArticulos } from '@/lib/utils'
-import PickingScanner, { type PickRollo } from './PickingScanner'
+import PickingScanner, {
+  type PickRollo,
+  type AlternativaRollo,
+} from './PickingScanner'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
@@ -45,8 +48,10 @@ export default async function PickingDetailPage({
           numero_pieza,
           ubicacion,
           kilos,
-          color,
+          articulo_id,
+          color_id,
           articulos ( nombre ),
+          colores ( nombre ),
           ingresos ( tintoreria_id )
         )
       `
@@ -61,8 +66,10 @@ export default async function PickingDetailPage({
       numero_pieza: string
       ubicacion: string | null
       kilos: number | null
-      color: string | null
+      articulo_id: string | null
+      color_id: string | null
       articulos: { nombre: string } | null
+      colores: { nombre: string } | null
       ingresos: { tintoreria_id: string | null } | null
     } | null
   }
@@ -91,11 +98,6 @@ export default async function PickingDetailPage({
 
   const patrones = patronesData ?? []
 
-  // Resolución del reader_type del pedido.
-  // Un pedido puede contener rollos de varias tintorerías. Solo restringimos
-  // el lector al específico si TODAS las tintorerías comparten el mismo
-  // reader_type. Si hay mezcla (o alguna sin configurar), caemos al lector
-  // unificado para no perder códigos.
   let readerType: 'qr' | 'barcode' | null = null
   if (tintoreriaIds.length > 0) {
     const { data: tintsData } = await supabase
@@ -111,6 +113,75 @@ export default async function PickingDetailPage({
     }
   }
 
+  // Alternativas para reemplazo: rollos `en_stock` que NO estén reservados
+  // a ningún pedido, filtrados por (articulo_id, color_id) de los rollos
+  // pendientes en este pedido. Sirve para el modal de swap.
+  const pendientesCombos = Array.from(
+    new Set(
+      rows
+        .filter((r) => !r.pickeado_at && r.rollos?.articulo_id && r.rollos?.color_id)
+        .map((r) => `${r.rollos!.articulo_id}|${r.rollos!.color_id}`)
+    )
+  )
+
+  let alternativas: AlternativaRollo[] = []
+  if (pendientesCombos.length > 0) {
+    const articulosBuscar = Array.from(
+      new Set(pendientesCombos.map((c) => c.split('|')[0]))
+    )
+    const coloresBuscar = Array.from(
+      new Set(pendientesCombos.map((c) => c.split('|')[1]))
+    )
+    const { data: altRaw } = await supabase
+      .from('rollos')
+      .select(
+        `
+          id,
+          numero_pieza,
+          ubicacion,
+          kilos,
+          articulo_id,
+          color_id,
+          articulos ( nombre ),
+          colores ( nombre ),
+          pedido_rollos!left ( id )
+        `
+      )
+      .eq('estado', 'en_stock')
+      .in('articulo_id', articulosBuscar)
+      .in('color_id', coloresBuscar)
+      .limit(200)
+
+    type AltRow = {
+      id: string
+      numero_pieza: string
+      ubicacion: string | null
+      kilos: number | null
+      articulo_id: string
+      color_id: string
+      articulos: { nombre: string } | null
+      colores: { nombre: string } | null
+      pedido_rollos: { id: string }[] | null
+    }
+    alternativas = ((altRaw ?? []) as unknown as AltRow[])
+      // Filtrar combinaciones (articulo, color) que aparecen en pendientesCombos.
+      .filter((a) =>
+        pendientesCombos.includes(`${a.articulo_id}|${a.color_id}`)
+      )
+      // Solo libres (sin asignación a ningún pedido).
+      .filter((a) => !a.pedido_rollos || a.pedido_rollos.length === 0)
+      .map((a) => ({
+        id: a.id,
+        numero_pieza: a.numero_pieza,
+        ubicacion: a.ubicacion,
+        kilos: a.kilos,
+        articulo_id: a.articulo_id,
+        color_id: a.color_id,
+        articulo_nombre: a.articulos?.nombre ?? '—',
+        color_nombre: a.colores?.nombre ?? '—',
+      }))
+  }
+
   const items: PickRollo[] = rows
     .filter((r) => r.rollos != null)
     .map((r) => ({
@@ -120,8 +191,10 @@ export default async function PickingDetailPage({
       numero_pieza: r.rollos!.numero_pieza,
       ubicacion: r.rollos!.ubicacion,
       kilos: r.rollos!.kilos,
+      articulo_id: r.rollos!.articulo_id,
+      color_id: r.rollos!.color_id,
       articulo: r.rollos!.articulos?.nombre ?? null,
-      color: r.rollos!.color ?? null,
+      color: r.rollos!.colores?.nombre ?? null,
     }))
 
   const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
@@ -134,7 +207,6 @@ export default async function PickingDetailPage({
     0
   )
 
-  // Si el pedido ya pasó de pendiente/en_preparacion, mostrar mensaje
   const pickeable =
     pedido.estado === 'pendiente' || pedido.estado === 'en_preparacion'
 
@@ -174,6 +246,7 @@ export default async function PickingDetailPage({
         <PickingScanner
           pedidoId={id}
           items={items}
+          alternativas={alternativas}
           patrones={patrones}
           readerType={readerType}
         />

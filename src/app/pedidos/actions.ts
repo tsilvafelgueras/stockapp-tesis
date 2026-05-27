@@ -58,11 +58,11 @@ export async function cancelarPedido(
   return { ok: true }
 }
 
-export async function confirmarVentaPedido(
+export async function confirmarEgresoPedido(
   pedidoId: string
 ): Promise<SimpleResult> {
   const supabase = await createClient()
-  const { error } = await supabase.rpc('confirmar_venta_pedido', {
+  const { error } = await supabase.rpc('confirmar_egreso_pedido', {
     p_pedido_id: pedidoId,
   })
   if (error) return { ok: false, error: error.message }

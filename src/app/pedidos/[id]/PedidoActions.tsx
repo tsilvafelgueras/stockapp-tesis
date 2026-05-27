@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   cancelarPedido,
-  confirmarVentaPedido,
+  confirmarEgresoPedido,
   entregarPedido,
 } from '../actions'
 
@@ -13,8 +13,8 @@ type Mode =
   | 'view'
   | 'confirmar-cancelar'
   | 'confirmar-entregar'
-  | 'confirmar-venta'
-  | 'caer-venta'
+  | 'confirmar-egreso'
+  | 'caer-egreso'
 
 export default function PedidoActions({
   pedidoId,
@@ -31,30 +31,30 @@ export default function PedidoActions({
 
   const esVentasOAdmin = role === 'ventas' || role === 'admin'
 
-  // El picking terminó (estado `lista`) → ventas debe confirmar la venta.
-  const puedeConfirmarVenta = esVentasOAdmin && estado === 'lista'
+  // El picking terminó (estado `lista`) → ventas confirma el egreso cuando
+  // la mercadería efectivamente sale del depósito.
+  const puedeConfirmarEgreso = esVentasOAdmin && estado === 'lista'
 
-  // Si la venta se cae mientras está en `lista` (picking listo pero venta no
-  // se cerró), se "cae" la venta. Esto es funcionalmente lo mismo que
-  // cancelar: libera rollos a en_stock.
-  const puedeCaerVenta = esVentasOAdmin && estado === 'lista'
+  // Si la mercadería estaba lista pero no terminó saliendo (cliente se cayó),
+  // "Caer egreso" libera los rollos a stock.
+  const puedeCaerEgreso = esVentasOAdmin && estado === 'lista'
 
-  // Cancelar pedido normal (antes de que termine el picking, o ya con venta
-  // confirmada si se da de baja después).
+  // Cancelar pedido normal (antes de que termine el picking, o ya con egreso
+  // confirmado si se da de baja después).
   const puedeCancelar =
     esVentasOAdmin &&
     (estado === 'pendiente' ||
       estado === 'en_preparacion' ||
-      estado === 'confirmada_venta')
+      estado === 'confirmada_egreso')
 
-  // Admin entrega solo si ya se confirmó la venta.
-  const puedeEntregar = role === 'admin' && estado === 'confirmada_venta'
+  // Admin entrega solo si ya se confirmó el egreso.
+  const puedeEntregar = role === 'admin' && estado === 'confirmada_egreso'
 
   if (
     !puedeCancelar &&
     !puedeEntregar &&
-    !puedeConfirmarVenta &&
-    !puedeCaerVenta
+    !puedeConfirmarEgreso &&
+    !puedeCaerEgreso
   )
     return null
 
@@ -71,7 +71,7 @@ export default function PedidoActions({
     })
   }
 
-  function handleCaerVenta() {
+  function handleCaerEgreso() {
     startTransition(async () => {
       const res = await cancelarPedido(pedidoId)
       if (!res.ok) {
@@ -79,21 +79,21 @@ export default function PedidoActions({
         return
       }
       toast.success(
-        'Venta dada de baja. Los rollos volvieron a estar disponibles en stock.'
+        'Egreso dado de baja. Los rollos volvieron a estar disponibles en stock.'
       )
       setMode('view')
       router.refresh()
     })
   }
 
-  function handleConfirmarVenta() {
+  function handleConfirmarEgreso() {
     startTransition(async () => {
-      const res = await confirmarVentaPedido(pedidoId)
+      const res = await confirmarEgresoPedido(pedidoId)
       if (!res.ok) {
         toast.error(res.error)
         return
       }
-      toast.success('Venta confirmada. Listo para entregar.')
+      toast.success('Egreso confirmado. Listo para entregar.')
       setMode('view')
       router.refresh()
     })
@@ -116,28 +116,29 @@ export default function PedidoActions({
     <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
       {estado === 'lista' && mode === 'view' && (
         <p className="text-xs text-muted-foreground">
-          El picking terminó. Ventas debe confirmar la venta para que admin
-          pueda entregar. Si la venta se cae, &quot;Caer venta&quot; libera los rollos.
+          El picking terminó. Cuando la mercadería efectivamente sale, ventas
+          confirma el egreso. Si no llega a salir, &quot;Caer egreso&quot; libera los
+          rollos a stock.
         </p>
       )}
 
       <div className="flex flex-wrap gap-2">
-        {puedeConfirmarVenta && mode === 'view' && (
+        {puedeConfirmarEgreso && mode === 'view' && (
           <button
             type="button"
-            onClick={() => setMode('confirmar-venta')}
+            onClick={() => setMode('confirmar-egreso')}
             className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            Confirmar venta
+            Confirmar egreso
           </button>
         )}
-        {puedeCaerVenta && mode === 'view' && (
+        {puedeCaerEgreso && mode === 'view' && (
           <button
             type="button"
-            onClick={() => setMode('caer-venta')}
+            onClick={() => setMode('caer-egreso')}
             className="rounded-md border border-destructive/40 text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/5 transition-colors"
           >
-            Caer venta
+            Caer egreso
           </button>
         )}
         {puedeEntregar && mode === 'view' && (
@@ -160,12 +161,13 @@ export default function PedidoActions({
         )}
       </div>
 
-      {mode === 'confirmar-venta' && (
+      {mode === 'confirmar-egreso' && (
         <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
           <p className="text-sm">
-            Confirmás que la venta se cerró. El pedido pasa a estado{' '}
-            <strong>&ldquo;Venta confirmada&rdquo;</strong> y administración va a poder
-            entregarlo.
+            Confirmás que la mercadería <strong>efectivamente salió</strong> del
+            depósito. El pedido pasa a estado{' '}
+            <strong>&ldquo;Egreso confirmado&rdquo;</strong> y administración va a poder
+            marcarlo como entregado.
           </p>
           <div className="flex gap-2 justify-end">
             <button
@@ -178,26 +180,26 @@ export default function PedidoActions({
             </button>
             <button
               type="button"
-              onClick={handleConfirmarVenta}
+              onClick={handleConfirmarEgreso}
               disabled={pending}
               className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {pending ? 'Confirmando…' : 'Sí, confirmar venta'}
+              {pending ? 'Confirmando…' : 'Sí, confirmar egreso'}
             </button>
           </div>
         </div>
       )}
 
-      {mode === 'caer-venta' && (
+      {mode === 'caer-egreso' && (
         <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
           <p className="text-sm">
-            La venta se cae. Los rollos van a{' '}
+            El egreso se cae. Los rollos van a{' '}
             <strong>volver a estar disponibles en stock</strong> y el pedido
             queda como cancelado.
           </p>
           <p className="text-xs text-muted-foreground">
-            Usá esto cuando el picking ya terminó pero el cliente no concretó la
-            compra.
+            Usá esto cuando el picking ya terminó pero la mercadería no llegó a
+            salir.
           </p>
           <div className="flex gap-2 justify-end">
             <button
@@ -210,11 +212,11 @@ export default function PedidoActions({
             </button>
             <button
               type="button"
-              onClick={handleCaerVenta}
+              onClick={handleCaerEgreso}
               disabled={pending}
               className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {pending ? 'Liberando…' : 'Sí, caer la venta'}
+              {pending ? 'Liberando…' : 'Sí, caer el egreso'}
             </button>
           </div>
         </div>

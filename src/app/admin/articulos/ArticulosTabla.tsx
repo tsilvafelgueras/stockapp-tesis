@@ -4,22 +4,26 @@ import { useState } from 'react'
 import { Pencil, X } from 'lucide-react'
 import { EditArticuloRow } from './ArticuloForm'
 
+type Catalog = { id: string; nombre: string }
+
 type Articulo = {
   id: string
   nombre: string
   descripcion: string | null
-  color: string | null
   stock_minimo_kg: number | null
+  colores: Catalog[]
 }
 
-type Catalog = { id: string; nombre: string }
+type Role = 'admin' | 'ventas' | 'operario' | 'super'
 
 export default function ArticulosTabla({
   articulos: initial,
   colores,
+  role,
 }: {
   articulos: Articulo[]
   colores: Catalog[]
+  role: Role
 }) {
   const [articulos, setArticulos] = useState<Articulo[]>(initial)
   const [modoMasivo, setModoMasivo] = useState(false)
@@ -66,7 +70,7 @@ export default function ArticulosTabla({
           <tr className="text-left">
             <th className="px-4 py-3 font-medium">Nombre</th>
             <th className="px-4 py-3 font-medium">Descripción</th>
-            <th className="px-4 py-3 font-medium">Color</th>
+            <th className="px-4 py-3 font-medium">Colores</th>
             <th className="px-4 py-3 font-medium">Stock mínimo</th>
             <th className="px-4 py-3 font-medium text-right">Acciones</th>
           </tr>
@@ -80,6 +84,7 @@ export default function ArticulosTabla({
                 forzarEdicion={modoMasivo}
                 onEliminado={handleEliminar}
                 colores={colores}
+                role={role}
               />
             ))
           ) : (

@@ -2,13 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { normalizarTitleCase } from '@/lib/text/normalize'
 
 export type BulkEditChanges = {
   ubicacion?: string | null
   estado?: 'en_stock' | 'segunda' | 'baja' | 'pendiente'
   articulo_id?: string
-  color?: string
+  /** ID del color en el catálogo `colores`. Debe estar asociado al artículo
+   * de cada rollo en `articulo_colores`. */
+  color_id?: string
 }
 
 export type BulkEditResult =
@@ -17,10 +18,12 @@ export type BulkEditResult =
 
 /**
  * Edita varios rollos a la vez. Solo permite cambiar campos seguros
- * (ubicación, estado libre, artículo). Estados `reservado` y `entregado`
- * NO se pueden modificar por bulk porque dependen del flow de pedidos/picking.
+ * (ubicación, estado libre, artículo, color). Estados `reservado` y
+ * `entregado` NO se pueden modificar por bulk porque dependen del flow
+ * de pedidos/picking.
  *
- * Operario y admin pueden mover ubicación y estado; solo admin puede dar de baja.
+ * Operario y admin pueden mover ubicación/estado/color/articulo;
+ * solo admin puede dar de baja.
  */
 export async function bulkEditRollos(
   rolloIds: string[],
@@ -33,7 +36,7 @@ export async function bulkEditRollos(
     changes.ubicacion === undefined &&
     changes.estado === undefined &&
     changes.articulo_id === undefined &&
-    changes.color === undefined
+    changes.color_id === undefined
   ) {
     return { ok: false, error: 'No definiste qué cambiar.' }
   }
@@ -65,11 +68,9 @@ export async function bulkEditRollos(
     }
   }
 
-  // Traer estado y articulo actual para validar transición y permitir
-  // resolución de (nombre, color) cuando el bulk cambia solo color.
   const { data: rollos, error: fetchError } = await supabase
     .from('rollos')
-    .select('id, estado, articulo_id, articulos ( id, nombre, color )')
+    .select('id, estado, articulo_id, color_id')
     .in('id', rolloIds)
 
   if (fetchError) return { ok: false, error: fetchError.message }
@@ -79,11 +80,10 @@ export async function bulkEditRollos(
 
   for (const r of rollos) {
     if (changes.estado !== undefined) {
-      // Bloqueamos cambios masivos sobre rollos atados a flow de pedidos.
       if (r.estado === 'reservado' || r.estado === 'entregado') {
         return {
           ok: false,
-          error: `El rollo está en estado "${r.estado}" y no se puede cambiar en bulk. Liberalo o canceá el pedido primero.`,
+          error: `El rollo está en estado "${r.estado}" y no se puede cambiar en bulk. Liberalo o cancelá el pedido primero.`,
         }
       }
     }
@@ -97,9 +97,7 @@ export async function bulkEditRollos(
     }
   }
 
-  // Update común (ubicacion, estado). articulo_id y color reciben
-  // tratamiento especial abajo porque tocan el modelo (nombre, color)
-  // de articulos.
+  // Construir update común (campos directos).
   const updateCommon: Record<string, unknown> = {}
   if (changes.ubicacion !== undefined) {
     const ubic = changes.ubicacion?.trim() ?? ''
@@ -111,117 +109,59 @@ export async function bulkEditRollos(
   if (changes.estado !== undefined) {
     updateCommon.estado = changes.estado
   }
-
-  // Caso 1: cambio explícito de articulo_id (sea con o sin color
-  // adicional). El articulo_id apunta a una fila concreta (nombre, color)
-  // del catálogo; el trigger sync_rollo_color sincroniza rollos.color.
-  // Si vino `changes.color`, lo ignoramos: el color queda determinado
-  // por el articulo_id elegido.
   if (changes.articulo_id !== undefined) {
     if (!changes.articulo_id) {
       return { ok: false, error: 'Elegí un artículo válido.' }
     }
-    const update = { ...updateCommon, articulo_id: changes.articulo_id }
-    const { error } = await supabase
-      .from('rollos')
-      .update(update)
-      .in('id', rolloIds)
-    if (error) return { ok: false, error: error.message }
-    revalidatePath('/stock')
-    revalidatePath('/ingresos')
-    return { ok: true, afectados: rolloIds.length }
+    updateCommon.articulo_id = changes.articulo_id
   }
 
-  // Caso 2: cambio solo de color (sin articulo_id explícito). Cada
-  // rollo seleccionado tiene su propio articulo_id (apuntando a una
-  // fila (nombre, color_viejo)). Hay que agrupar por nombre,
-  // lookup-or-create la fila (nombre, color_nuevo) en articulos, y
-  // emitir un UPDATE por grupo reapuntando articulo_id.
-  if (changes.color !== undefined) {
-    const colorNuevo = normalizarTitleCase(changes.color)
-    if (!colorNuevo) {
+  // Cambio de color: validar que la combinación (articulo, color) exista
+  // en la pivot `articulo_colores` para cada rollo afectado. La FK
+  // compuesta lo enforce a nivel BD; acá validamos antes para devolver
+  // un error legible en lugar de el código 23503 de Postgres.
+  if (changes.color_id !== undefined) {
+    if (!changes.color_id) {
       return { ok: false, error: 'Elegí un color válido.' }
     }
-
-    // Tipo del resultado del select de arriba (articulos puede venir
-    // como array o object según la versión del SDK; lo normalizamos).
-    type RolloRow = {
-      id: string
-      estado: string
-      articulo_id: string | null
-      articulos: { id: string; nombre: string; color: string } | null
-        | Array<{ id: string; nombre: string; color: string }>
-    }
-    const rollosTyped = rollos as unknown as RolloRow[]
-
-    // Agrupar rollos por nombre de articulo. Si algún rollo no tiene
-    // articulo, no podemos resolver el (nombre, color) — error claro.
-    const porNombre = new Map<string, string[]>()
-    for (const r of rollosTyped) {
-      const art = Array.isArray(r.articulos) ? r.articulos[0] : r.articulos
-      if (!art) {
+    const articulosTarget = new Set<string>()
+    for (const r of rollos) {
+      const articuloId =
+        changes.articulo_id ?? (r.articulo_id as string | null)
+      if (!articuloId) {
         return {
           ok: false,
           error:
-            'Hay rollos sin artículo asignado. Asigná el artículo primero y después podés cambiar el color en bulk.',
+            'Hay rollos sin artículo asignado. Asigná artículo y color juntos en un solo cambio.',
         }
       }
-      const existing = porNombre.get(art.nombre) ?? []
-      existing.push(r.id)
-      porNombre.set(art.nombre, existing)
+      articulosTarget.add(articuloId)
     }
-
-    // Lookup-or-create por grupo, después un UPDATE por grupo.
-    let afectados = 0
-    for (const [nombre, ids] of porNombre.entries()) {
-      const { data: existente } = await supabase
-        .from('articulos')
-        .select('id')
-        .eq('nombre', nombre)
-        .eq('color', colorNuevo)
-        .maybeSingle()
-      let articuloIdFinal = existente?.id
-      if (!articuloIdFinal) {
-        const { data: creado, error: cError } = await supabase
-          .from('articulos')
-          .insert({ nombre, color: colorNuevo })
-          .select('id')
-          .single()
-        if (cError && cError.code === '23505') {
-          const { data: retry } = await supabase
-            .from('articulos')
-            .select('id')
-            .eq('nombre', nombre)
-            .eq('color', colorNuevo)
-            .maybeSingle()
-          articuloIdFinal = retry?.id
-        } else if (cError || !creado) {
-          return {
-            ok: false,
-            error: `No se pudo crear "${nombre} ${colorNuevo}": ${cError?.message ?? 'error desconocido'}`,
-          }
-        } else {
-          articuloIdFinal = creado.id
-        }
+    const { data: asociaciones } = await supabase
+      .from('articulo_colores')
+      .select('articulo_id')
+      .eq('color_id', changes.color_id)
+      .in('articulo_id', [...articulosTarget])
+    const articulosCubiertos = new Set(
+      (asociaciones ?? []).map((a) => a.articulo_id)
+    )
+    const faltantes = [...articulosTarget].filter(
+      (a) => !articulosCubiertos.has(a)
+    )
+    if (faltantes.length) {
+      return {
+        ok: false,
+        error:
+          'El color elegido no está asociado a alguno de los artículos. Pedile al admin que lo asocie en el catálogo de artículos.',
       }
-      const update = { ...updateCommon, articulo_id: articuloIdFinal! }
-      const { error } = await supabase
-        .from('rollos')
-        .update(update)
-        .in('id', ids)
-      if (error) return { ok: false, error: error.message }
-      afectados += ids.length
     }
-
-    revalidatePath('/stock')
-    revalidatePath('/ingresos')
-    return { ok: true, afectados }
+    updateCommon.color_id = changes.color_id
   }
 
-  // Caso 3: ni articulo ni color cambian (solo ubicacion/estado).
   if (Object.keys(updateCommon).length === 0) {
     return { ok: false, error: 'No definiste qué cambiar.' }
   }
+
   const { error } = await supabase
     .from('rollos')
     .update(updateCommon)

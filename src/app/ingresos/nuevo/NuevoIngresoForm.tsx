@@ -1,14 +1,16 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { Fragment, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { Camera, X } from 'lucide-react'
 import {
   crearIngreso,
-  createArticuloInline,
-  createColorInline,
   procesarPlanillaConIA,
+  subirFotoFalla,
   type RolloInput,
 } from './actions'
+import { solicitarColor } from '@/app/admin/colores/actions'
 import {
   UMBRAL_BAJA_CONFIANZA,
   type IngresoExtraido,
@@ -16,9 +18,11 @@ import {
 } from '@/lib/extraccion/extraerPlanilla'
 
 type Catalog = { id: string; nombre: string }
-type ArticuloCatalog = { id: string; nombre: string; color: string }
+type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
 
 type Modo = 'manual' | 'ia'
+
+type Role = 'operario' | 'ventas' | 'admin' | 'super'
 
 type Confianzas = {
   numero_remito: number
@@ -32,12 +36,21 @@ type Confianzas = {
     numero_pieza: number
     kilos: number
     metros: number
-    ratio: number
+    rinde: number
     gramaje_planilla: number
     articulo: number
     color: number
   }>
 }
+
+const FALLA_CATEGORIAS: { value: string; label: string }[] = [
+  { value: 'mancha', label: 'Mancha' },
+  { value: 'agujero', label: 'Agujero' },
+  { value: 'color_disparejo', label: 'Color disparejo' },
+  { value: 'tono_diferente', label: 'Tono diferente' },
+  { value: 'rotura_tejido', label: 'Rotura de tejido' },
+  { value: 'otro', label: 'Otro' },
+]
 
 function normNombre(s: string): string {
   return s
@@ -48,20 +61,23 @@ function normNombre(s: string): string {
     .replace(/\s+/g, ' ')
 }
 
+function normColor(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim()
+  if (!trimmed) return null
+  return trimmed.toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase())
+}
+
 function emptyRollo(): RolloInput {
-  // Todos los rollos arrancan en "pendiente": el operario los confirma uno a
-  // uno escaneando el QR cuando llegan al depósito. No se permite saltarse
-  // ese paso desde la carga de planilla.
   return {
     numero_pieza: '',
     kilos: '',
     metros: '',
-    ratio_rendimiento: '',
+    rinde: '',
     gramaje_planilla: '',
     ubicacion: '',
     estado: 'pendiente',
     articulo_id: null,
-    color: null,
+    color_id: null,
   }
 }
 
@@ -90,21 +106,29 @@ function celdaCls(confianza: number | undefined): string {
     : 'border-input'
 }
 
+/**
+ * Estado UI por rollo para la foto de segunda calidad. Mantenemos el
+ * `File` cliente-side hasta el submit; ahí lo subimos al bucket y lo
+ * persistimos en `rollos[].foto_falla_path` que viaja al server.
+ */
+type FotoPendiente = { file: File; previewUrl: string }
+
 export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
   colores: initialColores,
+  role,
 }: {
   tintorerias: Catalog[]
   articulos: ArticuloCatalog[]
   colores: Catalog[]
-  role: 'operario' | 'admin'
+  role: Role
 }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const tintorerias = initialTintorerias
-  const [articulos, setArticulos] = useState(initialArticulos)
+  const [articulos] = useState(initialArticulos)
   const [colores, setColores] = useState(initialColores)
 
   const [modo, setModo] = useState<Modo>('manual')
@@ -127,9 +151,10 @@ export default function NuevoIngresoForm({
   const [totalKilosDeclarado, setTotalKilosDeclarado] = useState('')
 
   const [rollos, setRollos] = useState<RolloInput[]>([emptyRollo()])
+  const [fotosFalla, setFotosFalla] = useState<Record<number, FotoPendiente>>({})
   const [bulkUbicacion, setBulkUbicacion] = useState('')
   const [bulkArticuloId, setBulkArticuloId] = useState('')
-  const [bulkColor, setBulkColor] = useState('')
+  const [bulkColorId, setBulkColorId] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -139,7 +164,31 @@ export default function NuevoIngresoForm({
     field: K,
     value: RolloInput[K]
   ) {
-    setRollos(rollos.map((r, i) => (i === idx ? { ...r, [field]: value } : r)))
+    setRollos((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
+    )
+  }
+
+  /**
+   * Cuando cambia el artículo de un rollo, validamos que el color
+   * seleccionado siga disponible para ese artículo. Si no, lo limpiamos
+   * para que el usuario elija uno asociado.
+   */
+  function setRolloArticulo(idx: number, nuevoArticuloId: string | null) {
+    setRollos((prev) =>
+      prev.map((r, i) => {
+        if (i !== idx) return r
+        const articulo = articulos.find((a) => a.id === nuevoArticuloId)
+        const colorSigueValido = articulo?.colores.some(
+          (c) => c.id === r.color_id
+        )
+        return {
+          ...r,
+          articulo_id: nuevoArticuloId,
+          color_id: colorSigueValido ? r.color_id : null,
+        }
+      })
+    )
   }
 
   function addRow() {
@@ -157,6 +206,52 @@ export default function NuevoIngresoForm({
       nuevas.rollos = nuevas.rollos.filter((_, i) => i !== idx)
       setConfianzas(nuevas)
     }
+    setFotosFalla((prev) => {
+      const next: Record<number, FotoPendiente> = {}
+      for (const [k, v] of Object.entries(prev)) {
+        const kNum = Number(k)
+        if (kNum < idx) next[kNum] = v
+        else if (kNum > idx) next[kNum - 1] = v
+      }
+      return next
+    })
+  }
+
+  function toggleSegunda(idx: number, valor: boolean) {
+    setRollos((prev) =>
+      prev.map((r, i) =>
+        i === idx
+          ? {
+              ...r,
+              segunda: valor,
+              // Al destildar, limpiar campos asociados.
+              falla_categoria: valor ? r.falla_categoria : null,
+              falla_descripcion: valor ? r.falla_descripcion : null,
+            }
+          : r
+      )
+    )
+    if (!valor) {
+      setFotosFalla((prev) => {
+        const next = { ...prev }
+        delete next[idx]
+        return next
+      })
+    }
+  }
+
+  function setFotoFalla(idx: number, file: File | null) {
+    setFotosFalla((prev) => {
+      const next = { ...prev }
+      if (file) {
+        const previewUrl = URL.createObjectURL(file)
+        next[idx] = { file, previewUrl }
+      } else {
+        if (prev[idx]) URL.revokeObjectURL(prev[idx].previewUrl)
+        delete next[idx]
+      }
+      return next
+    })
   }
 
   function applyBulkUbicacion() {
@@ -166,24 +261,33 @@ export default function NuevoIngresoForm({
 
   function applyBulkArticulo() {
     if (!bulkArticuloId) return
-    // El artículo seleccionado en bulk es una fila concreta (nombre, color)
-    // del catálogo. Aplicar también el color asociado a cada rollo para que
-    // la combinación sea coherente. El usuario puede sobrescribir el color
-    // por rollo después si quiere.
-    const articuloPick = articulos.find((a) => a.id === bulkArticuloId)
-    if (!articuloPick) return
-    setRollos(
-      rollos.map((r) => ({
-        ...r,
-        articulo_id: bulkArticuloId,
-        color: articuloPick.color,
-      }))
+    setRollos((prev) =>
+      prev.map((r) => {
+        const articulo = articulos.find((a) => a.id === bulkArticuloId)
+        const colorSigueValido = articulo?.colores.some(
+          (c) => c.id === r.color_id
+        )
+        return {
+          ...r,
+          articulo_id: bulkArticuloId,
+          color_id: colorSigueValido ? r.color_id : null,
+        }
+      })
     )
   }
 
   function applyBulkColor() {
-    if (!bulkColor) return
-    setRollos(rollos.map((r) => ({ ...r, color: bulkColor })))
+    if (!bulkColorId) return
+    setRollos((prev) =>
+      prev.map((r) => {
+        const articulo = articulos.find((a) => a.id === r.articulo_id)
+        const colorPertenece = articulo?.colores.some(
+          (c) => c.id === bulkColorId
+        )
+        if (!colorPertenece) return r
+        return { ...r, color_id: bulkColorId }
+      })
+    )
   }
 
   function resetIA() {
@@ -255,57 +359,51 @@ export default function NuevoIngresoForm({
         : ''
     )
 
-    // Color global del header: si viene, se aplica como fallback a todo
-    // rollo que no traiga color propio. Match contra el catálogo por
-    // nombre normalizado (sentence case).
-    function matchColor(raw: string | null | undefined): string | null {
-      const trimmed = raw?.trim()
-      if (!trimmed) return null
-      const norm = trimmed
-        .toLowerCase()
-        .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
-      return colores.find((c) => c.nombre === norm)?.nombre ?? null
+    // Resolución de color: matchea el texto extraído contra el catálogo
+    // por nombre normalizado. Devuelve el ID o null.
+    function colorIdFromText(raw: string | null | undefined): string | null {
+      const norm = normColor(raw)
+      if (!norm) return null
+      return colores.find((c) => c.nombre === norm)?.id ?? null
     }
-    const colorGlobal = matchColor(datos.color.value)
-    if (colorGlobal) setBulkColor(colorGlobal)
+    const colorGlobalId = colorIdFromText(datos.color.value)
+    if (colorGlobalId) setBulkColorId(colorGlobalId)
 
-    // Matching IA → catálogo: cada articulo del catálogo es una fila
-    // (nombre, color). Buscamos primero match exacto (nombre+color) para
-    // que la pre-selección sea fiel. Si no hay match exacto, caemos a
-    // cualquier articulo con ese nombre como punto de partida — el server
-    // resuelve la combinación final con lookup-or-create.
-    function articuloMatch(
-      nombreRaw: string,
-      colorRaw: string | null
-    ): string | null {
+    // Match de artículo por nombre. Si la combinación (articulo, color)
+    // no está asociada en la pivot, el server rechazaría con FK 23503.
+    // Acá filtramos: si el color global no está en los colores del articulo
+    // encontrado, dejamos color_id en null para que el usuario lo elija.
+    function articuloIdFromText(nombreRaw: string): string | null {
       const nombreNorm = normNombre(nombreRaw)
       if (!nombreNorm) return null
-      if (colorRaw) {
-        const exacto = articulos.find(
-          (a) => normNombre(a.nombre) === nombreNorm && a.color === colorRaw
-        )
-        if (exacto) return exacto.id
-      }
-      const porNombre = articulos.find((a) => normNombre(a.nombre) === nombreNorm)
-      return porNombre?.id ?? null
+      const match = articulos.find((a) => normNombre(a.nombre) === nombreNorm)
+      return match?.id ?? null
     }
 
     const rollosFromIA: RolloInput[] = datos.rollos.map((r) => {
       const articuloNombre = r.articulo?.value?.trim() ?? ''
-      // Color por rollo si vino, sino fallback al global del header.
-      const colorRolloMatch = matchColor(r.color?.value)
-      const colorEfectivo = colorRolloMatch ?? colorGlobal
-      const articuloIdMatch = articuloMatch(articuloNombre, colorEfectivo)
+      const articuloId = articuloIdFromText(articuloNombre)
+      const colorRolloId = colorIdFromText(r.color?.value)
+      const colorEfectivoId = colorRolloId ?? colorGlobalId
+
+      // Si la combinación (articulo, color) no existe en la pivot,
+      // limpiar color_id para forzar que el usuario lo elija.
+      const articulo = articuloId
+        ? articulos.find((a) => a.id === articuloId)
+        : null
+      const colorValido =
+        articulo?.colores.some((c) => c.id === colorEfectivoId) ?? false
+
       return {
         numero_pieza: valOf(r.numero_pieza),
         kilos: fmt(r.kilos.value),
         metros: fmt(r.metros.value),
-        ratio_rendimiento: fmt(r.ratio.value),
+        rinde: fmt(r.ratio.value),
         gramaje_planilla: fmt(r.gramaje_planilla.value),
         ubicacion: '',
         estado: 'pendiente',
-        articulo_id: articuloIdMatch,
-        color: colorEfectivo,
+        articulo_id: articuloId,
+        color_id: colorValido ? colorEfectivoId : null,
         confianza_ia: avg([
           r.numero_pieza.confidence,
           r.kilos.confidence,
@@ -329,16 +427,15 @@ export default function NuevoIngresoForm({
         numero_pieza: r.numero_pieza.confidence,
         kilos: r.kilos.confidence,
         metros: r.metros.confidence,
-        ratio: r.ratio.confidence,
+        rinde: r.ratio.confidence,
         gramaje_planilla: r.gramaje_planilla.confidence,
         articulo: r.articulo?.confidence ?? 0,
-        // Confianza del color por rollo: si la IA no lo extrajo por rollo
-        // pero usamos el color global del header, heredamos esa confianza.
-        color: (r.color?.value?.trim()
-          ? r.color?.confidence
-          : datos.color.value?.trim()
-            ? datos.color.confidence
-            : 0) ?? 0,
+        color:
+          (r.color?.value?.trim()
+            ? r.color?.confidence
+            : datos.color.value?.trim()
+              ? datos.color.confidence
+              : 0) ?? 0,
       })),
     })
   }
@@ -369,7 +466,10 @@ export default function NuevoIngresoForm({
       totalKilosNum === null || Math.abs(totalKilosNum - sumaKilos) < 0.01
 
     const rollosSinArticulo = rollosConPieza.filter((r) => !r.articulo_id).length
-    const rollosSinColor = rollosConPieza.filter((r) => !r.color?.trim()).length
+    const rollosSinColor = rollosConPieza.filter((r) => !r.color_id).length
+    const rollosSegundaSinCategoria = rollosConPieza.filter(
+      (r) => r.segunda && !r.falla_categoria
+    ).length
 
     return {
       sumaKilos,
@@ -379,6 +479,7 @@ export default function NuevoIngresoForm({
       kilosCoinciden,
       rollosSinArticulo,
       rollosSinColor,
+      rollosSegundaSinCategoria,
     }
   }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
 
@@ -386,6 +487,32 @@ export default function NuevoIngresoForm({
     e.preventDefault()
     setSubmitting(true)
     setSubmitError(null)
+
+    // Subir fotos de falla en paralelo y atar el path al rollo correspondiente.
+    const rollosFiltrados = rollos.filter((r) => r.numero_pieza.trim())
+    const rollosConFoto: RolloInput[] = await Promise.all(
+      rollosFiltrados.map(async (r) => {
+        // Buscar la fotoPendiente cuyo índice apunta a este rollo en la
+        // lista filtrada. fotosFalla está indexada por idx en `rollos`
+        // (no filtrado). Resolvemos el mapeo recorriendo.
+        const idxEnTodos = rollos.indexOf(r)
+        const foto = fotosFalla[idxEnTodos]
+        if (!foto || !r.segunda) return r
+        const fd = new FormData()
+        fd.set('archivo', foto.file)
+        const res = await subirFotoFalla(fd)
+        if (!res.ok) {
+          throw new Error(`No se pudo subir la foto del rollo ${r.numero_pieza}: ${res.error}`)
+        }
+        return { ...r, foto_falla_path: res.path }
+      })
+    ).catch((err) => {
+      setSubmitError(err instanceof Error ? err.message : 'Error subiendo fotos.')
+      setSubmitting(false)
+      return null as unknown as RolloInput[]
+    })
+
+    if (!rollosConFoto) return
 
     const result = await crearIngreso({
       tintoreria_id: tintoreriaId,
@@ -398,7 +525,7 @@ export default function NuevoIngresoForm({
       total_kilos_declarado: totalKilosDeclarado,
       imagen_path: imagenPath ?? undefined,
       origen: modo === 'ia' ? 'planilla_ia' : 'manual',
-      rollos: rollos.filter((r) => r.numero_pieza.trim()),
+      rollos: rollosConFoto,
     })
 
     if (result?.error) {
@@ -416,11 +543,10 @@ export default function NuevoIngresoForm({
     validations.duplicados.length > 0 ||
     validations.rollosSinArticulo > 0 ||
     validations.rollosSinColor > 0 ||
+    validations.rollosSegundaSinCategoria > 0 ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
 
-  // En modo IA, una vez subida la planilla, la tintorería queda fija
-  // (cambiarla = cambiar config = empezar de cero)
   const tintoreriaBloqueada = modo === 'ia' && archivo !== null
 
   return (
@@ -451,10 +577,9 @@ export default function NuevoIngresoForm({
         </button>
       </div>
 
-      {/* Modo IA: paso 1 (tintorería) + paso 2 (upload) */}
+      {/* Modo IA */}
       {modo === 'ia' && (
         <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm space-y-4">
-          {/* Paso 1: tintorería */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
@@ -478,18 +603,8 @@ export default function NuevoIngresoForm({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">
-              La IA usa instrucciones específicas según el formato de cada
-              tintorería. Si tu tintorería no aparece en la lista, asociala
-              desde{' '}
-              <a href="/admin/tintorerias" className="underline">
-                administración
-              </a>
-              .
-            </p>
           </div>
 
-          {/* Paso 2: upload (solo aparece si hay tintorería elegida) */}
           {tintoreriaId && (
             <div className="space-y-2 pt-3 border-t">
               <div className="flex items-center gap-2">
@@ -613,7 +728,6 @@ export default function NuevoIngresoForm({
         <h2 className="font-semibold">Datos del ingreso</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {/* En manual: dropdown de tintorería. En IA: ya se eligió en step 1. */}
           {modo === 'manual' && (
             <div className="space-y-1">
               <label className="text-sm font-medium">Tintorería *</label>
@@ -630,13 +744,6 @@ export default function NuevoIngresoForm({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Si no aparece tu tintorería, asociala desde{' '}
-                <a href="/admin/tintorerias" className="underline">
-                  administración
-                </a>
-                .
-              </p>
             </div>
           )}
 
@@ -725,16 +832,15 @@ export default function NuevoIngresoForm({
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.referencia)}`}
             />
           </div>
-
         </div>
       </div>
 
-      {/* Atajos para asignar valores comunes a todos los rollos */}
+      {/* Atajos bulk */}
       <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm space-y-3">
         <div>
           <h2 className="font-semibold">Asignar a todos los rollos</h2>
           <p className="text-xs text-muted-foreground">
-            Atajo opcional. Lo que pongas acá se copia a todos los rollos de la tabla; podés sobrescribirlos individualmente.
+            Atajo opcional. Lo que pongas acá se copia a todos los rollos.
           </p>
         </div>
 
@@ -750,7 +856,7 @@ export default function NuevoIngresoForm({
                 <option value="">Seleccionar...</option>
                 {articulos.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.nombre} - {a.color}
+                    {a.nombre}
                   </option>
                 ))}
               </select>
@@ -763,32 +869,26 @@ export default function NuevoIngresoForm({
                 Aplicar
               </button>
             </div>
-            <InlineArticuloCreator
-              colores={colores}
-              onCreate={async (nombre, color) => {
-                const res = await createArticuloInline(nombre, color)
-                if (res.success && res.data) {
-                  if (!articulos.find((a) => a.id === res.data!.id)) {
-                    setArticulos([...articulos, res.data])
-                  }
-                  setBulkArticuloId(res.data.id)
-                }
-                return res
-              }}
-            />
+            <p className="text-xs text-muted-foreground">
+              ¿Falta un artículo?{' '}
+              <a href="/admin/articulos" className="underline">
+                Crealo desde administración
+              </a>
+              .
+            </p>
           </div>
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Color</label>
             <div className="flex gap-2">
               <select
-                value={bulkColor}
-                onChange={(e) => setBulkColor(e.target.value)}
+                value={bulkColorId}
+                onChange={(e) => setBulkColorId(e.target.value)}
                 className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Seleccionar...</option>
                 {colores.map((c) => (
-                  <option key={c.id} value={c.nombre}>
+                  <option key={c.id} value={c.id}>
                     {c.nombre}
                   </option>
                 ))}
@@ -796,24 +896,22 @@ export default function NuevoIngresoForm({
               <button
                 type="button"
                 onClick={applyBulkColor}
-                disabled={!bulkColor}
+                disabled={!bulkColorId}
                 className="shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
               >
                 Aplicar
               </button>
             </div>
-            <InlineCreator
-              label="+ Nuevo color"
-              placeholder="Nombre del color"
-              onCreate={async (nombre) => {
-                const res = await createColorInline(nombre)
-                if (res.success && res.data) {
-                  if (!colores.find((c) => c.id === res.data.id)) {
-                    setColores([...colores, res.data])
-                  }
-                  setBulkColor(res.data.nombre)
+            <p className="text-xs text-muted-foreground">
+              Solo se aplica a los rollos cuyo artículo ya incluye ese color.
+            </p>
+            <SolicitarColorButton
+              role={role}
+              onCreated={(c) => {
+                if (!colores.find((x) => x.id === c.id)) {
+                  setColores((prev) => [...prev, c])
                 }
-                return res
+                setBulkColorId(c.id)
               }}
             />
           </div>
@@ -851,7 +949,7 @@ export default function NuevoIngresoForm({
           </span>
         </div>
 
-        {/* Mobile: cards apilados */}
+        {/* Mobile */}
         <div className="sm:hidden divide-y">
           {rollos.map((r, i) => (
             <RolloCardMobile
@@ -859,19 +957,22 @@ export default function NuevoIngresoForm({
               rollo={r}
               index={i}
               articulos={articulos}
-              colores={colores}
+              fotoFalla={fotosFalla[i]}
               confianzas={confianzas?.rollos[i]}
               isDuplicate={
                 !!r.numero_pieza.trim() &&
                 validations.duplicados.includes(r.numero_pieza.trim())
               }
               onUpdate={(field, value) => updateRollo(i, field, value)}
+              onChangeArticulo={(id) => setRolloArticulo(i, id)}
+              onToggleSegunda={(v) => toggleSegunda(i, v)}
+              onFotoFalla={(f) => setFotoFalla(i, f)}
               onRemove={() => removeRow(i)}
             />
           ))}
         </div>
 
-        {/* Desktop: tabla */}
+        {/* Desktop */}
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left border-b">
@@ -879,12 +980,12 @@ export default function NuevoIngresoForm({
                 <th className="px-3 py-2 font-medium w-10">#</th>
                 <th className="px-3 py-2 font-medium">N° Pieza *</th>
                 <th className="px-3 py-2 font-medium w-40">Artículo *</th>
-                <th className="px-3 py-2 font-medium w-32">Color</th>
+                <th className="px-3 py-2 font-medium w-32">Color *</th>
                 <th className="px-3 py-2 font-medium w-24">Kilos</th>
                 <th className="px-3 py-2 font-medium w-24">Metros</th>
-                <th className="px-3 py-2 font-medium w-20">Ratio</th>
+                <th className="px-3 py-2 font-medium w-20">Rinde</th>
                 <th className="px-3 py-2 font-medium w-20">Gramaje</th>
-                <th className="px-3 py-2 font-medium w-32">Estado</th>
+                <th className="px-3 py-2 font-medium w-28">Segunda</th>
                 <th className="px-3 py-2 font-medium w-28">Ubicación</th>
                 <th className="px-3 py-2 w-10"></th>
               </tr>
@@ -895,150 +996,178 @@ export default function NuevoIngresoForm({
                 const isDuplicate =
                   r.numero_pieza.trim() &&
                   validations.duplicados.includes(r.numero_pieza.trim())
+                const articulo = articulos.find((a) => a.id === r.articulo_id)
+                const coloresDelArticulo = articulo?.colores ?? []
                 return (
-                  <tr
-                    key={i}
-                    className={`border-b last:border-0 ${
-                      isDuplicate ? 'bg-destructive/5' : ''
-                    }`}
-                  >
-                    <td className="px-3 py-1 text-muted-foreground">{i + 1}</td>
-                    <td className="px-3 py-1">
-                      <input
-                        type="text"
-                        value={r.numero_pieza}
-                        onChange={(e) =>
-                          updateRollo(i, 'numero_pieza', e.target.value)
-                        }
-                        placeholder="204021911"
-                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
-                          isDuplicate
-                            ? 'border-destructive'
-                            : celdaCls(conf?.numero_pieza)
-                        }`}
-                      />
-                    </td>
-                    <td className="px-3 py-1">
-                      <select
-                        value={r.articulo_id ?? ''}
-                        onChange={(e) =>
-                          updateRollo(
-                            i,
-                            'articulo_id',
-                            e.target.value || null
-                          )
-                        }
-                        className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
-                          r.numero_pieza.trim() && !r.articulo_id
-                            ? 'border-destructive'
-                            : celdaCls(conf?.articulo)
-                        }`}
-                      >
-                        <option value="">Seleccionar...</option>
-                        {articulos.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.nombre} - {a.color}
+                  <Fragment key={i}>
+                    <tr
+                      className={`border-b last:border-0 ${
+                        isDuplicate ? 'bg-destructive/5' : ''
+                      } ${r.segunda ? 'bg-amber-50/40' : ''}`}
+                    >
+                      <td className="px-3 py-1 text-muted-foreground">{i + 1}</td>
+                      <td className="px-3 py-1">
+                        <input
+                          type="text"
+                          value={r.numero_pieza}
+                          onChange={(e) =>
+                            updateRollo(i, 'numero_pieza', e.target.value)
+                          }
+                          placeholder="204021911"
+                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+                            isDuplicate
+                              ? 'border-destructive'
+                              : celdaCls(conf?.numero_pieza)
+                          }`}
+                        />
+                      </td>
+                      <td className="px-3 py-1">
+                        <select
+                          value={r.articulo_id ?? ''}
+                          onChange={(e) =>
+                            setRolloArticulo(i, e.target.value || null)
+                          }
+                          className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+                            r.numero_pieza.trim() && !r.articulo_id
+                              ? 'border-destructive'
+                              : celdaCls(conf?.articulo)
+                          }`}
+                        >
+                          <option value="">Seleccionar...</option>
+                          {articulos.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-1">
+                        <select
+                          value={r.color_id ?? ''}
+                          onChange={(e) =>
+                            updateRollo(i, 'color_id', e.target.value || null)
+                          }
+                          disabled={!r.articulo_id}
+                          className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-zinc-50 disabled:cursor-not-allowed ${
+                            r.numero_pieza.trim() && r.articulo_id && !r.color_id
+                              ? 'border-destructive'
+                              : celdaCls(conf?.color)
+                          }`}
+                        >
+                          <option value="">
+                            {r.articulo_id ? 'Seleccionar...' : 'Elegí artículo'}
                           </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-1">
-                      <select
-                        value={r.color ?? ''}
-                        onChange={(e) =>
-                          updateRollo(i, 'color', e.target.value || null)
-                        }
-                        className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.color)}`}
-                      >
-                        <option value="">Seleccionar...</option>
-                        {colores.map((c) => (
-                          <option key={c.id} value={c.nombre}>
-                            {c.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-1">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        inputMode="decimal"
-                        value={r.kilos}
-                        onChange={(e) => updateRollo(i, 'kilos', e.target.value)}
-                        placeholder="20.5"
-                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.kilos)}`}
-                      />
-                    </td>
-                    <td className="px-3 py-1">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        inputMode="decimal"
-                        value={r.metros}
-                        onChange={(e) =>
-                          updateRollo(i, 'metros', e.target.value)
-                        }
-                        placeholder="50"
-                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.metros)}`}
-                      />
-                    </td>
-                    <td className="px-3 py-1">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        inputMode="decimal"
-                        value={r.ratio_rendimiento}
-                        onChange={(e) =>
-                          updateRollo(i, 'ratio_rendimiento', e.target.value)
-                        }
-                        placeholder="2.4"
-                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.ratio)}`}
-                      />
-                    </td>
-                    <td className="px-3 py-1">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        inputMode="decimal"
-                        value={r.gramaje_planilla ?? ''}
-                        onChange={(e) =>
-                          updateRollo(i, 'gramaje_planilla', e.target.value)
-                        }
-                        placeholder="142"
-                        className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.gramaje_planilla)}`}
-                      />
-                    </td>
-                    <td className="px-3 py-1">
-                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-warning">
-                        Pendiente
-                      </span>
-                    </td>
-                    <td className="px-3 py-1">
-                      <input
-                        type="text"
-                        value={r.ubicacion}
-                        onChange={(e) =>
-                          updateRollo(i, 'ubicacion', e.target.value)
-                        }
-                        placeholder="opcional"
-                        className="w-full rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </td>
-                    <td className="px-3 py-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(i)}
-                        className="text-muted-foreground hover:text-destructive text-lg leading-none"
-                        aria-label="Eliminar fila"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
+                          {coloresDelArticulo.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          inputMode="decimal"
+                          value={r.kilos}
+                          onChange={(e) => updateRollo(i, 'kilos', e.target.value)}
+                          placeholder="20.5"
+                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.kilos)}`}
+                        />
+                      </td>
+                      <td className="px-3 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          inputMode="decimal"
+                          value={r.metros}
+                          onChange={(e) =>
+                            updateRollo(i, 'metros', e.target.value)
+                          }
+                          placeholder="50"
+                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.metros)}`}
+                        />
+                      </td>
+                      <td className="px-3 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          inputMode="decimal"
+                          value={r.rinde}
+                          onChange={(e) =>
+                            updateRollo(i, 'rinde', e.target.value)
+                          }
+                          placeholder="2.4"
+                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.rinde)}`}
+                        />
+                      </td>
+                      <td className="px-3 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          inputMode="decimal"
+                          value={r.gramaje_planilla ?? ''}
+                          onChange={(e) =>
+                            updateRollo(i, 'gramaje_planilla', e.target.value)
+                          }
+                          placeholder="142"
+                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.gramaje_planilla)}`}
+                        />
+                      </td>
+                      <td className="px-3 py-1">
+                        <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={!!r.segunda}
+                            onChange={(e) => toggleSegunda(i, e.target.checked)}
+                            className="size-4 rounded border-input text-action focus:ring-1 focus:ring-ring"
+                          />
+                          Marcar
+                        </label>
+                      </td>
+                      <td className="px-3 py-1">
+                        <input
+                          type="text"
+                          value={r.ubicacion}
+                          onChange={(e) =>
+                            updateRollo(i, 'ubicacion', e.target.value)
+                          }
+                          placeholder="opcional"
+                          className="w-full rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </td>
+                      <td className="px-3 py-1 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(i)}
+                          className="text-muted-foreground hover:text-destructive text-lg leading-none"
+                          aria-label="Eliminar fila"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+
+                    {r.segunda && (
+                      <tr className="border-b last:border-0 bg-amber-50/40">
+                        <td></td>
+                        <td colSpan={10} className="px-3 py-3">
+                          <SegundaCalidadFields
+                            rollo={r}
+                            foto={fotosFalla[i]}
+                            onUpdate={(field, value) =>
+                              updateRollo(i, field, value)
+                            }
+                            onFoto={(f) => setFotoFalla(i, f)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -1056,10 +1185,11 @@ export default function NuevoIngresoForm({
         </div>
       </div>
 
-      {/* Validaciones / warnings */}
+      {/* Validaciones */}
       {(validations.duplicados.length > 0 ||
         validations.rollosSinArticulo > 0 ||
         validations.rollosSinColor > 0 ||
+        validations.rollosSegundaSinCategoria > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-3 sm:p-4 space-y-1 text-sm">
@@ -1072,25 +1202,31 @@ export default function NuevoIngresoForm({
           {validations.rollosSinArticulo > 0 && (
             <p className="text-destructive">
               ⚠ {validations.rollosSinArticulo} rollo
-              {validations.rollosSinArticulo === 1 ? '' : 's'} sin artículo asignado. Elegí el artículo en la tabla o usá &quot;Aplicar a todos&quot; arriba.
+              {validations.rollosSinArticulo === 1 ? '' : 's'} sin artículo asignado.
             </p>
           )}
           {validations.rollosSinColor > 0 && (
             <p className="text-destructive">
               ⚠ {validations.rollosSinColor} rollo
-              {validations.rollosSinColor === 1 ? '' : 's'} sin color asignado. Elegí el color en la tabla o usá &quot;Aplicar a todos&quot; arriba.
+              {validations.rollosSinColor === 1 ? '' : 's'} sin color asignado.
+            </p>
+          )}
+          {validations.rollosSegundaSinCategoria > 0 && (
+            <p className="text-destructive">
+              ⚠ {validations.rollosSegundaSinCategoria} rollo
+              {validations.rollosSegundaSinCategoria === 1 ? '' : 's'} marcado como segunda sin categoría de falla.
             </p>
           )}
           {!validations.cantidadCoincide && (
             <p className="text-destructive">
               ⚠ Cargaste {validations.cantidadRollos} rollos, pero declaraste{' '}
-              {totalRollosDeclarado}. Ajustá la cantidad declarada o agregá los rollos faltantes para poder guardar.
+              {totalRollosDeclarado}.
             </p>
           )}
           {!validations.kilosCoinciden && (
             <p className="text-destructive">
               ⚠ Suma de kilos {validations.sumaKilos.toFixed(2)} kg vs{' '}
-              {totalKilosDeclarado} kg declarados. Ajustá el total declarado o corregí los kilos por rollo.
+              {totalKilosDeclarado} kg declarados.
             </p>
           )}
         </div>
@@ -1118,28 +1254,122 @@ export default function NuevoIngresoForm({
   )
 }
 
+// ── Bloque expandible de segunda calidad ────────────────────
+
+function SegundaCalidadFields({
+  rollo,
+  foto,
+  onUpdate,
+  onFoto,
+}: {
+  rollo: RolloInput
+  foto: FotoPendiente | undefined
+  onUpdate: <K extends keyof RolloInput>(field: K, value: RolloInput[K]) => void
+  onFoto: (file: File | null) => void
+}) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Categoría de falla *
+        </label>
+        <select
+          value={rollo.falla_categoria ?? ''}
+          onChange={(e) =>
+            onUpdate('falla_categoria', e.target.value || null)
+          }
+          className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+            !rollo.falla_categoria ? 'border-destructive' : 'border-input'
+          }`}
+        >
+          <option value="">Seleccionar...</option>
+          {FALLA_CATEGORIAS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Descripción
+        </label>
+        <textarea
+          value={rollo.falla_descripcion ?? ''}
+          onChange={(e) =>
+            onUpdate('falla_descripcion', e.target.value || null)
+          }
+          rows={2}
+          placeholder="Ej. mancha de 2cm en el centro del rollo"
+          className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Foto de la falla
+        </label>
+        {foto ? (
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={foto.previewUrl}
+              alt="Falla"
+              className="h-12 w-12 rounded object-cover border"
+            />
+            <button
+              type="button"
+              onClick={() => onFoto(null)}
+              className="text-xs text-destructive hover:underline"
+            >
+              Quitar
+            </button>
+          </div>
+        ) : (
+          <label className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2 py-1.5 text-xs cursor-pointer hover:bg-zinc-50">
+            <Camera className="size-3.5" />
+            Sacar / subir foto
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onFoto(f)
+              }}
+            />
+          </label>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Card de rollo (mobile) ──────────────────────────────────
 
 function RolloCardMobile({
   rollo,
   index,
   articulos,
-  colores,
+  fotoFalla,
   confianzas,
   isDuplicate,
   onUpdate,
+  onChangeArticulo,
+  onToggleSegunda,
+  onFotoFalla,
   onRemove,
 }: {
   rollo: RolloInput
   index: number
   articulos: ArticuloCatalog[]
-  colores: Catalog[]
+  fotoFalla: FotoPendiente | undefined
   confianzas:
     | {
         numero_pieza: number
         kilos: number
         metros: number
-        ratio: number
+        rinde: number
         gramaje_planilla: number
         articulo: number
         color: number
@@ -1147,10 +1377,20 @@ function RolloCardMobile({
     | undefined
   isDuplicate: boolean
   onUpdate: <K extends keyof RolloInput>(field: K, value: RolloInput[K]) => void
+  onChangeArticulo: (id: string | null) => void
+  onToggleSegunda: (v: boolean) => void
+  onFotoFalla: (file: File | null) => void
   onRemove: () => void
 }) {
+  const articulo = articulos.find((a) => a.id === rollo.articulo_id)
+  const coloresDelArticulo = articulo?.colores ?? []
+
   return (
-    <div className={`p-3 space-y-2 ${isDuplicate ? 'bg-destructive/5' : ''}`}>
+    <div
+      className={`p-3 space-y-2 ${isDuplicate ? 'bg-destructive/5' : ''} ${
+        rollo.segunda ? 'bg-amber-50/40' : ''
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">#{index + 1}</span>
         <button
@@ -1186,7 +1426,7 @@ function RolloCardMobile({
         </label>
         <select
           value={rollo.articulo_id ?? ''}
-          onChange={(e) => onUpdate('articulo_id', e.target.value || null)}
+          onChange={(e) => onChangeArticulo(e.target.value || null)}
           className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
             rollo.numero_pieza.trim() && !rollo.articulo_id
               ? 'border-destructive'
@@ -1196,7 +1436,7 @@ function RolloCardMobile({
           <option value="">Seleccionar...</option>
           {articulos.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.nombre} - {a.color}
+              {a.nombre}
             </option>
           ))}
         </select>
@@ -1204,16 +1444,23 @@ function RolloCardMobile({
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">
-          Color
+          Color *
         </label>
         <select
-          value={rollo.color ?? ''}
-          onChange={(e) => onUpdate('color', e.target.value || null)}
-          className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.color)}`}
+          value={rollo.color_id ?? ''}
+          onChange={(e) => onUpdate('color_id', e.target.value || null)}
+          disabled={!rollo.articulo_id}
+          className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-zinc-50 disabled:cursor-not-allowed ${
+            rollo.numero_pieza.trim() && rollo.articulo_id && !rollo.color_id
+              ? 'border-destructive'
+              : celdaCls(confianzas?.color)
+          }`}
         >
-          <option value="">Seleccionar...</option>
-          {colores.map((c) => (
-            <option key={c.id} value={c.nombre}>
+          <option value="">
+            {rollo.articulo_id ? 'Seleccionar...' : 'Elegí artículo primero'}
+          </option>
+          {coloresDelArticulo.map((c) => (
+            <option key={c.id} value={c.id}>
               {c.nombre}
             </option>
           ))}
@@ -1222,9 +1469,7 @@ function RolloCardMobile({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Kilos
-          </label>
+          <label className="text-xs font-medium text-muted-foreground">Kilos</label>
           <input
             type="number"
             step="0.01"
@@ -1237,9 +1482,7 @@ function RolloCardMobile({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Metros
-          </label>
+          <label className="text-xs font-medium text-muted-foreground">Metros</label>
           <input
             type="number"
             step="0.01"
@@ -1252,24 +1495,20 @@ function RolloCardMobile({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Ratio
-          </label>
+          <label className="text-xs font-medium text-muted-foreground">Rinde</label>
           <input
             type="number"
             step="0.01"
             min="0"
             inputMode="decimal"
-            value={rollo.ratio_rendimiento}
-            onChange={(e) => onUpdate('ratio_rendimiento', e.target.value)}
+            value={rollo.rinde}
+            onChange={(e) => onUpdate('rinde', e.target.value)}
             placeholder="2.4"
-            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.ratio)}`}
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.rinde)}`}
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Gramaje
-          </label>
+          <label className="text-xs font-medium text-muted-foreground">Gramaje</label>
           <input
             type="number"
             step="0.01"
@@ -1283,16 +1522,6 @@ function RolloCardMobile({
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">
-            Estado
-          </label>
-          <div className="flex h-[42px] items-center rounded border border-input bg-background px-3">
-            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-warning">
-              Pendiente
-            </span>
-          </div>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
             Ubicación
           </label>
           <input
@@ -1303,6 +1532,126 @@ function RolloCardMobile({
             className="w-full rounded border border-input px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
+        <div className="space-y-1">
+          <label className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground mt-1">
+            <input
+              type="checkbox"
+              checked={!!rollo.segunda}
+              onChange={(e) => onToggleSegunda(e.target.checked)}
+              className="size-4 rounded border-input text-action focus:ring-1 focus:ring-ring"
+            />
+            Segunda calidad
+          </label>
+        </div>
+      </div>
+
+      {rollo.segunda && (
+        <SegundaCalidadFields
+          rollo={rollo}
+          foto={fotoFalla}
+          onUpdate={onUpdate}
+          onFoto={onFotoFalla}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Botón "Solicitar color al admin" / "Crear color" ────────
+
+function SolicitarColorButton({
+  role,
+  onCreated,
+}: {
+  role: Role
+  onCreated: (c: Catalog) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
+  const [pending, startTransition] = useTransition()
+
+  function submit() {
+    const limpio = value.trim()
+    if (!limpio) return
+    startTransition(async () => {
+      const res = await solicitarColor({ nombre: limpio })
+      if ('error' in res) {
+        toast.error(res.error ?? 'No se pudo enviar la solicitud.')
+        return
+      }
+      if ('alreadyExists' in res && res.alreadyExists) {
+        toast.success(`"${limpio}" ya existe en el catálogo.`)
+        onCreated(res.color as Catalog)
+      } else if ('alreadyPending' in res) {
+        toast.info(`Ya hay una solicitud pendiente para "${limpio}".`)
+      } else if (role === 'admin' || role === 'super') {
+        // Para admin, solicitarColor no es la vía habitual: igual avisamos
+        // que se generó solicitud, aunque podría crearlo directo desde
+        // /admin/colores.
+        toast.success(`Solicitud enviada.`)
+      } else {
+        toast.success(
+          `Solicitud enviada al admin. Te avisamos cuando aprueben "${limpio}".`
+        )
+      }
+      setValue('')
+      setOpen(false)
+    })
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs text-primary hover:underline"
+      >
+        {role === 'admin' || role === 'super'
+          ? '+ Pedir color nuevo'
+          : '+ Solicitar color al admin'}
+      </button>
+    )
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-input bg-zinc-50/40 p-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Nombre del color"
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            submit()
+          }
+          if (e.key === 'Escape') {
+            setOpen(false)
+            setValue('')
+          }
+        }}
+        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending || !value.trim()}
+          className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {pending ? '...' : 'Enviar'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false)
+            setValue('')
+          }}
+          className="flex-1 rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
+        >
+          <X className="inline size-3" /> Cancelar
+        </button>
       </div>
     </div>
   )
@@ -1380,205 +1729,5 @@ function Spinner() {
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
       ></path>
     </svg>
-  )
-}
-
-function InlineCreator({
-  label,
-  placeholder,
-  onCreate,
-}: {
-  label: string
-  placeholder: string
-  onCreate: (
-    nombre: string
-  ) => Promise<{
-    success?: boolean
-    data?: { id: string; nombre: string }
-    error?: string
-  }>
-}) {
-  const [open, setOpen] = useState(false)
-  const [value, setValue] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSave() {
-    if (!value.trim()) return
-    setLoading(true)
-    setError(null)
-    const res = await onCreate(value)
-    setLoading(false)
-    if (res.error) {
-      setError(res.error)
-    } else {
-      setValue('')
-      setOpen(false)
-    }
-  }
-
-  function reset() {
-    setOpen(false)
-    setValue('')
-    setError(null)
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-xs text-primary hover:underline"
-      >
-        {label}
-      </button>
-    )
-  }
-
-  return (
-    <div className="space-y-2 rounded-md border border-input bg-zinc-50/40 p-2">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={placeholder}
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            handleSave()
-          } else if (e.key === 'Escape') {
-            reset()
-          }
-        }}
-        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={loading || !value.trim()}
-          className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          {loading ? '...' : 'Guardar'}
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="flex-1 rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
-        >
-          Cancelar
-        </button>
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  )
-}
-
-// Creador inline de articulo: pide nombre + color (ambos obligatorios,
-// el color se elige del catálogo). La fila resultante en `articulos` es
-// una combinación concreta (nombre, color) — modelo definido por la
-// migración 038.
-function InlineArticuloCreator({
-  colores,
-  onCreate,
-}: {
-  colores: Catalog[]
-  onCreate: (
-    nombre: string,
-    color: string
-  ) => Promise<{
-    success?: boolean
-    data?: { id: string; nombre: string; color: string }
-    error?: string
-  }>
-}) {
-  const [open, setOpen] = useState(false)
-  const [nombre, setNombre] = useState('')
-  const [color, setColor] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSave() {
-    if (!nombre.trim() || !color) return
-    setLoading(true)
-    setError(null)
-    const res = await onCreate(nombre, color)
-    setLoading(false)
-    if (res.error) {
-      setError(res.error)
-    } else {
-      setNombre('')
-      setColor('')
-      setOpen(false)
-    }
-  }
-
-  function reset() {
-    setOpen(false)
-    setNombre('')
-    setColor('')
-    setError(null)
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-xs text-primary hover:underline"
-      >
-        + Nuevo artículo
-      </button>
-    )
-  }
-
-  return (
-    <div className="space-y-2 rounded-md border border-input bg-zinc-50/40 p-2">
-      <input
-        type="text"
-        value={nombre}
-        onChange={(e) => setNombre(e.target.value)}
-        placeholder="Nombre del artículo"
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') reset()
-        }}
-        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
-      <select
-        value={color}
-        onChange={(e) => setColor(e.target.value)}
-        required
-        className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <option value="" disabled>
-          Color…
-        </option>
-        {colores.map((c) => (
-          <option key={c.id} value={c.nombre}>
-            {c.nombre}
-          </option>
-        ))}
-      </select>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={loading || !nombre.trim() || !color}
-          className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          {loading ? '...' : 'Guardar'}
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="flex-1 rounded-md border bg-white px-3 py-1.5 text-xs hover:bg-zinc-50"
-        >
-          Cancelar
-        </button>
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
   )
 }

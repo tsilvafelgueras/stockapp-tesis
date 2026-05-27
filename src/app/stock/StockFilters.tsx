@@ -35,7 +35,7 @@ export default function StockFilters({
 }: {
   articulos: Catalogo[]
   tintorerias: Catalogo[]
-  colores: string[]
+  colores: Catalogo[]
   lotes: string[]
   current: StockFiltersState
 }) {
@@ -121,8 +121,8 @@ export default function StockFilters({
           >
             <option value="">Todos</option>
             {colores.map((c) => (
-              <option key={c} value={c}>
-                {c}
+              <option key={c.id} value={c.id}>
+                {c.nombre}
               </option>
             ))}
           </select>

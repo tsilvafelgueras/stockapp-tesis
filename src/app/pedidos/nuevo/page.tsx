@@ -10,6 +10,7 @@ type SearchParams = {
   articulo?: string
   color?: string
   tintoreria?: string
+  diasMinimos?: string
 }
 
 export default async function NuevoPedidoPage({
@@ -20,11 +21,15 @@ export default async function NuevoPedidoPage({
   const supabase = await createClient()
   const sp = await searchParams
 
-  // Catálogos para los dropdowns
-  const [{ data: articulos }, { data: empresaTints }, { data: clientes }] =
+  const [{ data: articulos }, { data: colores }, { data: empresaTints }, { data: clientes }] =
     await Promise.all([
       supabase
         .from('articulos')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('colores')
         .select('id, nombre')
         .eq('activo', true)
         .order('nombre'),
@@ -45,8 +50,10 @@ export default async function NuevoPedidoPage({
     .filter((t): t is { id: string; nombre: string } => t != null)
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
-  // Rollos disponibles (en_stock) con filtros opcionales. !inner sobre
-  // ingresos para poder filtrar por color y tintorería del ingreso.
+  // Rollos disponibles (en_stock). Orden default por antigüedad (created_at
+  // ASC) — los más viejos primero, regla FIFO pedida por la ingeniera textil
+  // para evitar que los rollos pierdan propiedades en depósito. Tiebreak por
+  // numero_pieza para que el orden quede determinista.
   let query = supabase
     .from('rollos')
     .select(
@@ -56,8 +63,9 @@ export default async function NuevoPedidoPage({
         ubicacion,
         kilos,
         metros,
-        color,
+        created_at,
         articulos ( id, nombre ),
+        colores ( id, nombre ),
         ingresos!inner (
           id,
           numero_lote,
@@ -66,13 +74,23 @@ export default async function NuevoPedidoPage({
       `
     )
     .eq('estado', 'en_stock')
+    .order('created_at', { ascending: true })
     .order('numero_pieza', { ascending: true })
     .limit(500)
 
   if (sp.articulo) query = query.eq('articulo_id', sp.articulo)
+  if (sp.color) query = query.eq('color_id', sp.color)
   if (sp.tintoreria) query = query.eq('ingresos.tintoreria_id', sp.tintoreria)
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
-  if (sp.color) query = query.ilike('color', `%${sp.color.trim()}%`)
+
+  // Filtro por antigüedad mínima: rollos con created_at <= NOW() - X días.
+  // Calculamos la fecha límite en el server para evitar issues de zona horaria.
+  const diasMinimos = sp.diasMinimos ? parseInt(sp.diasMinimos) : null
+  if (diasMinimos && diasMinimos > 0) {
+    const limite = new Date()
+    limite.setDate(limite.getDate() - diasMinimos)
+    query = query.lte('created_at', limite.toISOString())
+  }
 
   const { data: rollosRaw, error } = await query
   const rollos = (rollosRaw ?? []) as unknown as RolloDisponible[]
@@ -83,7 +101,7 @@ export default async function NuevoPedidoPage({
         <BackButton href="/pedidos" label="Volver a pedidos" />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Nuevo pedido</h1>
         <p className="text-sm text-muted-foreground">
-          Reservá rollos del stock para un cliente
+          Reservá rollos del stock para un cliente. Los más viejos aparecen primero.
         </p>
       </div>
 
@@ -95,6 +113,7 @@ export default async function NuevoPedidoPage({
         <NuevoPedidoForm
           rollosDisponibles={rollos}
           articulos={(articulos ?? []) as Catalogo[]}
+          colores={(colores ?? []) as Catalogo[]}
           tintorerias={(tintorerias ?? []) as Catalogo[]}
           clientes={(clientes ?? []) as Catalogo[]}
           currentFilters={{
@@ -102,6 +121,7 @@ export default async function NuevoPedidoPage({
             articulo: sp.articulo ?? '',
             color: sp.color ?? '',
             tintoreria: sp.tintoreria ?? '',
+            diasMinimos: sp.diasMinimos ?? '',
           }}
         />
       )}

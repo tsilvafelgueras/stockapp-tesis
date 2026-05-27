@@ -3,6 +3,14 @@ import Link from 'next/link'
 import BackButton from '@/components/BackButton'
 import NuevoIngresoForm from './NuevoIngresoForm'
 
+type ArticuloRow = {
+  id: string
+  nombre: string
+  articulo_colores: Array<{
+    colores: { id: string; nombre: string } | { id: string; nombre: string }[] | null
+  }> | null
+}
+
 export default async function NuevoIngresoPage() {
   const supabase = await createClient()
   const {
@@ -11,7 +19,7 @@ export default async function NuevoIngresoPage() {
 
   const [
     { data: empresaTints },
-    { data: articulos },
+    { data: articulosRaw },
     { data: colores },
     { data: profile },
   ] = await Promise.all([
@@ -21,7 +29,10 @@ export default async function NuevoIngresoPage() {
       .eq('activo', true),
     supabase
       .from('articulos')
-      .select('id, nombre, color')
+      .select(
+        `id, nombre,
+         articulo_colores(colores(id, nombre))`
+      )
       .eq('activo', true)
       .order('nombre'),
     supabase
@@ -45,9 +56,17 @@ export default async function NuevoIngresoPage() {
     .filter((t): t is { id: string; nombre: string } => t != null)
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
-  const role = (profile?.role ?? 'operario') as 'operario' | 'admin'
+  // Aplastar M:N: cada artículo lleva su lista de colores asociados.
+  const articulos = (articulosRaw ?? []).map((a: ArticuloRow) => {
+    const cols = (a.articulo_colores ?? [])
+      .map((ac) => (Array.isArray(ac.colores) ? ac.colores[0] : ac.colores))
+      .filter((c): c is { id: string; nombre: string } => !!c)
+    return { id: a.id, nombre: a.nombre, colores: cols }
+  })
 
-  const sinCatalogos = !tintorerias.length || !articulos?.length
+  const role = (profile?.role ?? 'operario') as 'operario' | 'ventas' | 'admin' | 'super'
+
+  const sinCatalogos = !tintorerias.length || !articulos.length
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
@@ -66,7 +85,7 @@ export default async function NuevoIngresoPage() {
             una tintorería cargados.
           </p>
           <div className="flex gap-3 mt-3 text-sm">
-            {!articulos?.length && (
+            {!articulos.length && (
               <Link
                 href="/admin/articulos"
                 className="underline hover:no-underline"
@@ -87,7 +106,7 @@ export default async function NuevoIngresoPage() {
       ) : (
         <NuevoIngresoForm
           tintorerias={tintorerias}
-          articulos={articulos!}
+          articulos={articulos}
           colores={colores ?? []}
           role={role}
         />

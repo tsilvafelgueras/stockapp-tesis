@@ -3,13 +3,37 @@ import DashboardBackButton from '@/components/DashboardBackButton'
 import { NuevoArticuloForm } from './ArticuloForm'
 import ArticulosTabla from './ArticulosTabla'
 
+type Role = 'admin' | 'ventas' | 'operario' | 'super'
+
+type ArticuloColorRow = {
+  colores: { id: string; nombre: string } | { id: string; nombre: string }[] | null
+}
+
+type ArticuloRow = {
+  id: string
+  nombre: string
+  descripcion: string | null
+  stock_minimo_kg: number | null
+  articulo_colores: ArticuloColorRow[] | null
+}
+
 export default async function ArticulosPage() {
   const supabase = await createClient()
 
-  const [{ data: articulos }, { data: colores }] = await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const [{ data: profile }, { data: articulosRaw }, { data: colores }] = await Promise.all([
+    user
+      ? supabase.from('profiles').select('role').eq('id', user.id).single()
+      : Promise.resolve({ data: null }),
     supabase
       .from('articulos')
-      .select('id, nombre, descripcion, color, stock_minimo_kg')
+      .select(
+        `id, nombre, descripcion, stock_minimo_kg,
+         articulo_colores(colores(id, nombre))`
+      )
       .eq('activo', true)
       .order('created_at', { ascending: false }),
     supabase
@@ -18,6 +42,24 @@ export default async function ArticulosPage() {
       .eq('activo', true)
       .order('nombre'),
   ])
+
+  const role = (profile?.role ?? 'operario') as Role
+
+  // Flatten: cada artículo trae `articulo_colores: [{ colores: {...} }]`
+  // Supabase puede devolver `colores` como objeto o array dependiendo de
+  // la cardinalidad detectada; lo aplastamos a `{ id, nombre }[]`.
+  const articulos = (articulosRaw ?? []).map((a: ArticuloRow) => {
+    const cols = (a.articulo_colores ?? [])
+      .map((ac) => (Array.isArray(ac.colores) ? ac.colores[0] : ac.colores))
+      .filter((c): c is { id: string; nombre: string } => !!c)
+    return {
+      id: a.id,
+      nombre: a.nombre,
+      descripcion: a.descripcion,
+      stock_minimo_kg: a.stock_minimo_kg,
+      colores: cols,
+    }
+  })
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -31,11 +73,12 @@ export default async function ArticulosPage() {
         </div>
       </div>
 
-      <NuevoArticuloForm colores={colores ?? []} />
+      <NuevoArticuloForm colores={colores ?? []} role={role} />
 
       <ArticulosTabla
-        articulos={articulos ?? []}
+        articulos={articulos}
         colores={colores ?? []}
+        role={role}
       />
     </div>
   )

@@ -63,9 +63,10 @@ export default async function StockPage({
       .select('tintorerias ( id, nombre )')
       .eq('activo', true),
     supabase
-      .from('rollos')
-      .select('color')
-      .not('color', 'is', null),
+      .from('colores')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
     supabase
       .from('ingresos')
       .select('numero_lote')
@@ -78,13 +79,7 @@ export default async function StockPage({
     .filter((t): t is { id: string; nombre: string } => t != null)
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
-  const colores = Array.from(
-    new Set(
-      ((coloresRaw ?? []) as { color: string | null }[])
-        .map((r) => r.color?.trim())
-        .filter((c): c is string => Boolean(c))
-    )
-  ).sort((a, b) => a.localeCompare(b, 'es'))
+  const colores = (coloresRaw ?? []) as { id: string; nombre: string }[]
 
   const lotes = Array.from(
     new Set(
@@ -115,8 +110,8 @@ export default async function StockPage({
         falla_descripcion,
         created_at,
         auditado_at,
-        color,
         articulos ( id, nombre ),
+        colores ( id, nombre ),
         ingresos!inner (
           id,
           fecha_despacho,
@@ -139,7 +134,7 @@ export default async function StockPage({
   }
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
   if (sp.ubicacion) query = query.ilike('ubicacion', `%${sp.ubicacion.trim()}%`)
-  if (sp.color) query = query.eq('color', sp.color)
+  if (sp.color) query = query.eq('color_id', sp.color)
   if (sp.lote) query = query.eq('ingresos.numero_lote', sp.lote)
 
   const { data: rollosRaw, error } = await query
@@ -152,13 +147,13 @@ export default async function StockPage({
 
   const { data: resumenRaw } = await supabase
     .from('rollos')
-    .select('kilos, color, articulos!inner ( nombre )')
+    .select('kilos, articulos!inner ( nombre ), colores ( nombre )')
     .eq('estado', 'en_stock')
 
   type ResumenRow = {
     kilos: number | null
-    color: string | null
     articulos: { nombre: string } | null
+    colores: { nombre: string } | null
   }
   const resumenRows = (resumenRaw ?? []) as unknown as ResumenRow[]
 
@@ -173,7 +168,7 @@ export default async function StockPage({
   >()
   for (const r of resumenRows) {
     const articulo = r.articulos?.nombre ?? '-'
-    const color = r.color ?? '-'
+    const color = r.colores?.nombre ?? '-'
     const key = `${articulo}|||${color}`
     const prev = aggMap.get(key) ?? { articulo, color, kilos: 0 }
     prev.kilos += Number(r.kilos ?? 0)

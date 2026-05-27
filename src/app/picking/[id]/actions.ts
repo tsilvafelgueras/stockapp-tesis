@@ -24,9 +24,6 @@ export async function pickearRollo(
   }
 
   const numeroPieza = textoEscaneado.trim()
-  if (!numeroPieza) {
-    return { ok: false, error: 'No se pudo leer un número de pieza válido.' }
-  }
 
   const { data, error } = await supabase.rpc('pickear_rollo', {
     p_pedido_id: pedidoId,
@@ -53,4 +50,41 @@ export async function pickearRollo(
     total: json.total,
     pedidoCompleto: json.pedido_completo,
   }
+}
+
+// ── Reemplazo de rollo por falla detectada en picking ───────
+
+export type ReemplazoResult =
+  | { ok: true; pendientes: number; total: number }
+  | { ok: false; error: string }
+
+export async function reemplazarRolloEnPicking(input: {
+  pedidoId: string
+  rolloViejoId: string
+  rolloNuevoId: string
+  motivoCategoria: string
+  motivoTexto: string
+}): Promise<ReemplazoResult> {
+  const supabase = await createClient()
+
+  if (!input.motivoCategoria) {
+    return { ok: false, error: 'Falta el motivo del reemplazo.' }
+  }
+
+  const { data, error } = await supabase.rpc('reemplazar_rollo_en_pedido', {
+    p_pedido_id: input.pedidoId,
+    p_rollo_viejo_id: input.rolloViejoId,
+    p_rollo_nuevo_id: input.rolloNuevoId,
+    p_motivo_categoria: input.motivoCategoria,
+    p_motivo_texto: input.motivoTexto.trim() || null,
+  })
+
+  if (error) return { ok: false, error: error.message }
+
+  const json = data as { pendientes: number; total: number }
+
+  revalidatePath(`/picking/${input.pedidoId}`)
+  revalidatePath('/picking')
+
+  return { ok: true, pendientes: json.pendientes, total: json.total }
 }

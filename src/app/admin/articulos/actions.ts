@@ -2,71 +2,87 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { normalizarTitleCase } from '@/lib/text/normalize'
 
 type ArticuloFormData = {
   nombre: string
   descripcion: string
-  color?: string
   stock_minimo_kg?: string
+  /** Lista completa de colores asociados al artículo (target state). */
+  colores_ids: string[]
 }
 
+/**
+ * Crea un artículo y asocia los colores recibidos via `articulo_colores`.
+ * Validaciones a nivel app: nombre no vacío, al menos un color.
+ * Si la combinación (empresa, nombre) ya existe, devuelve error legible.
+ */
 export async function createArticulo(formData: ArticuloFormData) {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
-  const color = normalizarTitleCase(formData.color)
   if (!nombre) return { error: 'El nombre es obligatorio.' }
-  if (!color) return { error: 'El color es obligatorio.' }
-
-  // Lookup-or-create: si ya existe (empresa, nombre, color), reusamos
-  // y reportamos como éxito (idempotente). Evita falsos errores cuando
-  // dos operarios crean el mismo artículo a la vez.
-  const { data: existente } = await supabase
-    .from('articulos')
-    .select('id')
-    .eq('nombre', nombre)
-    .eq('color', color)
-    .maybeSingle()
-
-  if (existente) {
-    revalidatePath('/admin/articulos')
-    return { success: true }
+  if (!formData.colores_ids?.length) {
+    return { error: 'Asociá al menos un color al artículo.' }
   }
 
-  const { error } = await supabase.from('articulos').insert({
-    nombre,
-    color,
-    descripcion: formData.descripcion.trim() || null,
-    stock_minimo_kg: formData.stock_minimo_kg
-      ? parseFloat(formData.stock_minimo_kg)
-      : null,
-  })
+  const { data: articulo, error: aError } = await supabase
+    .from('articulos')
+    .insert({
+      nombre,
+      descripcion: formData.descripcion.trim() || null,
+      stock_minimo_kg: formData.stock_minimo_kg
+        ? parseFloat(formData.stock_minimo_kg)
+        : null,
+    })
+    .select('id')
+    .single()
 
-  if (error) {
-    if (error.code === '23505') {
-      return { error: `Ya existe el artículo "${nombre} ${color}".` }
+  if (aError || !articulo) {
+    if (aError?.code === '23505') {
+      return { error: `Ya existe un artículo llamado "${nombre}".` }
     }
-    return { error: error.message }
+    return { error: aError?.message ?? 'No se pudo crear el artículo.' }
+  }
+
+  const pivotRows = formData.colores_ids.map((color_id) => ({
+    articulo_id: articulo.id,
+    color_id,
+  }))
+  const { error: pError } = await supabase
+    .from('articulo_colores')
+    .insert(pivotRows)
+
+  if (pError) {
+    // Rollback manual: si la pivot falla, el artículo queda huérfano.
+    await supabase.from('articulos').delete().eq('id', articulo.id)
+    return {
+      error: `No se pudieron asociar los colores: ${pError.message}`,
+    }
   }
 
   revalidatePath('/admin/articulos')
   return { success: true }
 }
 
+/**
+ * Actualiza nombre/descripción/stock y sincroniza la pivot
+ * `articulo_colores` con la lista de colores recibida.
+ * Calcula diff (altas y bajas) en lugar de borrar+reinsertar para
+ * preservar created_at de las relaciones existentes.
+ */
 export async function updateArticulo(id: string, formData: ArticuloFormData) {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
-  const color = normalizarTitleCase(formData.color)
   if (!nombre) return { error: 'El nombre es obligatorio.' }
-  if (!color) return { error: 'El color es obligatorio.' }
+  if (!formData.colores_ids?.length) {
+    return { error: 'Asociá al menos un color al artículo.' }
+  }
 
-  const { error } = await supabase
+  const { error: uError } = await supabase
     .from('articulos')
     .update({
       nombre,
-      color,
       descripcion: formData.descripcion.trim() || null,
       stock_minimo_kg: formData.stock_minimo_kg
         ? parseFloat(formData.stock_minimo_kg)
@@ -74,11 +90,53 @@ export async function updateArticulo(id: string, formData: ArticuloFormData) {
     })
     .eq('id', id)
 
-  if (error) {
-    if (error.code === '23505') {
-      return { error: `Ya existe el artículo "${nombre} ${color}".` }
+  if (uError) {
+    if (uError.code === '23505') {
+      return { error: `Ya existe un artículo llamado "${nombre}".` }
     }
-    return { error: error.message }
+    return { error: uError.message }
+  }
+
+  // Diff de la pivot.
+  const { data: actuales } = await supabase
+    .from('articulo_colores')
+    .select('color_id')
+    .eq('articulo_id', id)
+
+  const setActual = new Set((actuales ?? []).map((r) => r.color_id))
+  const setTarget = new Set(formData.colores_ids)
+
+  const aAgregar = [...setTarget].filter((c) => !setActual.has(c))
+  const aQuitar = [...setActual].filter((c) => !setTarget.has(c))
+
+  if (aQuitar.length) {
+    // Si algún color a quitar está usado por rollos, la FK compuesta
+    // (rollos.articulo_id + color_id) impide el delete y Postgres
+    // devuelve 23503. Lo traducimos a mensaje legible.
+    const { error: dError } = await supabase
+      .from('articulo_colores')
+      .delete()
+      .eq('articulo_id', id)
+      .in('color_id', aQuitar)
+    if (dError) {
+      if (dError.code === '23503') {
+        return {
+          error:
+            'No se puede desasociar un color que ya tiene rollos cargados. Dá de baja esos rollos primero.',
+        }
+      }
+      return { error: dError.message }
+    }
+  }
+
+  if (aAgregar.length) {
+    const rows = aAgregar.map((color_id) => ({ articulo_id: id, color_id }))
+    const { error: iError } = await supabase
+      .from('articulo_colores')
+      .insert(rows)
+    if (iError) {
+      return { error: `No se pudieron asociar colores: ${iError.message}` }
+    }
   }
 
   revalidatePath('/admin/articulos')
@@ -87,9 +145,7 @@ export async function updateArticulo(id: string, formData: ArticuloFormData) {
 
 /**
  * Soft-delete: marca el artículo como inactivo. No borra la fila para
- * preservar referencias históricas (rollos, ingresos, pedidos lo siguen
- * apuntando). La lista principal filtra por activo=true, así desaparece
- * de la UI sin perder trazabilidad.
+ * preservar referencias históricas (rollos, ingresos lo siguen apuntando).
  */
 export async function deleteArticulo(id: string) {
   const supabase = await createClient()

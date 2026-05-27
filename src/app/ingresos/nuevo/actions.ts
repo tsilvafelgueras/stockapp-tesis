@@ -8,7 +8,6 @@ import {
   UMBRAL_BAJA_CONFIANZA,
 } from '@/lib/extraccion/extraerPlanilla'
 import { subirPlanilla } from '@/lib/storage/planillas'
-import { normalizarTitleCase } from '@/lib/text/normalize'
 
 // ── Tipos del flow manual + IA ─────────────────────────────
 
@@ -16,16 +15,23 @@ export type RolloInput = {
   numero_pieza: string
   kilos: string
   metros: string
-  ratio_rendimiento: string
+  rinde: string
   gramaje_planilla?: string
   ubicacion: string
   estado: 'en_stock' | 'pendiente'
-  /** Artículo del rollo. Una planilla puede tener varios artículos distintos. */
+  /** FK al artículo. Una planilla puede traer rollos de varios artículos. */
   articulo_id?: string | null
-  /** Color del rollo. Una planilla puede tener varios colores distintos. */
-  color?: string | null
+  /** FK al color. Debe pertenecer a `articulo_colores` del artículo elegido. */
+  color_id?: string | null
   /** Confianza promedio reportada por la IA para este rollo (0-1). Solo se setea en flow IA. */
   confianza_ia?: number
+
+  // ── Segunda calidad (opcional, marcado desde el ingreso) ──
+  segunda?: boolean
+  falla_categoria?: string | null
+  falla_descripcion?: string | null
+  /** Path en Supabase Storage (bucket planillas) de la foto de la falla. */
+  foto_falla_path?: string | null
 }
 
 export type IngresoInput = {
@@ -81,6 +87,15 @@ const MIME_ACEPTADOS = [
   'application/pdf',
 ]
 
+const MIME_FOTOS = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]
+
 /**
  * Procesa una planilla con IA aplicando el prompt custom de la tintorería
  * elegida. Si la tintorería no tiene `extraction_prompt`, usa el default.
@@ -130,8 +145,6 @@ export async function procesarPlanillaConIA(
     }
   }
 
-  // Lookup del prompt custom de la tintorería elegida.
-  // Si no tiene `extraction_prompt`, queda null y se usa el default.
   const { data: tintoreria } = await supabase
     .from('tintorerias')
     .select('extraction_prompt')
@@ -167,7 +180,7 @@ export async function procesarPlanillaConIA(
   }
 }
 
-/** Banners de fallback 3-tier: incompleto + calidad pobre. (Falla técnica se maneja arriba.) */
+/** Banners de fallback 3-tier: incompleto + calidad pobre. */
 function calcularWarnings(data: IngresoExtraido): string[] {
   const warnings: string[] = []
 
@@ -219,7 +232,55 @@ function calcularWarnings(data: IngresoExtraido): string[] {
   return warnings
 }
 
+// ── Server action: subir foto de falla por rollo ────────────
+// La UI llama esta acción antes de submit. Devuelve el path para
+// que el cliente lo arme en RolloInput.foto_falla_path.
+
+export type SubirFotoResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string }
+
+export async function subirFotoFalla(formData: FormData): Promise<SubirFotoResult> {
+  const file = formData.get('archivo')
+  if (!(file instanceof File)) {
+    return { ok: false, error: 'No se recibió archivo.' }
+  }
+  if (!MIME_FOTOS.includes(file.type)) {
+    return {
+      ok: false,
+      error: `Tipo de archivo no soportado: ${file.type}. Subí una foto (JPG/PNG/WebP/HEIC).`,
+    }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Sesión expirada.' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', user.id)
+    .single()
+  if (!profile?.empresa_id) {
+    return { ok: false, error: 'Tu usuario no tiene empresa asignada.' }
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  return subirPlanilla(buffer, file.type, profile.empresa_id)
+}
+
 // ── Server action: crear ingreso (flow manual o IA) ────────
+
+const FALLA_CATEGORIAS = [
+  'mancha',
+  'agujero',
+  'color_disparejo',
+  'tono_diferente',
+  'rotura_tejido',
+  'otro',
+] as const
 
 export async function crearIngreso(input: IngresoInput) {
   const supabase = await createClient()
@@ -237,13 +298,20 @@ export async function crearIngreso(input: IngresoInput) {
     if (!r.articulo_id) {
       return { error: `El rollo "${r.numero_pieza.trim()}" no tiene artículo asignado.` }
     }
-    if (!r.color?.trim()) {
+    if (!r.color_id) {
       return { error: `El rollo "${r.numero_pieza.trim()}" no tiene color asignado.` }
     }
     if (origen === 'manual' && r.estado === 'en_stock' && !r.ubicacion.trim()) {
       return {
         error:
           'Los rollos en estado "en stock" deben tener ubicación asignada.',
+      }
+    }
+    if (r.segunda) {
+      if (!r.falla_categoria || !FALLA_CATEGORIAS.includes(r.falla_categoria as typeof FALLA_CATEGORIAS[number])) {
+        return {
+          error: `El rollo "${r.numero_pieza.trim()}" está marcado como segunda pero falta la categoría de falla.`,
+        }
       }
     }
   }
@@ -257,22 +325,24 @@ export async function crearIngreso(input: IngresoInput) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
   if (!user) return { error: 'Sesión expirada — volvé a iniciar sesión.' }
 
   // Estado del ingreso derivado del origen:
-  // - planilla_ia → siempre `auditado` (rollos quedan `pendiente`, esperan scanner físico en Etapa 4)
-  // - manual: si todos los rollos están en_stock → `confirmado`, si alguno está pendiente → `borrador`
+  // - planilla_ia → siempre `auditado` (rollos quedan `pendiente`, esperan
+  //   scanner físico en la auditoría posterior).
+  // - manual: si todos los rollos están en_stock → `confirmado`, si alguno
+  //   está pendiente → `borrador`. Si hay segundas, también va a `borrador`
+  //   para forzar a admin a revisar antes de confirmar.
   let ingresoEstado: 'borrador' | 'auditado' | 'confirmado'
   if (origen === 'planilla_ia') {
     ingresoEstado = 'auditado'
   } else {
-    const algunoPendiente = input.rollos.some((r) => r.estado === 'pendiente')
-    ingresoEstado = algunoPendiente ? 'borrador' : 'confirmado'
+    const necesitaRevision = input.rollos.some(
+      (r) => r.estado === 'pendiente' || r.segunda
+    )
+    ingresoEstado = necesitaRevision ? 'borrador' : 'confirmado'
   }
 
-  // Nota: las columnas `ingresos.color` e `ingresos.articulo_id` quedaron
-  // deprecated en migración 036. El color y el artículo se cargan por rollo.
   const { data: ingreso, error: iError } = await supabase
     .from('ingresos')
     .insert({
@@ -300,95 +370,33 @@ export async function crearIngreso(input: IngresoInput) {
     return { error: `No se pudo crear el ingreso: ${iError?.message}` }
   }
 
-  // Resolución (articulo, color) por rollo. Cada rollo trae un
-  // articulo_id (apunta a una fila específica del catálogo, con su
-  // propio color) y un color elegido por el usuario. Si el color del
-  // rollo difiere del color del articulo apuntado, hay que reapuntar
-  // a la fila (mismo_nombre, nuevo_color) — la creamos si no existe.
-  // El catálogo articulos se mantiene como N filas, una por
-  // combinación (nombre, color).
-  const articulosIdsUnicos = Array.from(
-    new Set(input.rollos.map((r) => r.articulo_id).filter((id): id is string => !!id))
-  )
-  const { data: articulosBase, error: aError } = await supabase
-    .from('articulos')
-    .select('id, nombre, color')
-    .in('id', articulosIdsUnicos)
-  if (aError || !articulosBase) {
-    await supabase.from('ingresos').delete().eq('id', ingreso.id)
-    return { error: `No se pudieron leer los artículos: ${aError?.message}` }
-  }
-  const articuloById = new Map(articulosBase.map((a) => [a.id, a]))
-
-  // Para cada rollo, resolver el articulo_id que corresponde a la
-  // combinación (nombre del articulo apuntado, color elegido).
-  const rollosResueltos: Array<{ rollo: RolloInput; articulo_id: string }> = []
-  for (const r of input.rollos) {
-    const articulo = articuloById.get(r.articulo_id!)
-    if (!articulo) {
-      await supabase.from('ingresos').delete().eq('id', ingreso.id)
-      return { error: `El artículo del rollo "${r.numero_pieza.trim()}" no existe.` }
-    }
-    const colorNorm = normalizarTitleCase(r.color!)
-    if (articulo.color === colorNorm) {
-      rollosResueltos.push({ rollo: r, articulo_id: articulo.id })
-      continue
-    }
-    // Color difiere: buscar fila (mismo nombre, nuevo color) o crear.
-    const { data: existente } = await supabase
-      .from('articulos')
-      .select('id')
-      .eq('nombre', articulo.nombre)
-      .eq('color', colorNorm)
-      .maybeSingle()
-    let articuloIdFinal = existente?.id
-    if (!articuloIdFinal) {
-      const { data: creado, error: cError } = await supabase
-        .from('articulos')
-        .insert({ nombre: articulo.nombre, color: colorNorm })
-        .select('id')
-        .single()
-      if (cError && cError.code === '23505') {
-        // Race: otro request creó la fila entre el select y el insert.
-        const { data: retry } = await supabase
-          .from('articulos')
-          .select('id')
-          .eq('nombre', articulo.nombre)
-          .eq('color', colorNorm)
-          .maybeSingle()
-        articuloIdFinal = retry?.id
-      } else if (cError || !creado) {
-        await supabase.from('ingresos').delete().eq('id', ingreso.id)
-        return {
-          error: `No se pudo crear "${articulo.nombre} ${colorNorm}": ${cError?.message ?? 'error desconocido'}`,
-        }
-      } else {
-        articuloIdFinal = creado.id
-      }
-    }
-    rollosResueltos.push({ rollo: r, articulo_id: articuloIdFinal! })
-  }
-
-  const rollosToInsert = rollosResueltos.map(({ rollo: r, articulo_id }) => ({
+  // Bulk insert de rollos. La FK compuesta (articulo_id, color_id) garantiza
+  // que la combinación esté en `articulo_colores`; si no, Postgres rechaza
+  // con 23503.
+  const rollosToInsert = input.rollos.map((r) => ({
     ingreso_id: ingreso.id,
-    articulo_id,
-    // rollos.color lo sincroniza el trigger sync_rollo_color desde
-    // articulos.color, no hace falta setearlo acá.
+    articulo_id: r.articulo_id,
+    color_id: r.color_id,
     numero_pieza: r.numero_pieza.trim(),
     kilos: r.kilos ? parseFloat(r.kilos) : null,
     metros: r.metros ? parseFloat(r.metros) : null,
-    ratio_rendimiento: r.ratio_rendimiento
-      ? parseFloat(r.ratio_rendimiento)
-      : null,
+    rinde: r.rinde ? parseFloat(r.rinde) : null,
     gramaje_planilla: r.gramaje_planilla
       ? parseFloat(r.gramaje_planilla)
       : null,
     ubicacion: r.ubicacion.trim() || null,
-    estado: r.estado,
+    estado: r.segunda ? ('segunda' as const) : r.estado,
+    falla_categoria: r.segunda ? r.falla_categoria : null,
+    falla_descripcion: r.segunda
+      ? r.falla_descripcion?.trim() || null
+      : null,
     confianza_ia: r.confianza_ia ?? null,
   }))
 
-  const { error: rError } = await supabase.from('rollos').insert(rollosToInsert)
+  const { data: rollosInsertados, error: rError } = await supabase
+    .from('rollos')
+    .insert(rollosToInsert)
+    .select('id, numero_pieza')
 
   if (rError) {
     await supabase.from('ingresos').delete().eq('id', ingreso.id)
@@ -401,7 +409,42 @@ export async function crearIngreso(input: IngresoInput) {
           : 'Hay números de pieza que ya existen en la empresa. Revisá y volvé a intentar.',
       }
     }
+    if (rError.code === '23503') {
+      return {
+        error:
+          'Alguno de los rollos usa una combinación artículo-color que no está asociada. Pedile al admin que asocie el color al artículo.',
+      }
+    }
     return { error: `No se pudieron cargar los rollos: ${rError.message}` }
+  }
+
+  // Si hay fotos de falla, insertarlas en rollo_fotos. El path ya fue
+  // subido por subirFotoFalla; acá solo persistimos la fila.
+  const fotosToInsert = (rollosInsertados ?? [])
+    .map((rolloDb) => {
+      const input2 = input.rollos.find(
+        (r) => r.numero_pieza.trim() === rolloDb.numero_pieza
+      )
+      if (!input2?.foto_falla_path) return null
+      return {
+        rollo_id: rolloDb.id,
+        path: input2.foto_falla_path,
+        tipo: 'falla' as const,
+        descripcion: input2.falla_descripcion?.trim() || null,
+        created_by: user.id,
+      }
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null)
+
+  if (fotosToInsert.length > 0) {
+    const { error: fError } = await supabase
+      .from('rollo_fotos')
+      .insert(fotosToInsert)
+    if (fError) {
+      // No abortamos: el ingreso ya es válido, las fotos pueden re-subirse
+      // desde el detalle. Solo advertimos.
+      console.error('Error al insertar rollo_fotos:', fError.message)
+    }
   }
 
   redirect(`/ingresos/${ingreso.id}?creado=1`)
@@ -462,66 +505,4 @@ export async function editarIngreso(input: EditarIngresoInput) {
   if (error) return { error: error.message }
 
   redirect(`/ingresos/${input.ingresoId}?editado=1`)
-}
-
-export async function createArticuloInline(nombre: string, color: string) {
-  const supabase = await createClient()
-  const cleanNombre = nombre.trim()
-  const cleanColor = normalizarTitleCase(color)
-
-  if (!cleanNombre) return { error: 'El nombre no puede estar vacío.' }
-  if (!cleanColor) return { error: 'El color es obligatorio.' }
-
-  const { data: existente } = await supabase
-    .from('articulos')
-    .select('id, nombre, color')
-    .eq('nombre', cleanNombre)
-    .eq('color', cleanColor)
-    .maybeSingle()
-
-  if (existente) return { success: true, data: existente }
-
-  const { data, error } = await supabase
-    .from('articulos')
-    .insert({ nombre: cleanNombre, color: cleanColor })
-    .select('id, nombre, color')
-    .single()
-
-  if (error || !data) {
-    // Race: otro request creó la fila entre el lookup y el insert.
-    if (error?.code === '23505') {
-      const { data: retry } = await supabase
-        .from('articulos')
-        .select('id, nombre, color')
-        .eq('nombre', cleanNombre)
-        .eq('color', cleanColor)
-        .maybeSingle()
-      if (retry) return { success: true, data: retry }
-    }
-    return { error: error?.message ?? 'Error al crear.' }
-  }
-  return { success: true, data }
-}
-
-export async function createColorInline(nombre: string) {
-  const supabase = await createClient()
-  const normalizado = normalizarTitleCase(nombre)
-  if (!normalizado) return { error: 'El nombre no puede estar vacío.' }
-
-  const { data: existente } = await supabase
-    .from('colores')
-    .select('id, nombre')
-    .eq('nombre', normalizado)
-    .maybeSingle()
-
-  if (existente) return { success: true, data: existente }
-
-  const { data, error } = await supabase
-    .from('colores')
-    .insert({ nombre: normalizado })
-    .select('id, nombre')
-    .single()
-
-  if (error || !data) return { error: error?.message ?? 'Error al crear.' }
-  return { success: true, data }
 }

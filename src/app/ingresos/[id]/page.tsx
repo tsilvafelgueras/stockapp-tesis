@@ -52,7 +52,7 @@ export default async function IngresoDetailPage({
 
   const { data: rollos } = await supabase
     .from('rollos')
-    .select('*, articulos ( id, nombre )')
+    .select('*, articulos ( id, nombre ), colores ( id, nombre )')
     .eq('ingreso_id', id)
     .order('numero_pieza', { ascending: true })
 
@@ -75,7 +75,7 @@ export default async function IngresoDetailPage({
   const coloresResumen = Array.from(
     new Set(
       (rollos ?? [])
-        .map((r) => r.color as string | null)
+        .map((r) => (r.colores as unknown as { nombre: string } | null)?.nombre)
         .filter((c): c is string => Boolean(c))
     )
   )
@@ -207,6 +207,9 @@ export default async function IngresoDetailPage({
               const articuloNombre = (
                 r.articulos as unknown as { nombre: string } | null
               )?.nombre
+              const colorNombre = (
+                r.colores as unknown as { nombre: string } | null
+              )?.nombre
               return (
                 <div key={r.id} className="p-3">
                   <div className="flex items-start justify-between">
@@ -219,10 +222,10 @@ export default async function IngresoDetailPage({
                   </div>
                   <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                     <span>Art: {articuloNombre ?? '—'}</span>
-                    <span>Color: {r.color ?? '—'}</span>
+                    <span>Color: {colorNombre ?? '—'}</span>
                     <span>{r.kilos ?? '—'} kg</span>
                     <span>{r.metros ?? '—'} m</span>
-                    <span>Ratio: {r.ratio_rendimiento ?? '—'}</span>
+                    <span>Rinde: {r.rinde ?? '—'}</span>
                     <span>Ubic: {r.ubicacion ?? '—'}</span>
                   </div>
                 </div>
@@ -245,7 +248,7 @@ export default async function IngresoDetailPage({
                 <th className="px-4 py-2 font-medium">Color</th>
                 <th className="px-4 py-2 font-medium">Kilos</th>
                 <th className="px-4 py-2 font-medium">Metros</th>
-                <th className="px-4 py-2 font-medium">Ratio</th>
+                <th className="px-4 py-2 font-medium">Rinde</th>
                 <th className="px-4 py-2 font-medium">Gramaje</th>
                 <th className="px-4 py-2 font-medium">Ubicación</th>
                 <th className="px-4 py-2 font-medium">Estado</th>
@@ -258,14 +261,17 @@ export default async function IngresoDetailPage({
                   const articuloNombre = (
                     r.articulos as unknown as { nombre: string } | null
                   )?.nombre
+                  const colorNombre = (
+                    r.colores as unknown as { nombre: string } | null
+                  )?.nombre
                   return (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="px-4 py-2 font-medium">{r.numero_pieza}</td>
                       <td className="px-4 py-2">{articuloNombre ?? '—'}</td>
-                      <td className="px-4 py-2">{r.color ?? '—'}</td>
+                      <td className="px-4 py-2">{colorNombre ?? '—'}</td>
                       <td className="px-4 py-2">{r.kilos ?? '—'}</td>
                       <td className="px-4 py-2">{r.metros ?? '—'}</td>
-                      <td className="px-4 py-2">{r.ratio_rendimiento ?? '—'}</td>
+                      <td className="px-4 py-2">{r.rinde ?? '—'}</td>
                       <td className="px-4 py-2">
                         {r.gramaje_planilla ?? '—'}
                       </td>

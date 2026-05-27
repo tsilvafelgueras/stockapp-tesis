@@ -14,7 +14,7 @@ export default async function MuestrasListPage() {
         kilos_descontados,
         motivo,
         created_at,
-        rollos ( numero_pieza, color, articulos ( nombre ) )
+        rollos ( numero_pieza, articulos ( nombre ), colores ( nombre ) )
       `
     )
     .order('created_at', { ascending: false })
@@ -28,8 +28,8 @@ export default async function MuestrasListPage() {
     created_at: string
     rollos: {
       numero_pieza: string
-      color: string | null
       articulos: { nombre: string } | null
+      colores: { nombre: string } | null
     } | null
   }
   const rows = (data ?? []) as unknown as Row[]
@@ -93,7 +93,7 @@ export default async function MuestrasListPage() {
                   <p className="font-medium truncate">{r.cliente}</p>
                   <p className="text-xs text-muted-foreground truncate">
                     {r.rollos?.articulos?.nombre ?? '—'}
-                    {r.rollos?.color ? ` · ${r.rollos.color}` : ''}
+                    {r.rollos?.colores?.nombre ? ` · ${r.rollos.colores.nombre}` : ''}
                   </p>
                 </div>
                 <span className="shrink-0 text-sm font-semibold tabular-nums">
@@ -150,7 +150,7 @@ export default async function MuestrasListPage() {
                       {r.rollos?.articulos?.nombre ?? '—'}
                     </td>
                     <td className="px-4 py-3">
-                      {r.rollos?.color ?? '—'}
+                      {r.rollos?.colores?.nombre ?? '—'}
                     </td>
                     <td className="px-4 py-3 tabular-nums">
                       {Number(r.kilos_descontados).toFixed(2)} kg

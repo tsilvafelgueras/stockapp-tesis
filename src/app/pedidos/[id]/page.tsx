@@ -10,9 +10,9 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
     text: 'En preparación',
     className: 'bg-primary/15 text-primary',
   },
-  lista: { text: 'Lista (esperando venta)', className: 'bg-success/15 text-success' },
-  confirmada_venta: {
-    text: 'Venta confirmada',
+  lista: { text: 'Lista (esperando egreso)', className: 'bg-success/15 text-success' },
+  confirmada_egreso: {
+    text: 'Egreso confirmado',
     className: 'bg-primary/15 text-primary',
   },
   entregada: { text: 'Entregada', className: 'bg-zinc-100 text-zinc-700' },
@@ -28,6 +28,7 @@ const ESTADO_ROLLO: Record<string, { text: string; className: string }> = {
   reservado: { text: 'Reservado', className: 'bg-primary/15 text-primary' },
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
   baja: { text: 'Baja', className: 'bg-destructive/15 text-destructive' },
+  segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
 }
 
 export default async function PedidoDetailPage({
@@ -81,8 +82,8 @@ export default async function PedidoDetailPage({
           kilos,
           metros,
           estado,
-          color,
           articulos ( nombre ),
+          colores ( nombre ),
           ingresos ( tintorerias ( nombre ) )
         )
       `
@@ -99,8 +100,8 @@ export default async function PedidoDetailPage({
       kilos: number | null
       metros: number | null
       estado: string
-      color: string | null
       articulos: { nombre: string } | null
+      colores: { nombre: string } | null
       ingresos: {
         tintorerias: { nombre: string } | null
       } | null
@@ -191,7 +192,7 @@ export default async function PedidoDetailPage({
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {r.rollos.articulos?.nombre ?? '—'}
-                        {r.rollos.color ? ` · ${r.rollos.color}` : ''}
+                        {r.rollos.colores?.nombre ? ` · ${r.rollos.colores.nombre}` : ''}
                       </p>
                     </div>
                     <span
@@ -252,7 +253,7 @@ export default async function PedidoDetailPage({
                         {r.rollos.articulos?.nombre ?? '—'}
                       </td>
                       <td className="px-4 py-2">
-                        {r.rollos.color ?? '—'}
+                        {r.rollos.colores?.nombre ?? '—'}
                       </td>
                       <td className="px-4 py-2 tabular-nums">
                         {r.rollos.kilos != null
