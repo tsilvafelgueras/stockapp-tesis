@@ -98,8 +98,25 @@ Tablas principales:
 - CHECK constraint enforza la regla super ↔ empresa_id NULL
 
 ### `articulos`
-- id, empresa_id, nombre, descripcion, activo, created_at
-- Lo gestionan admin Y operario (lo deciden por flow real: a veces operario carga tintorerías nuevas en el momento)
+- id, empresa_id, nombre, descripcion, **stock_minimo_kg**, activo, created_at
+- **Post-039** (2026-05-26): `color` ELIMINADO. El color del rollo deja de ser un atributo del artículo y pasa a la pivote `articulo_colores` (M:N). UNIQUE constraint pasa a `(empresa_id, nombre)` — un mismo artículo puede tener varios colores asociados.
+- Lo gestionan solo admin (catálogo). Operario/ventas pueden **solicitar** colores nuevos vía workflow (`solicitudes_color`).
+
+### `colores`
+- id, empresa_id, nombre, activo, created_at (migración 028)
+- Catálogo cerrado de colores normalizados (Title Case) por empresa. Lo gestiona admin desde `/admin/colores`.
+
+### `articulo_colores` (pivote M:N, migración 039)
+- (articulo_id, color_id) PK compuesta, created_at
+- Define qué colores están disponibles para cada artículo. El form de artículo es un multi-select; el ingreso filtra el select de color al subset asociado al artículo.
+- FK compuesta desde `rollos.(articulo_id, color_id)` enforza a nivel BD que la combinación esté autorizada.
+- RLS: solo admin de la empresa puede insertar/borrar; lectura abierta a cualquier autenticado de la empresa.
+
+### `solicitudes_color` (migración 039)
+- id, empresa_id, nombre_solicitado, solicitado_por, motivo, estado (`pendiente`|`aprobada`|`rechazada`), motivo_rechazo, color_id (poblado al aprobar), resuelta_por, resuelta_at, created_at
+- Workflow para que operario/ventas pidan colores nuevos sin tener permiso de crearlos. Admin resuelve desde `/admin/colores`.
+- RPCs `aprobar_solicitud_color(id)` y `rechazar_solicitud_color(id, motivo)` SECURITY DEFINER validan `role='admin'`. Al aprobar, insertan en `colores` (con INITCAP) y guardan el FK.
+- RLS: admin lee/modifica solicitudes de su empresa; cualquier autenticado inserta para su empresa.
 
 ### `tintorerias`
 - id, nombre, extraction_prompt, reader_type, created_at
@@ -120,16 +137,18 @@ Tablas principales:
 - "Ingreso" = una llegada de mercadería con su remito (header). Los rollos son las "líneas". Se llamaba `despachos` pero "despacho" era ambiguo (también lo usábamos para "despacho a cliente" = pedido). Renombre en migración 008.
 
 ### `rollos`
-- id, empresa_id, ingreso_id, articulo_id, numero_pieza (string), **ubicacion** (slot tipo "A42"), pantone, foto_url, kilos, metros, ratio_rendimiento, kilos_propios, metros_propios, ancho_propio, gramaje_propio, estado, confianza_ia, gramaje_planilla, created_at
-- **Post-007**: `codigo_externo` ELIMINADO (era redundante: el QR físico codifica el mismo `numero_pieza`). `color` ELIMINADO (se movió a `ingresos`). Se agrega `gramaje_planilla NUMERIC(5,2) NULL`.
+- id, empresa_id, ingreso_id, articulo_id, **color_id**, numero_pieza (string), **ubicacion** (slot tipo "A42"), pantone, foto_url, kilos, metros, **rinde**, kilos_propios, metros_propios, ancho_propio, gramaje_propio, estado, confianza_ia, gramaje_planilla, auditado_at, auditado_por, **falla_categoria**, **falla_descripcion**, created_at
+- **Post-007**: `codigo_externo` ELIMINADO. `color` (texto) ELIMINADO (se movió a `ingresos`). Se agrega `gramaje_planilla`.
 - **Post-008**: la columna FK `despacho_id` se renombró a `ingreso_id`.
-- Estados: `pendiente` → `en_stock` → `reservado` → `entregado`
-- Salidas adicionales: `reservado` → `en_stock` (cancelación), cualquiera → `baja` (dueño)
-- UNIQUE (ingreso_id, numero_pieza)
+- **Post-029**: `falla_categoria` (`mancha`/`agujero`/`color_disparejo`/`tono_diferente`/`rotura_tejido`/`otro`) + `falla_descripcion`. Aplica cuando `estado='segunda'`.
+- **Post-039** (2026-05-26): `ratio_rendimiento` RENOMBRADO a `rinde` (terminología de la industria textil). Agrega `color_id UUID NOT NULL REFERENCES colores(id)` + FK compuesta `(articulo_id, color_id) → articulo_colores`. El trigger viejo `sync_rollo_color_from_articulo` fue eliminado (ya no hay color en artículos).
+- Estados: `pendiente` → `en_stock` → `reservado` → `entregado` | `baja` | `segunda`
+- UNIQUE (numero_pieza) por empresa (post-018)
 
 ### `pedidos`
-- id, empresa_id, numero_pedido, cliente, **numero_remito_externo** (link al sistema de facturación tipo Softland), estado, created_by, created_at
-- Estados: `pendiente` → `en_preparacion` → `lista` → `entregada` (o `cancelada`)
+- id, empresa_id, numero_pedido, cliente, cliente_id, **numero_remito_externo**, estado, confirmada_egreso_at, confirmada_egreso_por, created_by, created_at
+- Estados: `pendiente` → `en_preparacion` → `lista` → **`confirmada_egreso`** → `entregada` (o `cancelada` desde cualquier estado pre-entrega).
+- **Post-039** (2026-05-26): el estado `confirmada_venta` se renombró a `confirmada_egreso` (consistente con el lenguaje del depósito: el rollo "egresa" cuando sale del galpón, no cuando se factura). Las columnas de auditoría siguen el mismo rename. La RPC `confirmar_venta_pedido` se renombró a `confirmar_egreso_pedido`; `entregar_pedido` requiere ahora `confirmada_egreso`.
 
 ### `pedido_rollos` (m2m)
 - id, empresa_id, pedido_id, rollo_id, created_at
@@ -356,8 +375,9 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 032 | Contacto/email/telefono en `tintorerias` (después movidos a `empresa_tintorerias` en 034). |
 | 033 | **Prompt + tipo de lector por tintorería** (iteración 2026-05-25). Agrega `tintorerias.extraction_prompt TEXT` y `tintorerias.reader_type` (CHECK `'qr'`/`'barcode'`). Borra `extraction_config_key` (reemplaza al sistema viejo de archivos `.ts`). RLS de `tintorerias` permite a `super` cross-empresa. |
 | 034 | **Tintorerías muchos-a-muchos** (iteración 2026-05-25). Refactor M:N: nueva pivote `empresa_tintorerias` con atributos por relación (contacto/email/telefono/activo/fecha_baja). DROP de `empresa_id`+`contacto`+`email`+`telefono`+`activo`+`fecha_baja` de `tintorerias` (que pasa a ser registro maestro global). Backfill: cada fila vieja queda como una tintorería pura linkeada a su empresa actual (no se unifica por nombre para no juntar negocios distintos por coincidencia). `tintoreria_codigo_patrones.empresa_id` pasa a NULLable → patrones globales por tintorería coexisten con patrones internos por empresa (caso "la empresa pega su QR propio"). |
+| 039 | **Refactor M:N artículo-color, rinde, egreso, swap rollo en picking** (iteración 2026-05-26, feedback ingeniera textil). Migración grande, autorizada por el usuario para hacer **TRUNCATE** de datos de prueba (`rollos`/`ingresos`/`pedidos`/`pedido_rollos`/`muestras`/`pedidos_pendientes`/`articulos`/`colores`/`rollo_fotos`/`movimientos`) y rehacer la estructura limpia. Cambios: (a) `rollos.ratio_rendimiento` → `rinde`. (b) Estado `pedidos.confirmada_venta` → `confirmada_egreso` (CHECK + columnas de auditoría + RPC `confirmar_venta_pedido` → `confirmar_egreso_pedido`; `entregar_pedido` y `cancelar_pedido` actualizadas). (c) Refactor M:N artículo↔color: DROP `articulos.color`, nueva UNIQUE `(empresa_id, nombre)`, DROP `rollos.color` (texto) + DROP trigger `sync_rollo_color_from_articulo`, nueva `rollos.color_id NOT NULL REFERENCES colores(id)`, nueva pivote `articulo_colores(articulo_id, color_id)`, FK compuesta `rollos.(articulo_id, color_id) → articulo_colores` para enforce a nivel BD. (d) Nueva tabla `solicitudes_color` + RPCs `aprobar_solicitud_color`/`rechazar_solicitud_color` con SECURITY DEFINER (workflow: operario/ventas piden, admin resuelve). (e) Nueva RPC `reemplazar_rollo_en_pedido(pedido, viejo, nuevo, motivo_categoria, motivo_texto)` que valida match `(articulo_id, color_id)`, valida estado del par, DELETE+INSERT en `pedido_rollos`, marca el viejo como `segunda` con `falla_categoria`/`falla_descripcion`, e inserta movimiento con `accion='reemplazar_rollo'`. |
 
-**Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual de tintorerías (post-034). Para DB nueva: correr `schema.sql` y después las migraciones `009`..`034` en orden.
+**Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual (post-039). Para DB nueva: correr `schema.sql` y después las migraciones `009`..`039` en orden.
 
 ---
 
