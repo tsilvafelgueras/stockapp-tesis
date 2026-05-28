@@ -21,6 +21,8 @@ export type ClienteResult =
   | { ok: true; cliente: { id: string; nombre: string } }
   | { ok: false; error: string }
 
+export type SimpleResult = { ok: true } | { ok: false; error: string }
+
 async function requireVentasOAdmin() {
   const supabase = await createClient()
   const {
@@ -49,13 +51,15 @@ export async function crearCliente(input: ClienteInput): Promise<ClienteResult> 
 
   const nombre = input.nombre.trim()
   if (!nombre) return { ok: false, error: 'El nombre del cliente es obligatorio.' }
+  const cuitCuil = normalizarCuitCuil(input.cuit_cuil)
+  if (cuitCuil.error) return { ok: false, error: cuitCuil.error }
   const estadoCliente = normalizarEstadoCliente(input.estado_cliente)
 
   const { data, error } = await supabase
     .from('clientes')
     .insert({
       nombre,
-      cuit_cuil: input.cuit_cuil?.trim() || null,
+      cuit_cuil: cuitCuil.value,
       contacto: input.contacto?.trim() || null,
       email: input.email?.trim() || null,
       telefono: input.telefono?.trim() || null,
@@ -93,13 +97,15 @@ export async function editarCliente(
 
   const nombre = input.nombre.trim()
   if (!nombre) return { ok: false, error: 'El nombre del cliente es obligatorio.' }
+  const cuitCuil = normalizarCuitCuil(input.cuit_cuil)
+  if (cuitCuil.error) return { ok: false, error: cuitCuil.error }
   const estadoCliente = normalizarEstadoCliente(input.estado_cliente)
 
   const { data, error } = await supabase
     .from('clientes')
     .update({
       nombre,
-      cuit_cuil: input.cuit_cuil?.trim() || null,
+      cuit_cuil: cuitCuil.value,
       contacto: input.contacto?.trim() || null,
       email: input.email?.trim() || null,
       telefono: input.telefono?.trim() || null,
@@ -133,7 +139,7 @@ export async function editarCliente(
 export async function toggleClienteActivo(
   id: string,
   activo: boolean
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<SimpleResult> {
   const { supabase, error: authError } = await requireVentasOAdmin()
   if (authError) return { ok: false, error: authError }
 
@@ -152,6 +158,37 @@ export async function toggleClienteActivo(
   return { ok: true }
 }
 
+export async function eliminarCliente(id: string): Promise<SimpleResult> {
+  const { supabase, error: authError } = await requireVentasOAdmin()
+  if (authError) return { ok: false, error: authError }
+
+  const [{ count: pedidosCount }, { count: demandasCount }] = await Promise.all([
+    supabase
+      .from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .eq('cliente_id', id),
+    supabase
+      .from('pedidos_pendientes')
+      .select('id', { count: 'exact', head: true })
+      .eq('cliente_id', id),
+  ])
+
+  if ((pedidosCount ?? 0) > 0 || (demandasCount ?? 0) > 0) {
+    return {
+      ok: false,
+      error:
+        'No se puede eliminar un cliente con pedidos o demandas. Desactivalo para ocultarlo sin perder historial.',
+    }
+  }
+
+  const { error } = await supabase.from('clientes').delete().eq('id', id)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/clientes')
+  revalidatePath(`/clientes/${id}`)
+  return { ok: true }
+}
+
 function normalizarOpcion(value: string | undefined): string | null {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
@@ -163,4 +200,15 @@ function normalizarEstadoCliente(value: string | undefined): string {
     return estado
   }
   return 'activo'
+}
+
+function normalizarCuitCuil(
+  value: string | undefined
+): { value: string | null; error?: string } {
+  const trimmed = value?.trim()
+  if (!trimmed) return { value: null }
+  if (!/^\d+$/.test(trimmed)) {
+    return { value: null, error: 'CUIT/CUIL debe contener solo numeros.' }
+  }
+  return { value: trimmed }
 }

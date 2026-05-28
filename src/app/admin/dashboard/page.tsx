@@ -15,6 +15,7 @@ import SeccionDenegadaBanner from '@/components/SeccionDenegadaBanner'
 
 type AlertaStockMinimo = {
   articuloId: string
+  colorId: string
   nombre: string
   stockActualKg: number
   stockMinimoKg: number
@@ -31,37 +32,56 @@ type ResumenDiario = {
 async function getAlertasStockMinimo(
   supabase: Awaited<ReturnType<typeof createClient>>
 ): Promise<AlertaStockMinimo[]> {
-  const [{ data: articulos }, { data: rollos }] = await Promise.all([
-    supabase
-      .from('articulos')
-      .select('id, nombre, stock_minimo_kg')
+  const [{ data: minimos }, { data: rollos }] = await Promise.all([
+    supabase.from('articulo_colores').select(`
+      articulo_id,
+      color_id,
+      stock_minimo_kg,
+      articulos!inner(nombre),
+      colores(nombre)
+    `)
       .not('stock_minimo_kg', 'is', null)
-      .eq('activo', true),
+      .eq('articulos.activo', true),
     supabase
       .from('rollos')
-      .select('articulo_id, kilos')
+      .select('articulo_id, color_id, kilos')
       .eq('estado', 'en_stock'),
   ])
 
-  if (!articulos?.length) return []
+  if (!minimos?.length) return []
 
   const stockMap = new Map<string, number>()
   for (const r of rollos ?? []) {
-    const prev = stockMap.get(r.articulo_id) ?? 0
-    stockMap.set(r.articulo_id, prev + Number(r.kilos ?? 0))
+    const key = `${r.articulo_id}|${r.color_id}`
+    const prev = stockMap.get(key) ?? 0
+    stockMap.set(key, prev + Number(r.kilos ?? 0))
   }
 
-  return articulos
-    .filter((a) => {
-      const actual = stockMap.get(a.id) ?? 0
-      return actual < Number(a.stock_minimo_kg)
+  type MinimoRow = {
+    articulo_id: string
+    color_id: string
+    stock_minimo_kg: number | null
+    articulos: { nombre: string } | null
+    colores: { nombre: string } | null
+  }
+
+  return ((minimos ?? []) as unknown as MinimoRow[])
+    .filter((m) => {
+      const actual = stockMap.get(`${m.articulo_id}|${m.color_id}`) ?? 0
+      return actual < Number(m.stock_minimo_kg)
     })
-    .map((a) => ({
-      articuloId: a.id,
-      nombre: a.nombre,
-      stockActualKg: stockMap.get(a.id) ?? 0,
-      stockMinimoKg: Number(a.stock_minimo_kg),
-    }))
+    .map((m) => {
+      const key = `${m.articulo_id}|${m.color_id}`
+      const articulo = m.articulos?.nombre ?? 'Articulo'
+      const color = m.colores?.nombre ?? 'Sin color'
+      return {
+        articuloId: m.articulo_id,
+        colorId: m.color_id,
+        nombre: `${articulo} - ${color}`,
+        stockActualKg: stockMap.get(key) ?? 0,
+        stockMinimoKg: Number(m.stock_minimo_kg),
+      }
+    })
 }
 
 async function getResumenDiario(

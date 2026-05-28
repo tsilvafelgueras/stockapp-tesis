@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import { createClient } from '@/lib/supabase/server'
 import ClienteForm from '../ClienteForm'
+import type { VendedorOption } from '../ClienteForm'
 import ClienteActions from './ClienteActions'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
@@ -36,8 +37,8 @@ type PedidoRow = {
         rollos:
           | {
               kilos: number | null
+              color_id: string | null
               articulos: { nombre: string } | null
-              colores: { nombre: string } | null
             }
           | null
       }[]
@@ -60,10 +61,12 @@ export default async function ClienteDetailPage({
 
   if (!cliente) notFound()
 
-  const { data: pedidosRaw } = await supabase
-    .from('pedidos')
-    .select(
-      `
+  const [{ data: pedidosRaw }, { data: colores }, { data: vendedores }] =
+    await Promise.all([
+      supabase
+        .from('pedidos')
+        .select(
+          `
         id,
         numero_pedido,
         estado,
@@ -74,16 +77,29 @@ export default async function ClienteDetailPage({
         pedido_rollos (
           rollos (
             kilos,
-            articulos ( nombre ),
-            colores ( nombre )
+            color_id,
+            articulos ( nombre )
           )
         )
       `
-    )
-    .eq('cliente_id', id)
-    .order('created_at', { ascending: false })
+        )
+        .eq('cliente_id', id)
+        .order('created_at', { ascending: false }),
+      supabase.from('colores').select('id, nombre'),
+      supabase
+        .from('profiles')
+        .select('id, nombre')
+        .eq('role', 'ventas')
+        .order('nombre'),
+    ])
 
   const pedidos = (pedidosRaw ?? []) as unknown as PedidoRow[]
+  const colorById = new Map(
+    ((colores ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c.nombre,
+    ])
+  )
   const totalKilos = pedidos
     .filter((p) => p.estado !== 'cancelada')
     .reduce(
@@ -101,7 +117,7 @@ export default async function ClienteDetailPage({
       p.estado
     )
   ).length
-  const topArticulos = calcularTopArticulos(pedidos)
+  const topArticulos = calcularTopArticulos(pedidos, colorById)
 
   const fechaAlta = new Date(cliente.created_at).toLocaleDateString('es-AR')
 
@@ -180,6 +196,7 @@ export default async function ClienteDetailPage({
             vendedor_asignado: cliente.vendedor_asignado,
             notas: cliente.notas,
           }}
+          vendedores={(vendedores ?? []) as VendedorOption[]}
         />
       </section>
 
@@ -298,14 +315,19 @@ function Info({ label, value }: { label: string; value: string }) {
   )
 }
 
-function calcularTopArticulos(pedidos: PedidoRow[]): string[] {
+function calcularTopArticulos(
+  pedidos: PedidoRow[],
+  colorById: Map<string, string>
+): string[] {
   const map = new Map<string, { label: string; kilos: number; count: number }>()
   for (const p of pedidos) {
     if (p.estado === 'cancelada') continue
     for (const pr of p.pedido_rollos ?? []) {
       const articulo = pr.rollos?.articulos?.nombre
       if (!articulo) continue
-      const color = pr.rollos?.colores?.nombre
+      const color = pr.rollos?.color_id
+        ? colorById.get(pr.rollos.color_id)
+        : null
       const label = color ? `${articulo} ${color}` : articulo
       const current = map.get(label) ?? { label, kilos: 0, count: 0 }
       current.kilos += Number(pr.rollos?.kilos ?? 0)

@@ -1,12 +1,12 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { createArticulo, updateArticulo, deleteArticulo } from './actions'
 import { createColor, solicitarColor } from '@/app/admin/colores/actions'
+import { createArticulo, deleteArticulo, updateArticulo } from './actions'
 
-type Catalog = { id: string; nombre: string }
+type Catalog = { id: string; nombre: string; stock_minimo_kg?: number | null }
 
 type Articulo = {
   id: string
@@ -18,19 +18,6 @@ type Articulo = {
 
 type Role = 'admin' | 'ventas' | 'operario' | 'super'
 
-/**
- * Multi-selector de colores con "+ Nuevo color" role-aware.
- *
- * - Admin: el "+ Nuevo color" llama a `createColor` y aparece de
- *   inmediato como un chip seleccionado.
- * - Operario/Ventas: el "+ Nuevo color" llama a `solicitarColor` y
- *   queda pendiente de aprobación del admin. No se agrega al artículo
- *   hasta que el admin la apruebe.
- *
- * Para reutilizar la pivot `articulo_colores` con FK compuesta,
- * solo se asocian colores que ya existen en el catálogo. Por eso
- * los colores "pendientes de aprobación" no entran como seleccionados.
- */
 function ColorMultiPicker({
   selectedIds,
   onChange,
@@ -55,7 +42,10 @@ function ColorMultiPicker({
     [colores, selectedIds]
   )
   const seleccionados = useMemo(
-    () => selectedIds.map((id) => colores.find((c) => c.id === id)).filter(Boolean) as Catalog[],
+    () =>
+      selectedIds
+        .map((id) => colores.find((c) => c.id === id))
+        .filter((c): c is Catalog => Boolean(c)),
     [colores, selectedIds]
   )
 
@@ -63,6 +53,7 @@ function ColorMultiPicker({
     if (!id || selectedIds.includes(id)) return
     onChange([...selectedIds, id])
   }
+
   function quitar(id: string) {
     onChange(selectedIds.filter((x) => x !== id))
   }
@@ -77,27 +68,25 @@ function ColorMultiPicker({
           toast.error(res.error)
           return
         }
-        // createColor no devuelve el id; la página se revalida y el
-        // catálogo trae el nuevo color. Como atajo optimista, asumimos
-        // que aparece en el siguiente render. La página revalida.
         toast.success(`Color "${limpio}" creado.`)
         setNuevoNombre('')
         setCreating(false)
         return
       }
+
       const res = await solicitarColor({ nombre: limpio })
       if ('error' in res) {
         toast.error(res.error ?? 'No se pudo enviar la solicitud.')
         return
       }
       if ('alreadyExists' in res && res.alreadyExists) {
-        toast.success(`"${limpio}" ya existe en el catálogo.`)
+        toast.success(`"${limpio}" ya existe en el catalogo.`)
         onColorCreated(res.color as Catalog)
         agregar((res.color as Catalog).id)
       } else if ('alreadyPending' in res) {
         toast.info(`Ya hay una solicitud pendiente para "${limpio}".`)
       } else {
-        toast.success(`Solicitud enviada al admin. Te avisamos cuando aprueben "${limpio}".`)
+        toast.success(`Solicitud enviada al admin para "${limpio}".`)
       }
       setNuevoNombre('')
       setCreating(false)
@@ -106,7 +95,6 @@ function ColorMultiPicker({
 
   return (
     <div className="space-y-1.5">
-      {/* Chips seleccionados */}
       {seleccionados.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {seleccionados.map((c) => (
@@ -118,7 +106,7 @@ function ColorMultiPicker({
               <button
                 type="button"
                 onClick={() => quitar(c.id)}
-                className="rounded-full hover:bg-action/20 p-0.5"
+                className="rounded-full p-0.5 hover:bg-action/20"
                 aria-label={`Quitar color ${c.nombre}`}
                 title="Quitar"
               >
@@ -129,7 +117,6 @@ function ColorMultiPicker({
         </div>
       )}
 
-      {/* Agregar existente o crear nuevo */}
       {creating ? (
         <div className="flex gap-1">
           <input
@@ -148,8 +135,8 @@ function ColorMultiPicker({
             }}
             placeholder={
               role === 'admin' || role === 'super'
-                ? 'Crear color nuevo…'
-                : 'Solicitar color nuevo al admin…'
+                ? 'Crear color nuevo...'
+                : 'Solicitar color nuevo al admin...'
             }
             className={className}
           />
@@ -159,7 +146,7 @@ function ColorMultiPicker({
             disabled={pending || !nuevoNombre.trim()}
             className="rounded-md bg-action px-2 py-1 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50"
           >
-            {pending ? '…' : role === 'admin' || role === 'super' ? 'Crear' : 'Solicitar'}
+            {pending ? '...' : role === 'admin' || role === 'super' ? 'Crear' : 'Solicitar'}
           </button>
           <button
             type="button"
@@ -183,7 +170,7 @@ function ColorMultiPicker({
           >
             <option value="" disabled>
               {disponibles.length
-                ? 'Agregar color…'
+                ? 'Agregar color...'
                 : 'No quedan colores para agregar'}
             </option>
             {disponibles.map((c) => (
@@ -226,14 +213,14 @@ export function NuevoArticuloForm({
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [coloresIds, setColoresIds] = useState<string[]>([])
-  const [stockMinimo, setStockMinimo] = useState('')
+  const [stockMinimos, setStockMinimos] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!coloresIds.length) {
-      setError('Asociá al menos un color al artículo.')
+      setError('Asocia al menos un color al articulo.')
       return
     }
     setLoading(true)
@@ -242,7 +229,7 @@ export function NuevoArticuloForm({
       nombre,
       descripcion,
       colores_ids: coloresIds,
-      stock_minimo_kg: stockMinimo,
+      stock_minimos_por_color: stockMinimos,
     })
     if (result.error) {
       setError(result.error)
@@ -250,7 +237,7 @@ export function NuevoArticuloForm({
       setNombre('')
       setDescripcion('')
       setColoresIds([])
-      setStockMinimo('')
+      setStockMinimos({})
     }
     setLoading(false)
   }
@@ -258,40 +245,31 @@ export function NuevoArticuloForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-lg border bg-white p-4 shadow-sm space-y-3"
+      className="space-y-3 rounded-lg border bg-white p-4 shadow-sm"
     >
-      <h2 className="font-semibold">Nuevo artículo</h2>
+      <h2 className="font-semibold">Nuevo articulo</h2>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="space-y-1">
-          <label htmlFor="nombre" className="text-sm font-medium">
-            Nombre *
-          </label>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Nombre *">
           <input
-            id="nombre"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             required
             placeholder="Ej: Lycra ML40"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label htmlFor="descripcion" className="text-sm font-medium">
-            Descripción
-          </label>
+        <Field label="Descripcion">
           <input
-            id="descripcion"
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Opcional"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Colores *</label>
+        <Field label="Colores *">
           <ColorMultiPicker
             selectedIds={coloresIds}
             onChange={setColoresIds}
@@ -304,24 +282,17 @@ export function NuevoArticuloForm({
             role={role}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label htmlFor="stock-minimo" className="text-sm font-medium">
-            Stock mínimo (kg)
-          </label>
-          <input
-            id="stock-minimo"
-            type="number"
-            step="0.01"
-            min="0"
-            inputMode="decimal"
-            value={stockMinimo}
-            onChange={(e) => setStockMinimo(e.target.value)}
-            placeholder="Sin límite"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        <Field label="Stock minimo por color">
+          <StockMinimosPorColor
+            selectedIds={coloresIds}
+            colores={colores}
+            values={stockMinimos}
+            onChange={setStockMinimos}
+            inputClassName="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-        </div>
+        </Field>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -329,9 +300,9 @@ export function NuevoArticuloForm({
       <button
         type="submit"
         disabled={loading || !coloresIds.length}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
       >
-        {loading ? 'Guardando...' : 'Agregar artículo'}
+        {loading ? 'Guardando...' : 'Agregar articulo'}
       </button>
     </form>
   )
@@ -339,13 +310,15 @@ export function NuevoArticuloForm({
 
 export function EditArticuloRow({
   articulo,
-  forzarEdicion = false,
+  expanded,
+  onToggle,
   onEliminado,
   colores: coloresIniciales = [],
   role,
 }: {
   articulo: Articulo
-  forzarEdicion?: boolean
+  expanded: boolean
+  onToggle: () => void
   onEliminado?: (id: string) => void
   colores?: Catalog[]
   role: Role
@@ -357,20 +330,22 @@ export function EditArticuloRow({
   const [coloresIds, setColoresIds] = useState<string[]>(
     articulo.colores.map((c) => c.id)
   )
-  const [stockMinimo, setStockMinimo] = useState(
-    articulo.stock_minimo_kg != null ? String(articulo.stock_minimo_kg) : ''
+  const [stockMinimos, setStockMinimos] = useState<Record<string, string>>(
+    Object.fromEntries(
+      articulo.colores
+        .filter((c) => c.stock_minimo_kg != null)
+        .map((c) => [c.id, String(c.stock_minimo_kg)])
+    )
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [eliminandoPending, startEliminar] = useTransition()
 
-  const editing = forzarEdicion
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!coloresIds.length) {
-      setError('Asociá al menos un color al artículo.')
-      toast.error('Asociá al menos un color al artículo.')
+      setError('Asocia al menos un color al articulo.')
+      toast.error('Asocia al menos un color al articulo.')
       return
     }
     setLoading(true)
@@ -379,7 +354,7 @@ export function EditArticuloRow({
       nombre,
       descripcion,
       colores_ids: coloresIds,
-      stock_minimo_kg: stockMinimo,
+      stock_minimos_por_color: stockMinimos,
     })
     if (result.error) {
       setError(result.error)
@@ -405,21 +380,20 @@ export function EditArticuloRow({
 
   if (confirmandoEliminar) {
     return (
-      <tr className="border-b last:border-0 bg-destructive/5">
+      <tr className="border-b bg-destructive/5">
         <td colSpan={5} className="px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">
-              ¿Dar de baja{' '}
-              <strong className="font-semibold">{articulo.nombre}</strong>? El
-              artículo se ocultará de la lista pero los rollos y pedidos que lo
-              usan siguen accesibles.
+              Dar de baja <strong>{articulo.nombre}</strong>. El articulo se
+              ocultara de la lista pero los rollos y pedidos que lo usan siguen
+              accesibles.
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmandoEliminar(false)}
                 disabled={eliminandoPending}
-                className="rounded-md border px-3 py-1.5 text-xs hover:bg-zinc-100 disabled:opacity-50 transition-colors"
+                className="rounded-md border px-3 py-1.5 text-xs transition-colors hover:bg-zinc-100 disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -427,9 +401,9 @@ export function EditArticuloRow({
                 type="button"
                 onClick={handleConfirmarEliminar}
                 disabled={eliminandoPending}
-                className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-destructive/90 disabled:opacity-50"
               >
-                {eliminandoPending ? 'Dando de baja…' : 'Sí, dar de baja'}
+                {eliminandoPending ? 'Dando de baja...' : 'Si, dar de baja'}
               </button>
             </div>
           </div>
@@ -438,120 +412,253 @@ export function EditArticuloRow({
     )
   }
 
-  if (editing) {
-    return (
-      <tr className="border-b last:border-0 bg-zinc-50/50 align-top">
-        <td className="px-4 py-3">
-          <input
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            required
-            placeholder="Nombre *"
-            className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Opcional"
-            className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <ColorMultiPicker
-            selectedIds={coloresIds}
-            onChange={setColoresIds}
-            colores={colores}
-            onColorCreated={(c) =>
-              setColores((prev) =>
-                prev.find((p) => p.id === c.id) ? prev : [...prev, c]
-              )
-            }
-            role={role}
-            className="w-full rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            inputMode="decimal"
-            value={stockMinimo}
-            onChange={(e) => setStockMinimo(e.target.value)}
-            placeholder="Sin límite"
-            className="w-28 rounded-md border border-input bg-white px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <form onSubmit={handleSubmit} className="flex items-center justify-end gap-1">
-            {error && (
-              <span className="mr-2 text-[11px] text-destructive">{error}</span>
-            )}
-            <button
-              type="submit"
-              disabled={loading || !coloresIds.length}
-              className="rounded-md bg-action px-3 py-1.5 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Guardando…' : 'Guardar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmandoEliminar(true)}
-              className="flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
-              aria-label={`Dar de baja ${articulo.nombre}`}
-              title="Dar de baja"
-            >
-              <Trash2 className="size-4" />
-            </button>
-          </form>
-        </td>
-      </tr>
-    )
-  }
-
   return (
-    <tr className="border-b last:border-0">
-      <td className="px-4 py-3 font-medium">{articulo.nombre}</td>
-      <td className="px-4 py-3 text-muted-foreground">
-        {articulo.descripcion || '—'}
-      </td>
-      <td className="px-4 py-3">
-        {articulo.colores.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {articulo.colores.map((c) => (
-              <span
-                key={c.id}
-                className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700"
-              >
-                {c.nombre}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="px-4 py-3 text-muted-foreground tabular-nums">
-        {articulo.stock_minimo_kg != null
-          ? `${articulo.stock_minimo_kg} kg`
-          : '—'}
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-end gap-1">
+    <>
+      <tr
+        onClick={onToggle}
+        className="cursor-pointer border-b hover:bg-zinc-50"
+      >
+        <td className="w-10 px-4 py-3">
           <button
             type="button"
-            onClick={() => setConfirmandoEliminar(true)}
-            className="flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle()
+            }}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-zinc-100"
+            aria-label={expanded ? 'Contraer articulo' : 'Expandir articulo'}
+            title={expanded ? 'Contraer' : 'Expandir'}
+          >
+            {expanded ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+          </button>
+        </td>
+        <td className="px-4 py-3">
+          <p className="font-medium">{articulo.nombre}</p>
+          {articulo.descripcion && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {articulo.descripcion}
+            </p>
+          )}
+        </td>
+        <td className="px-4 py-3 text-muted-foreground">
+          {articulo.colores.length}{' '}
+          {articulo.colores.length === 1 ? 'color' : 'colores'}
+        </td>
+        <td className="px-4 py-3 text-muted-foreground">
+          <StockMinimosResumen colores={articulo.colores} />
+        </td>
+        <td className="px-4 py-3 text-right">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setConfirmandoEliminar(true)
+            }}
+            className="inline-flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
             aria-label={`Dar de baja ${articulo.nombre}`}
             title="Dar de baja"
           >
             <Trash2 className="size-4" />
           </button>
+        </td>
+      </tr>
+
+      {expanded && (
+        <tr className="border-b bg-zinc-50/60">
+          <td />
+          <td colSpan={4} className="px-4 py-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1.4fr]">
+                <Field label="Nombre">
+                  <input
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    required
+                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </Field>
+                <Field label="Descripcion">
+                  <input
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    placeholder="Opcional"
+                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </Field>
+                <Field label="Colores">
+                  <ColorMultiPicker
+                    selectedIds={coloresIds}
+                    onChange={setColoresIds}
+                    colores={colores}
+                    onColorCreated={(c) =>
+                      setColores((prev) =>
+                        prev.find((p) => p.id === c.id) ? prev : [...prev, c]
+                      )
+                    }
+                    role={role}
+                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </Field>
+              </div>
+
+              <div className="overflow-hidden rounded-md border bg-white">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/60 text-muted-foreground">
+                    <tr className="text-left">
+                      <th className="px-3 py-2 font-medium">Color</th>
+                      <th className="px-3 py-2 font-medium">Stock minimo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coloresIds.length > 0 ? (
+                      coloresIds.map((colorId) => {
+                        const color = colores.find((c) => c.id === colorId)
+                        return (
+                          <tr key={colorId} className="border-b last:border-0">
+                            <td className="px-3 py-2">
+                              {color?.nombre ?? 'Color'}
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                inputMode="decimal"
+                                value={stockMinimos[colorId] ?? ''}
+                                onChange={(e) =>
+                                  setStockMinimos((prev) => ({
+                                    ...prev,
+                                    [colorId]: e.target.value,
+                                  }))
+                                }
+                                placeholder="Sin limite"
+                                className="w-32 rounded-md border border-input bg-white px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              />
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                kg
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={2}
+                          className="px-3 py-4 text-center text-sm text-muted-foreground"
+                        >
+                          Sin colores asociados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {error && (
+                  <span className="text-xs text-destructive">{error}</span>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading || !coloresIds.length}
+                  className="rounded-md bg-action px-4 py-2 text-sm font-medium text-action-foreground transition-colors hover:bg-action/90 disabled:opacity-50"
+                >
+                  {loading ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+function StockMinimosPorColor({
+  selectedIds,
+  colores,
+  values,
+  onChange,
+  inputClassName,
+}: {
+  selectedIds: string[]
+  colores: Catalog[]
+  values: Record<string, string>
+  onChange: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  inputClassName: string
+}) {
+  const seleccionados = selectedIds
+    .map((id) => colores.find((c) => c.id === id))
+    .filter((c): c is Catalog => Boolean(c))
+
+  if (seleccionados.length === 0) {
+    return <p className="text-xs text-muted-foreground">-</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      {seleccionados.map((color) => (
+        <label key={color.id} className="block space-y-1">
+          <span className="block truncate text-xs text-muted-foreground">
+            {color.nombre}
+          </span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            value={values[color.id] ?? ''}
+            onChange={(e) =>
+              onChange((prev) => ({
+                ...prev,
+                [color.id]: e.target.value,
+              }))
+            }
+            placeholder="Sin limite"
+            className={inputClassName}
+          />
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function StockMinimosResumen({ colores }: { colores: Catalog[] }) {
+  const conMinimo = colores.filter((c) => c.stock_minimo_kg != null)
+  if (!conMinimo.length) return <span>-</span>
+
+  return (
+    <div className="space-y-1 text-xs">
+      {conMinimo.slice(0, 2).map((color) => (
+        <div key={color.id}>
+          <span className="text-foreground">{color.nombre}</span>{' '}
+          <span>{color.stock_minimo_kg} kg</span>
         </div>
-      </td>
-    </tr>
+      ))}
+      {conMinimo.length > 2 && (
+        <div className="text-muted-foreground">+{conMinimo.length - 2} mas</div>
+      )}
+    </div>
+  )
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className="space-y-1">
+      <span className="block text-sm font-medium">{label}</span>
+      {children}
+    </label>
   )
 }
 

@@ -5,8 +5,14 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { crearCliente, editarCliente, type ClienteInput } from './actions'
 
+export type VendedorOption = {
+  id: string
+  nombre: string
+}
+
 export default function ClienteForm({
   cliente,
+  vendedores = [],
   onDone,
 }: {
   cliente?: {
@@ -23,6 +29,7 @@ export default function ClienteForm({
     vendedor_asignado: string | null
     notas: string | null
   }
+  vendedores?: VendedorOption[]
   onDone?: () => void
 }) {
   const router = useRouter()
@@ -47,6 +54,11 @@ export default function ClienteForm({
     cliente?.vendedor_asignado ?? ''
   )
   const [notas, setNotas] = useState(cliente?.notas ?? '')
+  const vendedorOptions = vendedores.some((v) => v.nombre === vendedorAsignado)
+    ? vendedores
+    : vendedorAsignado
+      ? [...vendedores, { id: vendedorAsignado, nombre: vendedorAsignado }]
+      : vendedores
 
   function resetForm() {
     setNombre('')
@@ -115,9 +127,11 @@ export default function ClienteForm({
         <Field label="CUIT/CUIL">
           <input
             type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={cuitCuil}
-            onChange={(e) => setCuitCuil(e.target.value)}
-            placeholder="20-12345678-9"
+            onChange={(e) => setCuitCuil(e.target.value.replace(/\D/g, ''))}
+            placeholder="20123456789"
             className="w-full rounded-md border px-3 py-2 text-sm"
           />
         </Field>
@@ -164,7 +178,7 @@ export default function ClienteForm({
           />
         </Field>
 
-        <Field label="Direccion">
+        <Field label="Dirección">
           <input
             type="text"
             value={direccion}
@@ -174,7 +188,7 @@ export default function ClienteForm({
           />
         </Field>
 
-        <Field label="Condicion de pago">
+        <Field label="Condición de pago">
           <select
             value={condicionPago}
             onChange={(e) => setCondicionPago(e.target.value)}
@@ -183,19 +197,19 @@ export default function ClienteForm({
             <option value="">Sin definir</option>
             <option value="contado">Contado</option>
             <option value="cuenta_corriente">Cuenta corriente</option>
-            <option value="30_dias">30 dias</option>
-            <option value="60_dias">60 dias</option>
-            <option value="90_dias">90 dias</option>
+            <option value="30_dias">30 días</option>
+            <option value="60_dias">60 días</option>
+            <option value="90_dias">90 días</option>
           </select>
         </Field>
 
-        <Field label="Categoria de precio">
+        <Field label="Categoría de precio">
           <select
             value={categoriaPrecio}
             onChange={(e) => setCategoriaPrecio(e.target.value)}
             className="w-full rounded-md border bg-white px-3 py-2 text-sm"
           >
-            <option value="">Sin categoria</option>
+            <option value="">Sin categoría</option>
             <option value="minorista">Minorista</option>
             <option value="mayorista">Mayorista</option>
             <option value="precio_especial">Precio especial</option>
@@ -203,13 +217,18 @@ export default function ClienteForm({
         </Field>
 
         <Field label="Vendedor asignado">
-          <input
-            type="text"
+          <select
             value={vendedorAsignado}
             onChange={(e) => setVendedorAsignado(e.target.value)}
-            placeholder="Nombre del vendedor"
-            className="w-full rounded-md border px-3 py-2 text-sm"
-          />
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Sin asignar</option>
+            {vendedorOptions.map((v) => (
+              <option key={v.id} value={v.nombre}>
+                {v.nombre}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <div className="space-y-1 sm:col-span-2">

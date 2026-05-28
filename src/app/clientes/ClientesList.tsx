@@ -1,8 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import ClienteForm from './ClienteForm'
+import { useRouter } from 'next/navigation'
+import { Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import ClienteForm, { type VendedorOption } from './ClienteForm'
+import { eliminarCliente } from './actions'
 
 export type ClienteRow = {
   id: string
@@ -25,16 +29,23 @@ export type ClienteRow = {
 
 export default function ClientesList({
   clientes,
+  vendedores,
 }: {
   clientes: ClienteRow[]
+  vendedores: VendedorOption[]
 }) {
+  const router = useRouter()
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [showInactivos, setShowInactivos] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [isDeleting, startDelete] = useTransition()
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return clientes.filter((c) => {
+      if (deletedIds.has(c.id)) return false
       if (!showInactivos && !c.activo) return false
       if (!q) return true
       return (
@@ -45,7 +56,23 @@ export default function ClientesList({
         (c.vendedor_asignado?.toLowerCase().includes(q) ?? false)
       )
     })
-  }, [clientes, search, showInactivos])
+  }, [clientes, deletedIds, search, showInactivos])
+
+  function handleEliminar(cliente: ClienteRow) {
+    if (!window.confirm(`Eliminar cliente "${cliente.nombre}"?`)) return
+    setPendingDeleteId(cliente.id)
+    startDelete(async () => {
+      const res = await eliminarCliente(cliente.id)
+      setPendingDeleteId(null)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      setDeletedIds((prev) => new Set(prev).add(cliente.id))
+      toast.success('Cliente eliminado.')
+      router.refresh()
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -74,7 +101,12 @@ export default function ClientesList({
         </button>
       </div>
 
-      {showForm && <ClienteForm onDone={() => setShowForm(false)} />}
+      {showForm && (
+        <ClienteForm
+          vendedores={vendedores}
+          onDone={() => setShowForm(false)}
+        />
+      )}
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -88,16 +120,17 @@ export default function ClientesList({
                 <th className="px-4 py-3 font-medium">Mas pedidos</th>
                 <th className="px-4 py-3 font-medium">Pedidos</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
+                <th className="px-4 py-3 font-medium text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-10 text-center text-sm text-muted-foreground"
                   >
-                    {clientes.length === 0
+                    {clientes.length === deletedIds.size
                       ? 'Todavia no cargaste clientes.'
                       : 'No hay clientes con ese filtro.'}
                   </td>
@@ -153,6 +186,18 @@ export default function ClientesList({
                         <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">
                           {dias} {dias === 1 ? 'dia' : 'dias'}
                         </p>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleEliminar(c)}
+                          disabled={isDeleting && pendingDeleteId === c.id}
+                          className="inline-flex size-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                          aria-label={`Eliminar ${c.nombre}`}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
                       </td>
                     </tr>
                   )

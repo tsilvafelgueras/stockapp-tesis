@@ -1,11 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import DashboardBackButton from '@/components/DashboardBackButton'
+import type { VendedorOption } from './ClienteForm'
 import ClientesList, { type ClienteRow } from './ClientesList'
 
 export default async function ClientesPage() {
   const supabase = await createClient()
 
-  const [{ data: clientes }, { data: pedidos }] = await Promise.all([
+  const [
+    { data: clientes },
+    { data: pedidos },
+    { data: colores },
+    { data: vendedores },
+  ] = await Promise.all([
     supabase
       .from('clientes')
       .select(
@@ -34,12 +40,18 @@ export default async function ClientesPage() {
         pedido_rollos (
           rollos (
             kilos,
-            articulos ( nombre ),
-            colores ( nombre )
+            color_id,
+            articulos ( nombre )
           )
         )
       `
     ),
+    supabase.from('colores').select('id, nombre'),
+    supabase
+      .from('profiles')
+      .select('id, nombre')
+      .eq('role', 'ventas')
+      .order('nombre'),
   ])
 
   type PedidoClienteRow = {
@@ -50,8 +62,8 @@ export default async function ClientesPage() {
           rollos:
             | {
                 kilos: number | null
+                color_id: string | null
                 articulos: { nombre: string } | null
-                colores: { nombre: string } | null
               }
             | null
         }[]
@@ -59,9 +71,18 @@ export default async function ClientesPage() {
   }
 
   const pedidosRows = (pedidos ?? []) as unknown as PedidoClienteRow[]
+  const colorById = new Map(
+    ((colores ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c.nombre,
+    ])
+  )
 
   const countByCliente = new Map<string, number>()
-  const topByCliente = new Map<string, Map<string, { label: string; kilos: number; count: number }>>()
+  const topByCliente = new Map<
+    string,
+    Map<string, { label: string; kilos: number; count: number }>
+  >()
   for (const p of pedidosRows) {
     if (!p.cliente_id) continue
     countByCliente.set(p.cliente_id, (countByCliente.get(p.cliente_id) ?? 0) + 1)
@@ -72,7 +93,9 @@ export default async function ClientesPage() {
     for (const pr of p.pedido_rollos ?? []) {
       const articulo = pr.rollos?.articulos?.nombre
       if (!articulo) continue
-      const color = pr.rollos?.colores?.nombre
+      const color = pr.rollos?.color_id
+        ? colorById.get(pr.rollos.color_id)
+        : null
       const label = color ? `${articulo} ${color}` : articulo
       const current = inner.get(label) ?? { label, kilos: 0, count: 0 }
       current.kilos += Number(pr.rollos?.kilos ?? 0)
@@ -104,7 +127,10 @@ export default async function ClientesPage() {
         </p>
       </div>
 
-      <ClientesList clientes={rows} />
+      <ClientesList
+        clientes={rows}
+        vendedores={(vendedores ?? []) as VendedorOption[]}
+      />
     </div>
   )
 }

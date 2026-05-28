@@ -6,6 +6,7 @@ import ArticulosTabla from './ArticulosTabla'
 type Role = 'admin' | 'ventas' | 'operario' | 'super'
 
 type ArticuloColorRow = {
+  stock_minimo_kg: number | null
   colores: { id: string; nombre: string } | { id: string; nombre: string }[] | null
 }
 
@@ -32,7 +33,7 @@ export default async function ArticulosPage() {
       .from('articulos')
       .select(
         `id, nombre, descripcion, stock_minimo_kg,
-         articulo_colores(colores(id, nombre))`
+         articulo_colores(stock_minimo_kg, colores(id, nombre))`
       )
       .eq('activo', true)
       .order('created_at', { ascending: false }),
@@ -50,13 +51,21 @@ export default async function ArticulosPage() {
   // la cardinalidad detectada; lo aplastamos a `{ id, nombre }[]`.
   const articulos = (articulosRaw ?? []).map((a: ArticuloRow) => {
     const cols = (a.articulo_colores ?? [])
-      .map((ac) => (Array.isArray(ac.colores) ? ac.colores[0] : ac.colores))
-      .filter((c): c is { id: string; nombre: string } => !!c)
+      .map((ac) => {
+        const color = Array.isArray(ac.colores) ? ac.colores[0] : ac.colores
+        return color
+          ? { ...color, stock_minimo_kg: ac.stock_minimo_kg }
+          : null
+      })
+      .filter(
+        (c): c is { id: string; nombre: string; stock_minimo_kg: number | null } =>
+          !!c
+      )
     return {
       id: a.id,
       nombre: a.nombre,
       descripcion: a.descripcion,
-      stock_minimo_kg: a.stock_minimo_kg,
+      stock_minimo_kg: null,
       colores: cols,
     }
   })

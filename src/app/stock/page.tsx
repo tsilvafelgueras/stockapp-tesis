@@ -80,6 +80,7 @@ export default async function StockPage({
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   const colores = (coloresRaw ?? []) as { id: string; nombre: string }[]
+  const colorById = new Map(colores.map((c) => [c.id, c]))
 
   const lotes = Array.from(
     new Set(
@@ -110,8 +111,8 @@ export default async function StockPage({
         falla_descripcion,
         created_at,
         auditado_at,
+        color_id,
         articulos ( id, nombre ),
-        colores ( id, nombre ),
         ingresos!inner (
           id,
           fecha_despacho,
@@ -138,7 +139,15 @@ export default async function StockPage({
   if (sp.lote) query = query.eq('ingresos.numero_lote', sp.lote)
 
   const { data: rollosRaw, error } = await query
-  const rollos = (rollosRaw ?? []) as unknown as StockRollo[]
+  const rollos = ((rollosRaw ?? []) as unknown as (Omit<
+    StockRollo,
+    'colores'
+  > & {
+    color_id: string | null
+  })[]).map((r) => ({
+    ...r,
+    colores: r.color_id ? colorById.get(r.color_id) ?? null : null,
+  }))
 
   // Ordenamiento en cliente del set ya filtrado. El query usa
   // `created_at desc` como base; aquí lo reordenamos según la preferencia
@@ -147,13 +156,13 @@ export default async function StockPage({
 
   const { data: resumenRaw } = await supabase
     .from('rollos')
-    .select('kilos, articulos!inner ( nombre ), colores ( nombre )')
+    .select('kilos, color_id, articulos!inner ( nombre )')
     .eq('estado', 'en_stock')
 
   type ResumenRow = {
     kilos: number | null
+    color_id: string | null
     articulos: { nombre: string } | null
-    colores: { nombre: string } | null
   }
   const resumenRows = (resumenRaw ?? []) as unknown as ResumenRow[]
 
@@ -168,7 +177,7 @@ export default async function StockPage({
   >()
   for (const r of resumenRows) {
     const articulo = r.articulos?.nombre ?? '-'
-    const color = r.colores?.nombre ?? '-'
+    const color = r.color_id ? colorById.get(r.color_id)?.nombre ?? '-' : '-'
     const key = `${articulo}|||${color}`
     const prev = aggMap.get(key) ?? { articulo, color, kilos: 0 }
     prev.kilos += Number(r.kilos ?? 0)

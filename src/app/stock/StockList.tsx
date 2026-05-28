@@ -21,6 +21,7 @@ export type StockRollo = {
   falla_descripcion: string | null
   created_at: string
   auditado_at: string | null
+  color_id: string | null
   articulos: { id: string; nombre: string } | null
   colores: { id: string; nombre: string } | null
   ingresos: {
