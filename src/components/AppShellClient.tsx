@@ -300,8 +300,11 @@ export default function AppShellClient({
 
       {/* CONTENIDO */}
       <main
-        className="min-w-0 bg-background"
-        style={{ paddingTop: TOPBAR_HEIGHT }}
+        className="min-w-0 overflow-y-auto bg-background"
+        style={{
+          marginTop: TOPBAR_HEIGHT,
+          height: `calc(100dvh - ${TOPBAR_HEIGHT})`,
+        }}
       >
         <div
           className="app-shell-main"
@@ -341,7 +344,7 @@ function SidebarNav({
 }) {
   const pathname = usePathname()
   return (
-    <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-4">
+    <nav className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-2 py-4">
       <div className="space-y-5">
         {sections.map((section, i) => (
           <div key={i} className="space-y-1">
