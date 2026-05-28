@@ -15,7 +15,7 @@ export default async function EquipoPage() {
     .order('created_at', { ascending: true })
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div>
         <DashboardBackButton />
         <h1 className="text-2xl font-bold mt-1">Equipo</h1>
@@ -26,14 +26,14 @@ export default async function EquipoPage() {
 
       <InviteForm />
 
-      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="rounded-lg border bg-white shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-zinc-50 border-b">
             <tr className="text-left">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Rol</th>
-              <th className="px-4 py-3 font-medium">Alta</th>
-              <th className="px-4 py-3 font-medium w-44"></th>
+              <th className="px-4 py-3 font-medium whitespace-nowrap">Nombre</th>
+              <th className="px-4 py-3 font-medium whitespace-nowrap">Rol</th>
+              <th className="px-4 py-3 font-medium whitespace-nowrap">Alta</th>
+              <th className="px-4 py-3 font-medium"></th>
             </tr>
           </thead>
           <tbody>

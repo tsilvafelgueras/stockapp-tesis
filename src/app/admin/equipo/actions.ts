@@ -146,6 +146,45 @@ export async function updateUserRole(
   return { ok: true }
 }
 
+export async function updateUserName(
+  userId: string,
+  nuevoNombre: string
+): Promise<SimpleResult> {
+  const ctx = await requireAdminEnEmpresa()
+  if (!ctx.ok) return ctx
+
+  const nombre = nuevoNombre.trim()
+  if (!nombre) return { ok: false, error: 'El nombre es obligatorio.' }
+  if (nombre.length > 100) {
+    return { ok: false, error: 'El nombre es demasiado largo (máx 100 caracteres).' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: target } = await admin
+    .from('profiles')
+    .select('empresa_id, role')
+    .eq('id', userId)
+    .single()
+
+  if (!target || target.empresa_id !== ctx.empresa_id) {
+    return { ok: false, error: 'Usuario no encontrado.' }
+  }
+  if (target.role === 'super') {
+    return { ok: false, error: 'No podés editar este usuario.' }
+  }
+
+  const { error } = await admin
+    .from('profiles')
+    .update({ nombre })
+    .eq('id', userId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/admin/equipo')
+  return { ok: true }
+}
+
 export async function deleteUser(userId: string): Promise<SimpleResult> {
   const ctx = await requireAdminEnEmpresa()
   if (!ctx.ok) return ctx
