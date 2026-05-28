@@ -1,23 +1,47 @@
-import { createClient } from '@/lib/supabase/server'
-import BackButton from '@/components/BackButton'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import BackButton from '@/components/BackButton'
+import { createClient } from '@/lib/supabase/server'
 import ClienteForm from '../ClienteForm'
 import ClienteActions from './ClienteActions'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
   en_preparacion: {
-    text: 'En preparación',
+    text: 'En preparacion',
     className: 'bg-primary/15 text-primary',
   },
   lista: { text: 'Lista', className: 'bg-success/15 text-success' },
   confirmada_egreso: {
-    text: 'Egreso confirmado',
+    text: 'Salida confirmada',
     className: 'bg-primary/15 text-primary',
   },
   entregada: { text: 'Entregada', className: 'bg-zinc-100 text-zinc-700' },
-  cancelada: { text: 'Cancelada', className: 'bg-destructive/15 text-destructive' },
+  cancelada: {
+    text: 'Cancelada',
+    className: 'bg-destructive/15 text-destructive',
+  },
+}
+
+type PedidoRow = {
+  id: string
+  numero_pedido: string | null
+  estado: string
+  numero_remito_externo: string | null
+  numero_remito_salida: string | null
+  fecha_entrega_comprometida: string | null
+  created_at: string
+  pedido_rollos:
+    | {
+        rollos:
+          | {
+              kilos: number | null
+              articulos: { nombre: string } | null
+              colores: { nombre: string } | null
+            }
+          | null
+      }[]
+    | null
 }
 
 export default async function ClienteDetailPage({
@@ -44,26 +68,22 @@ export default async function ClienteDetailPage({
         numero_pedido,
         estado,
         numero_remito_externo,
+        numero_remito_salida,
+        fecha_entrega_comprometida,
         created_at,
-        pedido_rollos ( rollos ( kilos ) )
+        pedido_rollos (
+          rollos (
+            kilos,
+            articulos ( nombre ),
+            colores ( nombre )
+          )
+        )
       `
     )
     .eq('cliente_id', id)
     .order('created_at', { ascending: false })
 
-  type PedidoRow = {
-    id: string
-    numero_pedido: string | null
-    estado: string
-    numero_remito_externo: string | null
-    created_at: string
-    pedido_rollos:
-      | { rollos: { kilos: number | null } | null }[]
-      | null
-  }
   const pedidos = (pedidosRaw ?? []) as unknown as PedidoRow[]
-
-  // Totales (excluyendo cancelados)
   const totalKilos = pedidos
     .filter((p) => p.estado !== 'cancelada')
     .reduce(
@@ -81,6 +101,7 @@ export default async function ClienteDetailPage({
       p.estado
     )
   ).length
+  const topArticulos = calcularTopArticulos(pedidos)
 
   const fechaAlta = new Date(cliente.created_at).toLocaleDateString('es-AR')
 
@@ -91,13 +112,11 @@ export default async function ClienteDetailPage({
         <div className="flex flex-wrap items-center gap-2 mt-1">
           <h1 className="text-xl sm:text-2xl font-bold">{cliente.nombre}</h1>
           <span
-            className={`text-xs rounded-full px-2 py-0.5 ${
-              cliente.activo
-                ? 'bg-success/15 text-success'
-                : 'bg-zinc-200 text-zinc-600'
-            }`}
+            className={`text-xs rounded-full px-2 py-0.5 ${estadoClienteClass(
+              cliente.estado_cliente
+            )}`}
           >
-            {cliente.activo ? 'Activo' : 'Inactivo'}
+            {estadoClienteLabel(cliente.estado_cliente)}
           </span>
         </div>
       </div>
@@ -108,6 +127,7 @@ export default async function ClienteDetailPage({
         <Stat label="Entregados" value={String(entregados)} />
         <Stat label="En curso" value={String(enCurso)} />
       </div>
+
       <div className="rounded-lg border bg-white p-4 shadow-sm">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
           Kilos totales (entregados + en curso)
@@ -120,16 +140,44 @@ export default async function ClienteDetailPage({
         </p>
       </div>
 
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <h2 className="text-lg font-semibold">Resumen comercial</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Info label="CUIT/CUIL" value={cliente.cuit_cuil ?? '-'} />
+          <Info
+            label="Condicion de pago"
+            value={condicionPagoLabel(cliente.condicion_pago)}
+          />
+          <Info
+            label="Categoria de precio"
+            value={categoriaPrecioLabel(cliente.categoria_precio)}
+          />
+          <Info
+            label="Vendedor asignado"
+            value={cliente.vendedor_asignado ?? '-'}
+          />
+          <Info
+            label="Articulos mas pedidos"
+            value={topArticulos.length > 0 ? topArticulos.join(', ') : '-'}
+          />
+        </div>
+      </section>
+
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Datos de contacto</h2>
         <ClienteForm
           cliente={{
             id: cliente.id,
             nombre: cliente.nombre,
+            cuit_cuil: cliente.cuit_cuil,
             contacto: cliente.contacto,
             email: cliente.email,
             telefono: cliente.telefono,
             direccion: cliente.direccion,
+            condicion_pago: cliente.condicion_pago,
+            categoria_precio: cliente.categoria_precio,
+            estado_cliente: cliente.estado_cliente,
+            vendedor_asignado: cliente.vendedor_asignado,
             notas: cliente.notas,
           }}
         />
@@ -143,14 +191,15 @@ export default async function ClienteDetailPage({
         </h2>
         <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead className="bg-zinc-50 border-b">
                 <tr className="text-left">
-                  <th className="px-4 py-3 font-medium">N°</th>
+                  <th className="px-4 py-3 font-medium">Nro</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                   <th className="px-4 py-3 font-medium">Rollos</th>
                   <th className="px-4 py-3 font-medium">Kilos</th>
-                  <th className="px-4 py-3 font-medium">Remito</th>
+                  <th className="px-4 py-3 font-medium">Remitos</th>
+                  <th className="px-4 py-3 font-medium">Compromiso</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
                 </tr>
               </thead>
@@ -158,10 +207,10 @@ export default async function ClienteDetailPage({
                 {pedidos.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-4 py-8 text-center text-sm text-muted-foreground"
                     >
-                      Este cliente todavía no tiene pedidos.
+                      Este cliente todavia no tiene pedidos.
                     </td>
                   </tr>
                 ) : (
@@ -175,13 +224,16 @@ export default async function ClienteDetailPage({
                     const estado =
                       ESTADO_LABEL[p.estado] ?? ESTADO_LABEL.pendiente
                     return (
-                      <tr key={p.id} className="border-b last:border-0 hover:bg-zinc-50">
+                      <tr
+                        key={p.id}
+                        className="border-b last:border-0 hover:bg-zinc-50"
+                      >
                         <td className="px-4 py-3">
                           <Link
                             href={`/pedidos/${p.id}`}
                             className="font-medium hover:underline"
                           >
-                            {p.numero_pedido ?? '—'}
+                            {p.numero_pedido ?? '-'}
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
@@ -189,10 +241,22 @@ export default async function ClienteDetailPage({
                         </td>
                         <td className="px-4 py-3 tabular-nums">{cantidad}</td>
                         <td className="px-4 py-3 tabular-nums">
-                          {kilos > 0 ? `${kilos.toFixed(2)} kg` : '—'}
+                          {kilos > 0 ? `${kilos.toFixed(2)} kg` : '-'}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {p.numero_remito_externo ?? '—'}
+                          <div>{p.numero_remito_externo ?? '-'}</div>
+                          {p.numero_remito_salida && (
+                            <div className="text-xs">
+                              Salida: {p.numero_remito_salida}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {p.fecha_entrega_comprometida
+                            ? new Date(
+                                p.fecha_entrega_comprometida
+                              ).toLocaleDateString('es-AR')
+                            : '-'}
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -223,4 +287,79 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="text-xl font-bold mt-1 tabular-nums">{value}</p>
     </div>
   )
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-medium mt-0.5">{value}</p>
+    </div>
+  )
+}
+
+function calcularTopArticulos(pedidos: PedidoRow[]): string[] {
+  const map = new Map<string, { label: string; kilos: number; count: number }>()
+  for (const p of pedidos) {
+    if (p.estado === 'cancelada') continue
+    for (const pr of p.pedido_rollos ?? []) {
+      const articulo = pr.rollos?.articulos?.nombre
+      if (!articulo) continue
+      const color = pr.rollos?.colores?.nombre
+      const label = color ? `${articulo} ${color}` : articulo
+      const current = map.get(label) ?? { label, kilos: 0, count: 0 }
+      current.kilos += Number(pr.rollos?.kilos ?? 0)
+      current.count += 1
+      map.set(label, current)
+    }
+  }
+  return Array.from(map.values())
+    .sort((a, b) => {
+      if (b.kilos !== a.kilos) return b.kilos - a.kilos
+      return b.count - a.count
+    })
+    .slice(0, 3)
+    .map((row) => row.label)
+}
+
+function condicionPagoLabel(value: string | null): string {
+  switch (value) {
+    case 'contado':
+      return 'Contado'
+    case 'cuenta_corriente':
+      return 'Cuenta corriente'
+    case '30_dias':
+      return '30 dias'
+    case '60_dias':
+      return '60 dias'
+    case '90_dias':
+      return '90 dias'
+    default:
+      return 'Sin definir'
+  }
+}
+
+function categoriaPrecioLabel(value: string | null): string {
+  switch (value) {
+    case 'minorista':
+      return 'Minorista'
+    case 'mayorista':
+      return 'Mayorista'
+    case 'precio_especial':
+      return 'Precio especial'
+    default:
+      return 'Sin categoria'
+  }
+}
+
+function estadoClienteLabel(value: string | null): string {
+  if (value === 'potencial') return 'Potencial'
+  if (value === 'inactivo') return 'Inactivo'
+  return 'Activo'
+}
+
+function estadoClienteClass(value: string | null): string {
+  if (value === 'potencial') return 'bg-warning/15 text-warning'
+  if (value === 'inactivo') return 'bg-zinc-200 text-zinc-600'
+  return 'bg-success/15 text-success'
 }

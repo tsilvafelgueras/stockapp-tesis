@@ -3,6 +3,8 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
 import { RotateCcw, Search } from 'lucide-react'
+import SearchableCombobox from '@/components/SearchableCombobox'
+import { UBICACIONES } from '@/lib/ubicaciones'
 
 type Catalogo = { id: string; nombre: string }
 
@@ -18,13 +20,15 @@ export type StockFiltersState = {
 }
 
 export const ORDEN_OPCIONES: { value: string; label: string }[] = [
-  { value: 'reciente', label: 'Ingreso (más reciente primero)' },
-  { value: 'antiguo', label: 'Ingreso (más antiguo primero)' },
+  { value: 'reciente', label: 'Ingreso (mas reciente primero)' },
+  { value: 'antiguo', label: 'Ingreso (mas antiguo primero)' },
   { value: 'kilos_desc', label: 'Kilos (mayor a menor)' },
   { value: 'kilos_asc', label: 'Kilos (menor a mayor)' },
-  { value: 'articulo_asc', label: 'Artículo (A-Z)' },
-  { value: 'articulo_desc', label: 'Artículo (Z-A)' },
+  { value: 'articulo_asc', label: 'Articulo (A-Z)' },
+  { value: 'articulo_desc', label: 'Articulo (Z-A)' },
 ]
+
+const UBICACION_OPTIONS = UBICACIONES.map((u) => ({ value: u, label: u }))
 
 export default function StockFilters({
   articulos,
@@ -98,7 +102,7 @@ export default function StockFilters({
           />
         </Field>
 
-        <Field label="Artículo">
+        <Field label="Articulo">
           <select
             value={current.articulo}
             onChange={(e) => update('articulo', e.target.value)}
@@ -143,7 +147,7 @@ export default function StockFilters({
           </select>
         </Field>
 
-        <Field label="Tintorería">
+        <Field label="Tintoreria">
           <select
             value={current.tintoreria}
             onChange={(e) => update('tintoreria', e.target.value)}
@@ -158,23 +162,14 @@ export default function StockFilters({
           </select>
         </Field>
 
-        <Field label="Ubicación">
-          <input
-            type="text"
-            defaultValue={current.ubicacion}
-            onBlur={(e) => {
-              if (e.target.value !== current.ubicacion) {
-                update('ubicacion', e.target.value)
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                update('ubicacion', (e.target as HTMLInputElement).value)
-              }
-            }}
-            placeholder="Ej. A42"
-            className="w-full rounded-md border px-3 py-2 text-sm"
+        <Field label="Ubicacion">
+          <SearchableCombobox
+            value={current.ubicacion}
+            onChange={(value) => update('ubicacion', value)}
+            options={withCurrentUbicacion(current.ubicacion)}
+            placeholder="Todas"
+            searchPlaceholder="Buscar ubicacion..."
+            emptyLabel="No hay ubicaciones"
           />
         </Field>
 
@@ -228,6 +223,13 @@ export default function StockFilters({
       </div>
     </form>
   )
+}
+
+function withCurrentUbicacion(current: string) {
+  if (!current || UBICACION_OPTIONS.some((o) => o.value === current)) {
+    return UBICACION_OPTIONS
+  }
+  return [{ value: current, label: current }, ...UBICACION_OPTIONS]
 }
 
 function Field({

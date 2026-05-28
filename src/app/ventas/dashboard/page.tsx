@@ -25,7 +25,7 @@ const actions: {
   {
     href: '/pedidos',
     title: 'Pedidos abiertos',
-    description: 'Seguí pendientes, preparación y ventas confirmadas.',
+    description: 'Seguí pendientes, preparación, salidas y demoras.',
     icon: Clock3,
   },
   {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import RolloDetailDialog from './RolloDetailDialog'
 
 export type StockRollo = {
@@ -39,11 +39,23 @@ export type StockRole = 'operario' | 'ventas' | 'admin'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-amber-50 text-warning' },
-  en_stock: { text: 'En stock', className: 'bg-green-50 text-success' },
+  en_stock: { text: 'Libre', className: 'bg-green-50 text-success' },
   reservado: { text: 'Reservado', className: 'bg-blue-50 text-action' },
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
   baja: { text: 'Baja', className: 'bg-red-50 text-destructive' },
   segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
+}
+
+type SummaryGroup = {
+  key: string
+  articulo: string
+  color: string
+  rollos: number
+  kilos: number
+  libres: number
+  kilosLibres: number
+  reservados: number
+  kilosReservados: number
 }
 
 export default function StockList({
@@ -57,7 +69,9 @@ export default function StockList({
   const [selectedIntent, setSelectedIntent] = useState<'view' | 'editar'>(
     'view'
   )
+  const [viewMode, setViewMode] = useState<'detalle' | 'resumen'>('detalle')
   const puedeEditarRollos = role === 'operario' || role === 'admin'
+  const summary = useMemo(() => agruparResumen(rollos), [rollos])
 
   function abrir(r: StockRollo, intent: 'view' | 'editar' = 'view') {
     setSelectedIntent(intent)
@@ -74,185 +88,236 @@ export default function StockList({
 
   return (
     <>
-      <div className="space-y-3 sm:hidden">
-        {rollos.map((r) => {
-          const estado = ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
-          const dias = diasEnInventario(r.created_at)
-          return (
-            <div
-              key={r.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => abrir(r, 'view')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  abrir(r, 'view')
-                }
-              }}
-              className="block w-full cursor-pointer rounded-lg border bg-white p-4 text-left shadow-sm active:scale-[0.99]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <FabricSwatch rollo={r} />
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">Pieza {r.numero_pieza}</p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {r.articulos?.nombre ?? '-'}
-                      {r.colores?.nombre ? ` - ${r.colores.nombre}` : ''}
-                    </p>
-                    {r.ingresos?.numero_lote && (
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {r.ingresos.numero_lote}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
-                >
-                  {estado.text}
-                </span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                {r.kilos != null && (
-                  <span className="tabular-nums">
-                    {Number(r.kilos).toFixed(2)} kg
-                  </span>
-                )}
-                {r.ubicacion && <span>Ubic: {r.ubicacion}</span>}
-                {r.ingresos?.tintorerias?.nombre && (
-                  <span className="truncate">{r.ingresos.tintorerias.nombre}</span>
-                )}
-                <span className="tabular-nums">
-                  Ingresó {formatFechaCorta(r.created_at)} · {dias}{' '}
-                  {dias === 1 ? 'día' : 'días'} en inventario
-                </span>
-              </div>
-              {(puedeEditarRollos || r.estado === 'segunda') && (
-                <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  {puedeEditarRollos && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        abrir(r, 'editar')
-                      }}
-                      className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-3 py-1 text-xs font-medium hover:bg-zinc-50"
-                    >
-                      Editar
-                    </button>
-                  )}
-                  {r.estado === 'segunda' && (
-                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                      Ver detalle de falla
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="hidden overflow-hidden rounded-lg border bg-white shadow-sm sm:block">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
-            <thead className="border-b bg-muted">
-              <tr className="text-left">
-                <th className="w-12 px-3 py-3 font-medium"></th>
-                <th className="px-3 py-3 font-medium">Pieza</th>
-                <th className="px-3 py-3 font-medium">Lote</th>
-                <th className="px-3 py-3 font-medium">Articulo</th>
-                <th className="px-3 py-3 font-medium">Color</th>
-                <th className="px-3 py-3 font-medium">Kilos</th>
-                <th className="px-3 py-3 font-medium">Metros</th>
-                <th className="px-3 py-3 font-medium">Ubicacion</th>
-                <th className="px-3 py-3 font-medium">Tintoreria</th>
-                <th className="px-3 py-3 font-medium">Ingreso</th>
-                <th className="px-3 py-3 font-medium">Días</th>
-                <th className="px-3 py-3 font-medium">Estado</th>
-                <th className="px-3 py-3 font-medium w-24"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rollos.map((r) => {
-                const estado = ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
-                const dias = diasEnInventario(r.created_at)
-                const esSegunda = r.estado === 'segunda'
-                return (
-                  <tr
-                    key={r.id}
-                    onClick={() => abrir(r, 'view')}
-                    className="cursor-pointer border-b odd:bg-white even:bg-background/70 last:border-0 hover:bg-accent/55"
-                  >
-                    <td className="px-3 py-3">
-                      <FabricSwatch rollo={r} />
-                    </td>
-                    <td className="px-3 py-3 font-medium">{r.numero_pieza}</td>
-                    <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
-                      {r.ingresos?.numero_lote ?? '-'}
-                    </td>
-                    <td className="px-3 py-3">{r.articulos?.nombre ?? '-'}</td>
-                    <td className="px-3 py-3">{r.colores?.nombre ?? '-'}</td>
-                    <td className="px-3 py-3 tabular-nums">
-                      {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
-                    </td>
-                    <td className="px-3 py-3 tabular-nums">
-                      {r.metros != null ? Number(r.metros).toFixed(2) : '-'}
-                    </td>
-                    <td className="px-3 py-3">{r.ubicacion ?? '-'}</td>
-                    <td className="px-3 py-3 text-muted-foreground">
-                      {r.ingresos?.tintorerias?.nombre ?? '-'}
-                    </td>
-                    <td className="px-3 py-3 tabular-nums text-muted-foreground">
-                      {formatFechaCorta(r.created_at)}
-                    </td>
-                    <td className="px-3 py-3 tabular-nums text-muted-foreground">
-                      {dias}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
-                      >
-                        {estado.text}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <div className="flex flex-nowrap items-center justify-end gap-1.5">
-                        {puedeEditarRollos && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              abrir(r, 'editar')
-                            }}
-                            className="whitespace-nowrap rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium hover:bg-zinc-50"
-                          >
-                            Editar
-                          </button>
-                        )}
-                        {esSegunda && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              abrir(r, 'view')
-                            }}
-                            className="whitespace-nowrap rounded-md border border-amber-400/40 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50"
-                          >
-                            Detalle
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          {viewMode === 'detalle'
+            ? `${rollos.length} rollos en la vista`
+            : `${summary.length} combinaciones articulo/color`}
+        </p>
+        <div className="inline-flex rounded-md border bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setViewMode('detalle')}
+            className={`rounded px-3 py-1.5 text-sm font-medium ${
+              viewMode === 'detalle'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Rollo por rollo
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('resumen')}
+            className={`rounded px-3 py-1.5 text-sm font-medium ${
+              viewMode === 'resumen'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Resumen
+          </button>
         </div>
       </div>
+
+      {viewMode === 'resumen' ? (
+        <ResumenStock grupos={summary} />
+      ) : (
+        <>
+          <div className="space-y-3 sm:hidden">
+            {rollos.map((r) => {
+              const estado = ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
+              const dias = diasEnInventario(r.created_at)
+              return (
+                <div
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => abrir(r, 'view')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      abrir(r, 'view')
+                    }
+                  }}
+                  className="block w-full cursor-pointer rounded-lg border bg-white p-4 text-left shadow-sm active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <FabricSwatch rollo={r} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          Pieza {r.numero_pieza}
+                        </p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {r.articulos?.nombre ?? '-'}
+                          {r.colores?.nombre ? ` - ${r.colores.nombre}` : ''}
+                        </p>
+                        {r.ingresos?.numero_lote && (
+                          <p className="font-mono text-xs text-muted-foreground">
+                            {r.ingresos.numero_lote}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
+                    >
+                      {estado.text}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {r.kilos != null && (
+                      <span className="tabular-nums">
+                        {Number(r.kilos).toFixed(2)} kg
+                      </span>
+                    )}
+                    {r.ubicacion && <span>Ubic: {r.ubicacion}</span>}
+                    {r.ingresos?.tintorerias?.nombre && (
+                      <span className="truncate">
+                        {r.ingresos.tintorerias.nombre}
+                      </span>
+                    )}
+                    <span className="tabular-nums">
+                      Ingreso {formatFechaCorta(r.created_at)} - {dias}{' '}
+                      {dias === 1 ? 'dia' : 'dias'} de inventario
+                    </span>
+                  </div>
+                  {(puedeEditarRollos || r.estado === 'segunda') && (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      {puedeEditarRollos && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            abrir(r, 'editar')
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-3 py-1 text-xs font-medium hover:bg-zinc-50"
+                        >
+                          Editar
+                        </button>
+                      )}
+                      {r.estado === 'segunda' && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                          Ver detalle de falla
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-lg border bg-white shadow-sm sm:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1040px] text-sm">
+                <thead className="border-b bg-muted">
+                  <tr className="text-left">
+                    <th className="w-12 px-3 py-3 font-medium"></th>
+                    <th className="px-3 py-3 font-medium">Pieza</th>
+                    <th className="px-3 py-3 font-medium">Disponibilidad</th>
+                    <th className="px-3 py-3 font-medium">Lote</th>
+                    <th className="px-3 py-3 font-medium">Articulo</th>
+                    <th className="px-3 py-3 font-medium">Color</th>
+                    <th className="px-3 py-3 font-medium">Kilos</th>
+                    <th className="px-3 py-3 font-medium">Metros</th>
+                    <th className="px-3 py-3 font-medium">Ubicacion</th>
+                    <th className="px-3 py-3 font-medium">Tintoreria</th>
+                    <th className="px-3 py-3 font-medium">Ingreso</th>
+                    <th className="px-3 py-3 font-medium">
+                      Dias de inventario
+                    </th>
+                    <th className="px-3 py-3 font-medium w-24"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rollos.map((r) => {
+                    const estado =
+                      ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
+                    const dias = diasEnInventario(r.created_at)
+                    const esSegunda = r.estado === 'segunda'
+                    return (
+                      <tr
+                        key={r.id}
+                        onClick={() => abrir(r, 'view')}
+                        className="cursor-pointer border-b odd:bg-white even:bg-background/70 last:border-0 hover:bg-accent/55"
+                      >
+                        <td className="px-3 py-3">
+                          <FabricSwatch rollo={r} />
+                        </td>
+                        <td className="px-3 py-3 font-medium">
+                          {r.numero_pieza}
+                        </td>
+                        <td className="px-3 py-3">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
+                          >
+                            {estado.text}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
+                          {r.ingresos?.numero_lote ?? '-'}
+                        </td>
+                        <td className="px-3 py-3">
+                          {r.articulos?.nombre ?? '-'}
+                        </td>
+                        <td className="px-3 py-3">
+                          {r.colores?.nombre ?? '-'}
+                        </td>
+                        <td className="px-3 py-3 tabular-nums">
+                          {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
+                        </td>
+                        <td className="px-3 py-3 tabular-nums">
+                          {r.metros != null ? Number(r.metros).toFixed(2) : '-'}
+                        </td>
+                        <td className="px-3 py-3">{r.ubicacion ?? '-'}</td>
+                        <td className="px-3 py-3 text-muted-foreground">
+                          {r.ingresos?.tintorerias?.nombre ?? '-'}
+                        </td>
+                        <td className="px-3 py-3 tabular-nums text-muted-foreground">
+                          {formatFechaCorta(r.created_at)}
+                        </td>
+                        <td className="px-3 py-3 tabular-nums text-muted-foreground">
+                          {dias}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                            {puedeEditarRollos && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  abrir(r, 'editar')
+                                }}
+                                className="whitespace-nowrap rounded-md border border-input bg-white px-2.5 py-1 text-xs font-medium hover:bg-zinc-50"
+                              >
+                                Editar
+                              </button>
+                            )}
+                            {esSegunda && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  abrir(r, 'view')
+                                }}
+                                className="whitespace-nowrap rounded-md border border-amber-400/40 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                              >
+                                Detalle
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {selected && (
         <RolloDetailDialog
@@ -265,6 +330,99 @@ export default function StockList({
       )}
     </>
   )
+}
+
+function ResumenStock({ grupos }: { grupos: SummaryGroup[] }) {
+  return (
+    <>
+      <div className="space-y-3 sm:hidden">
+        {grupos.map((g) => (
+          <div key={g.key} className="rounded-lg border bg-white p-4 shadow-sm">
+            <p className="font-medium">{g.articulo}</p>
+            <p className="text-sm text-muted-foreground">{g.color}</p>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span>{g.rollos} rollos</span>
+              <span>{g.kilos.toFixed(2)} kg total</span>
+              <span>{g.kilosLibres.toFixed(2)} kg libres</span>
+              <span>{g.kilosReservados.toFixed(2)} kg reservados</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-lg border bg-white shadow-sm sm:block">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b bg-muted">
+              <tr className="text-left">
+                <th className="px-3 py-3 font-medium">Articulo</th>
+                <th className="px-3 py-3 font-medium">Color</th>
+                <th className="px-3 py-3 font-medium">Rollos</th>
+                <th className="px-3 py-3 font-medium">Kg total</th>
+                <th className="px-3 py-3 font-medium">Libre</th>
+                <th className="px-3 py-3 font-medium">Reservado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grupos.map((g) => (
+                <tr key={g.key} className="border-b last:border-0">
+                  <td className="px-3 py-3 font-medium">{g.articulo}</td>
+                  <td className="px-3 py-3">{g.color}</td>
+                  <td className="px-3 py-3 tabular-nums">{g.rollos}</td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {g.kilos.toFixed(2)} kg
+                  </td>
+                  <td className="px-3 py-3 tabular-nums text-success">
+                    {g.libres} rollos - {g.kilosLibres.toFixed(2)} kg
+                  </td>
+                  <td className="px-3 py-3 tabular-nums text-action">
+                    {g.reservados} rollos - {g.kilosReservados.toFixed(2)} kg
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function agruparResumen(rollos: StockRollo[]): SummaryGroup[] {
+  const map = new Map<string, SummaryGroup>()
+  for (const r of rollos) {
+    const articulo = r.articulos?.nombre ?? '-'
+    const color = r.colores?.nombre ?? '-'
+    const key = `${articulo}|||${color}`
+    const kilos = Number(r.kilos ?? 0)
+    const group =
+      map.get(key) ??
+      {
+        key,
+        articulo,
+        color,
+        rollos: 0,
+        kilos: 0,
+        libres: 0,
+        kilosLibres: 0,
+        reservados: 0,
+        kilosReservados: 0,
+      }
+    group.rollos += 1
+    group.kilos += kilos
+    if (r.estado === 'reservado') {
+      group.reservados += 1
+      group.kilosReservados += kilos
+    } else if (r.estado === 'en_stock') {
+      group.libres += 1
+      group.kilosLibres += kilos
+    }
+    map.set(key, group)
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    if (b.kilos !== a.kilos) return b.kilos - a.kilos
+    return a.articulo.localeCompare(b.articulo, 'es')
+  })
 }
 
 function formatFechaCorta(iso: string): string {
@@ -280,8 +438,7 @@ function formatFechaCorta(iso: string): string {
 function diasEnInventario(iso: string): number {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return 0
-  const ahora = Date.now()
-  const diffMs = ahora - d.getTime()
+  const diffMs = Date.now() - d.getTime()
   if (diffMs < 0) return 0
   return Math.floor(diffMs / (1000 * 60 * 60 * 24))
 }

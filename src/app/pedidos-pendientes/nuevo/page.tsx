@@ -5,11 +5,29 @@ import NuevaDemandaForm from './NuevaDemandaForm'
 export default async function NuevaDemandaPage() {
   const supabase = await createClient()
 
-  const { data: articulos } = await supabase
-    .from('articulos')
-    .select('id, nombre')
-    .eq('activo', true)
-    .order('nombre')
+  const [
+    { data: clientes },
+    { data: articulos },
+    { data: colores },
+    { data: articuloColores },
+  ] = await Promise.all([
+    supabase
+      .from('clientes')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('articulos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase
+      .from('colores')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
+    supabase.from('articulo_colores').select('articulo_id, color_id'),
+  ])
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
@@ -21,7 +39,12 @@ export default async function NuevaDemandaPage() {
         </p>
       </div>
 
-      <NuevaDemandaForm articulos={articulos ?? []} />
+      <NuevaDemandaForm
+        clientes={clientes ?? []}
+        articulos={articulos ?? []}
+        colores={colores ?? []}
+        articuloColores={articuloColores ?? []}
+      />
     </div>
   )
 }

@@ -9,14 +9,15 @@ export type PedidosFiltersState = {
   desde: string
   hasta: string
   q: string
+  demorados: string
 }
 
 const ESTADO_OPCIONES: Array<{ value: string; label: string }> = [
   { value: '', label: 'Todos' },
   { value: 'pendiente', label: 'Pendientes' },
-  { value: 'en_preparacion', label: 'En preparación' },
-  { value: 'lista', label: 'Lista (esperando egreso)' },
-  { value: 'confirmada_egreso', label: 'Egreso confirmado' },
+  { value: 'en_preparacion', label: 'En preparacion' },
+  { value: 'lista', label: 'Lista (esperando salida)' },
+  { value: 'confirmada_egreso', label: 'Salida confirmada' },
   { value: 'entregada', label: 'Entregados' },
   { value: 'cancelada', label: 'Cancelados' },
 ]
@@ -36,6 +37,8 @@ export default function PedidosFilters({
     const params = new URLSearchParams(sp.toString())
     if (value) params.set(field, value)
     else params.delete(field)
+    if (field === 'estado' && value) params.delete('demorados')
+    if (field === 'demorados' && value) params.delete('estado')
     const qs = params.toString()
     startTransition(() => {
       router.replace(qs ? `/pedidos?${qs}` : '/pedidos')
@@ -53,14 +56,31 @@ export default function PedidosFilters({
     !!current.estado ||
     !!current.desde ||
     !!current.hasta ||
-    !!current.q
+    !!current.q ||
+    current.demorados === '1'
 
   return (
     <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            update('demorados', current.demorados === '1' ? '' : '1')
+          }
+          className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+            current.demorados === '1'
+              ? 'border-destructive/40 bg-destructive/10 text-destructive'
+              : 'bg-white text-muted-foreground hover:bg-zinc-50'
+          }`}
+        >
+          Pedidos demorados
+        </button>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">
-            Buscar N° pedido / remito
+            Buscar Nro pedido / remito
           </label>
           <input
             type="text"
@@ -102,9 +122,10 @@ export default function PedidosFilters({
             Estado
           </label>
           <select
-            value={current.estado}
+            value={current.demorados === '1' ? '' : current.estado}
             onChange={(e) => update('estado', e.target.value)}
             className="w-full rounded-md border px-3 py-2 text-sm bg-white"
+            disabled={current.demorados === '1'}
           >
             {ESTADO_OPCIONES.map((o) => (
               <option key={o.value} value={o.value}>
@@ -141,7 +162,7 @@ export default function PedidosFilters({
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          {pending ? 'Aplicando filtros…' : 'Los filtros se aplican al cambiar.'}
+          {pending ? 'Aplicando filtros...' : 'Los filtros se aplican al cambiar.'}
         </p>
         {hasFilters && (
           <button

@@ -133,7 +133,7 @@ export default async function StockPage({
     query = query.eq('ingresos.tintoreria_id', sp.tintoreria)
   }
   if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
-  if (sp.ubicacion) query = query.ilike('ubicacion', `%${sp.ubicacion.trim()}%`)
+  if (sp.ubicacion) query = query.eq('ubicacion', sp.ubicacion.trim())
   if (sp.color) query = query.eq('color_id', sp.color)
   if (sp.lote) query = query.eq('ingresos.numero_lote', sp.lote)
 

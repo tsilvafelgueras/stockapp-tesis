@@ -1,18 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
-import BackButton from '@/components/BackButton'
 import { notFound } from 'next/navigation'
+import BackButton from '@/components/BackButton'
+import { createClient } from '@/lib/supabase/server'
 import { formatArticulos } from '@/lib/utils'
 import PedidoActions from './PedidoActions'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
   en_preparacion: {
-    text: 'En preparación',
+    text: 'En preparacion',
     className: 'bg-primary/15 text-primary',
   },
-  lista: { text: 'Lista (esperando egreso)', className: 'bg-success/15 text-success' },
+  lista: {
+    text: 'Lista (esperando salida)',
+    className: 'bg-success/15 text-success',
+  },
   confirmada_egreso: {
-    text: 'Egreso confirmado',
+    text: 'Salida confirmada',
     className: 'bg-primary/15 text-primary',
   },
   entregada: { text: 'Entregada', className: 'bg-zinc-100 text-zinc-700' },
@@ -29,6 +32,24 @@ const ESTADO_ROLLO: Record<string, { text: string; className: string }> = {
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
   baja: { text: 'Baja', className: 'bg-destructive/15 text-destructive' },
   segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
+}
+
+type RolloRow = {
+  id: string
+  pickeado_at: string | null
+  rollos: {
+    id: string
+    numero_pieza: string
+    ubicacion: string | null
+    kilos: number | null
+    metros: number | null
+    estado: string
+    articulos: { nombre: string } | null
+    colores: { nombre: string } | null
+    ingresos: {
+      tintorerias: { nombre: string } | null
+    } | null
+  } | null
 }
 
 export default async function PedidoDetailPage({
@@ -60,7 +81,14 @@ export default async function PedidoDetailPage({
         numero_pedido,
         cliente,
         numero_remito_externo,
+        numero_remito_salida,
+        fecha_entrega_comprometida,
+        salida_comentario,
+        confirmada_egreso_at,
         estado,
+        caida_motivo,
+        caida_comentario,
+        caida_at,
         created_at
       `
     )
@@ -90,37 +118,24 @@ export default async function PedidoDetailPage({
     )
     .eq('pedido_id', id)
 
-  type RolloRow = {
-    id: string
-    pickeado_at: string | null
-    rollos: {
-      id: string
-      numero_pieza: string
-      ubicacion: string | null
-      kilos: number | null
-      metros: number | null
-      estado: string
-      articulos: { nombre: string } | null
-      colores: { nombre: string } | null
-      ingresos: {
-        tintorerias: { nombre: string } | null
-      } | null
-    } | null
-  }
   const rows = (prRaw ?? []) as unknown as RolloRow[]
-
   const totalKilos = rows.reduce(
     (acc, r) => acc + Number(r.rollos?.kilos ?? 0),
     0
   )
-  const estado =
-    ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
+  const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const demorado =
+    !!pedido.fecha_entrega_comprometida &&
+    ['pendiente', 'en_preparacion', 'lista'].includes(pedido.estado) &&
+    pedido.fecha_entrega_comprometida < hoy.toISOString().slice(0, 10)
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       {creado === '1' && (
         <div className="rounded-lg border bg-success/10 border-success/30 px-4 py-3 text-sm text-foreground">
-          ✓ Pedido creado correctamente con {rows.length}{' '}
+          Pedido creado correctamente con {rows.length}{' '}
           {rows.length === 1 ? 'rollo reservado' : 'rollos reservados'}.
         </div>
       )}
@@ -129,20 +144,25 @@ export default async function PedidoDetailPage({
         <BackButton href="/pedidos" label="Volver a pedidos" />
         <div className="flex flex-wrap items-center gap-3 mt-1">
           <h1 className="text-xl sm:text-2xl font-bold">
-            Pedido {pedido.numero_pedido ?? '—'}
+            Pedido {pedido.numero_pedido ?? '-'}
           </h1>
           <span
             className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}
           >
             {estado.text}
           </span>
+          {demorado && (
+            <span className="text-xs rounded-full px-2 py-0.5 bg-destructive/15 text-destructive">
+              Demorado
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <Field label="Cliente" value={pedido.cliente} />
         <Field
-          label="Artículo"
+          label="Articulo"
           value={formatArticulos(rows.map((r) => r.rollos?.articulos?.nombre))}
         />
         <Field
@@ -150,16 +170,58 @@ export default async function PedidoDetailPage({
           value={new Date(pedido.created_at).toLocaleDateString('es-AR')}
         />
         <Field
-          label="N° Remito externo"
-          value={pedido.numero_remito_externo ?? '—'}
+          label="Compromiso"
+          value={
+            pedido.fecha_entrega_comprometida
+              ? new Date(
+                  pedido.fecha_entrega_comprometida
+                ).toLocaleDateString('es-AR')
+              : '-'
+          }
+        />
+        <Field
+          label="Remito externo"
+          value={pedido.numero_remito_externo ?? '-'}
+        />
+        <Field
+          label="Remito salida"
+          value={pedido.numero_remito_salida ?? '-'}
         />
         <Field
           label="Total"
           value={`${rows.length} ${
             rows.length === 1 ? 'rollo' : 'rollos'
-          } · ${totalKilos.toFixed(2)} kg`}
+          } - ${totalKilos.toFixed(2)} kg`}
+        />
+        <Field
+          label="Salida confirmada"
+          value={
+            pedido.confirmada_egreso_at
+              ? new Date(pedido.confirmada_egreso_at).toLocaleString('es-AR')
+              : '-'
+          }
         />
       </div>
+
+      {pedido.salida_comentario && (
+        <Note title="Comentario de salida" text={pedido.salida_comentario} />
+      )}
+      {pedido.estado === 'cancelada' && (
+        <Note
+          title="Caida del pedido"
+          text={[
+            pedido.caida_motivo ? motivoCaidaLabel(pedido.caida_motivo) : null,
+            pedido.caida_comentario,
+            pedido.caida_at
+              ? `Registrada el ${new Date(pedido.caida_at).toLocaleString(
+                  'es-AR'
+                )}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' - ')}
+        />
+      )}
 
       {role && (
         <PedidoActions
@@ -176,7 +238,6 @@ export default async function PedidoDetailPage({
           </h2>
         </div>
 
-        {/* Mobile */}
         <div className="sm:hidden divide-y">
           {rows.length > 0 ? (
             rows.map((r) => {
@@ -191,8 +252,10 @@ export default async function PedidoDetailPage({
                         Pieza {r.rollos.numero_pieza}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {r.rollos.articulos?.nombre ?? '—'}
-                        {r.rollos.colores?.nombre ? ` · ${r.rollos.colores.nombre}` : ''}
+                        {r.rollos.articulos?.nombre ?? '-'}
+                        {r.rollos.colores?.nombre
+                          ? ` - ${r.rollos.colores.nombre}`
+                          : ''}
                       </p>
                     </div>
                     <span
@@ -205,13 +268,13 @@ export default async function PedidoDetailPage({
                     <span className="tabular-nums">
                       {r.rollos.kilos != null
                         ? `${Number(r.rollos.kilos).toFixed(2)} kg`
-                        : '—'}
+                        : '-'}
                     </span>
                     {r.rollos.ubicacion && (
                       <span>Ubic: {r.rollos.ubicacion}</span>
                     )}
                     {r.pickeado_at && (
-                      <span className="text-success">✓ Pickeado</span>
+                      <span className="text-success">Pickeado</span>
                     )}
                   </div>
                 </div>
@@ -224,16 +287,15 @@ export default async function PedidoDetailPage({
           )}
         </div>
 
-        {/* Desktop */}
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b text-left">
               <tr>
                 <th className="px-4 py-2 font-medium">Pieza</th>
-                <th className="px-4 py-2 font-medium">Artículo</th>
+                <th className="px-4 py-2 font-medium">Articulo</th>
                 <th className="px-4 py-2 font-medium">Color</th>
                 <th className="px-4 py-2 font-medium">Kilos</th>
-                <th className="px-4 py-2 font-medium">Ubicación</th>
+                <th className="px-4 py-2 font-medium">Ubicacion</th>
                 <th className="px-4 py-2 font-medium">Picking</th>
                 <th className="px-4 py-2 font-medium">Estado</th>
               </tr>
@@ -250,22 +312,22 @@ export default async function PedidoDetailPage({
                         {r.rollos.numero_pieza}
                       </td>
                       <td className="px-4 py-2">
-                        {r.rollos.articulos?.nombre ?? '—'}
+                        {r.rollos.articulos?.nombre ?? '-'}
                       </td>
                       <td className="px-4 py-2">
-                        {r.rollos.colores?.nombre ?? '—'}
+                        {r.rollos.colores?.nombre ?? '-'}
                       </td>
                       <td className="px-4 py-2 tabular-nums">
                         {r.rollos.kilos != null
                           ? Number(r.rollos.kilos).toFixed(2)
-                          : '—'}
+                          : '-'}
                       </td>
                       <td className="px-4 py-2 text-muted-foreground">
-                        {r.rollos.ubicacion ?? '—'}
+                        {r.rollos.ubicacion ?? '-'}
                       </td>
                       <td className="px-4 py-2 text-xs">
                         {r.pickeado_at ? (
-                          <span className="text-success">✓ Pickeado</span>
+                          <span className="text-success">Pickeado</span>
                         ) : (
                           <span className="text-muted-foreground">
                             Pendiente
@@ -307,4 +369,33 @@ function Field({ label, value }: { label: string; value: string }) {
       <p className="font-medium mt-0.5 truncate">{value}</p>
     </div>
   )
+}
+
+function Note({ title, text }: { title: string; text: string }) {
+  if (!text) return null
+  return (
+    <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+        {text}
+      </p>
+    </div>
+  )
+}
+
+function motivoCaidaLabel(value: string): string {
+  switch (value) {
+    case 'cliente_cancelo':
+      return 'Cliente cancelo'
+    case 'precio':
+      return 'Precio'
+    case 'otro_proveedor':
+      return 'Se fue con otro proveedor'
+    case 'sin_respuesta':
+      return 'Sin respuesta'
+    case 'otro':
+      return 'Otro'
+    default:
+      return value
+  }
 }

@@ -61,6 +61,7 @@ export default function NuevoPedidoForm({
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState('')
   const [creandoCliente, startClienteTransition] = useTransition()
   const [remito, setRemito] = useState('')
+  const [fechaEntrega, setFechaEntrega] = useState('')
   const [carrito, setCarrito] = useState<RolloDisponible[]>([])
   const [error, setError] = useState<string | null>(null)
   const [filtroPending, startFiltroTransition] = useTransition()
@@ -139,7 +140,8 @@ export default function NuevoPedidoForm({
       const res = await crearPedido(
         clienteId,
         remito,
-        carrito.map((r) => r.id)
+        carrito.map((r) => r.id),
+        fechaEntrega
       )
       if (!res.ok) {
         toast.error(res.error)
@@ -162,7 +164,7 @@ export default function NuevoPedidoForm({
       {/* Header del pedido */}
       <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
         <h2 className="font-semibold text-sm">Datos del pedido</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
               Cliente <span className="text-destructive">*</span>
@@ -241,6 +243,17 @@ export default function NuevoPedidoForm({
               value={remito}
               onChange={(e) => setRemito(e.target.value)}
               placeholder="Opcional"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Fecha de entrega comprometida
+            </label>
+            <input
+              type="date"
+              value={fechaEntrega}
+              onChange={(e) => setFechaEntrega(e.target.value)}
               className="w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>

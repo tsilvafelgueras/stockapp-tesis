@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import SearchableCombobox from '@/components/SearchableCombobox'
+import { UBICACIONES } from '@/lib/ubicaciones'
 import {
   cancelarPedido,
   confirmarEgresoPedido,
@@ -11,10 +13,20 @@ import {
 
 type Mode =
   | 'view'
+  | 'confirmar-salida'
+  | 'caer-pedido'
   | 'confirmar-cancelar'
   | 'confirmar-entregar'
-  | 'confirmar-egreso'
-  | 'caer-egreso'
+
+const MOTIVOS_CAIDA = [
+  { value: 'cliente_cancelo', label: 'Cliente cancelo' },
+  { value: 'precio', label: 'Precio' },
+  { value: 'otro_proveedor', label: 'Se fue con otro proveedor' },
+  { value: 'sin_respuesta', label: 'Sin respuesta' },
+  { value: 'otro', label: 'Otro' },
+]
+
+const UBICACION_OPTIONS = UBICACIONES.map((u) => ({ value: u, label: u }))
 
 export default function PedidoActions({
   pedidoId,
@@ -29,72 +41,72 @@ export default function PedidoActions({
   const [mode, setMode] = useState<Mode>('view')
   const [pending, startTransition] = useTransition()
 
+  const [salidaComentario, setSalidaComentario] = useState('')
+  const [remitoSalida, setRemitoSalida] = useState('')
+  const [motivoCaida, setMotivoCaida] = useState('')
+  const [comentarioCaida, setComentarioCaida] = useState('')
+  const [ubicacionReasignacion, setUbicacionReasignacion] =
+    useState('A ordenar')
+
   const esVentasOAdmin = role === 'ventas' || role === 'admin'
-
-  // El picking terminó (estado `lista`) → ventas confirma el egreso cuando
-  // la mercadería efectivamente sale del depósito.
-  const puedeConfirmarEgreso = esVentasOAdmin && estado === 'lista'
-
-  // Si la mercadería estaba lista pero no terminó saliendo (cliente se cayó),
-  // "Caer egreso" libera los rollos a stock.
-  const puedeCaerEgreso = esVentasOAdmin && estado === 'lista'
-
-  // Cancelar pedido normal (antes de que termine el picking, o ya con egreso
-  // confirmado si se da de baja después).
+  const puedeConfirmarSalida = esVentasOAdmin && estado === 'lista'
+  const puedeCaerPedido = esVentasOAdmin && estado === 'lista'
   const puedeCancelar =
     esVentasOAdmin &&
     (estado === 'pendiente' ||
       estado === 'en_preparacion' ||
       estado === 'confirmada_egreso')
-
-  // Admin entrega solo si ya se confirmó el egreso.
   const puedeEntregar = role === 'admin' && estado === 'confirmada_egreso'
 
   if (
     !puedeCancelar &&
     !puedeEntregar &&
-    !puedeConfirmarEgreso &&
-    !puedeCaerEgreso
-  )
+    !puedeConfirmarSalida &&
+    !puedeCaerPedido
+  ) {
     return null
+  }
 
-  function handleCancelar() {
+  function resetForms() {
+    setMode('view')
+    setSalidaComentario('')
+    setRemitoSalida('')
+    setMotivoCaida('')
+    setComentarioCaida('')
+    setUbicacionReasignacion('A ordenar')
+  }
+
+  function handleConfirmarSalida() {
     startTransition(async () => {
-      const res = await cancelarPedido(pedidoId)
+      const res = await confirmarEgresoPedido(
+        pedidoId,
+        salidaComentario,
+        remitoSalida
+      )
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Salida confirmada.')
+      resetForms()
+      router.refresh()
+    })
+  }
+
+  function handleCancelarPedido() {
+    startTransition(async () => {
+      const res = await cancelarPedido(
+        pedidoId,
+        motivoCaida,
+        comentarioCaida,
+        ubicacionReasignacion
+      )
       if (!res.ok) {
         toast.error(res.error)
         return
       }
       toast.success('Pedido cancelado. Los rollos volvieron a stock.')
-      setMode('view')
-      router.refresh()
-    })
-  }
-
-  function handleCaerEgreso() {
-    startTransition(async () => {
-      const res = await cancelarPedido(pedidoId)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
-      }
-      toast.success(
-        'Egreso dado de baja. Los rollos volvieron a estar disponibles en stock.'
-      )
-      setMode('view')
-      router.refresh()
-    })
-  }
-
-  function handleConfirmarEgreso() {
-    startTransition(async () => {
-      const res = await confirmarEgresoPedido(pedidoId)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
-      }
-      toast.success('Egreso confirmado. Listo para entregar.')
-      setMode('view')
+      resetForms()
       router.refresh()
     })
   }
@@ -107,7 +119,7 @@ export default function PedidoActions({
         return
       }
       toast.success('Pedido marcado como entregado.')
-      setMode('view')
+      resetForms()
       router.refresh()
     })
   }
@@ -116,29 +128,29 @@ export default function PedidoActions({
     <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
       {estado === 'lista' && mode === 'view' && (
         <p className="text-xs text-muted-foreground">
-          El picking terminó. Cuando la mercadería efectivamente sale, ventas
-          confirma el egreso. Si no llega a salir, &quot;Caer egreso&quot; libera los
-          rollos a stock.
+          El picking termino. Confirmar salida registra el momento en que la
+          mercaderia salio de fabrica. Si se cae, los rollos vuelven a stock en
+          la ubicacion indicada.
         </p>
       )}
 
       <div className="flex flex-wrap gap-2">
-        {puedeConfirmarEgreso && mode === 'view' && (
+        {puedeConfirmarSalida && mode === 'view' && (
           <button
             type="button"
-            onClick={() => setMode('confirmar-egreso')}
+            onClick={() => setMode('confirmar-salida')}
             className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            Confirmar egreso
+            Confirmar salida
           </button>
         )}
-        {puedeCaerEgreso && mode === 'view' && (
+        {puedeCaerPedido && mode === 'view' && (
           <button
             type="button"
-            onClick={() => setMode('caer-egreso')}
+            onClick={() => setMode('caer-pedido')}
             className="rounded-md border border-destructive/40 text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/5 transition-colors"
           >
-            Caer egreso
+            Caer pedido
           </button>
         )}
         {puedeEntregar && mode === 'view' && (
@@ -161,120 +173,166 @@ export default function PedidoActions({
         )}
       </div>
 
-      {mode === 'confirmar-egreso' && (
-        <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
+      {mode === 'confirmar-salida' && (
+        <div className="rounded-md bg-zinc-50 border p-3 space-y-3">
           <p className="text-sm">
-            Confirmás que la mercadería <strong>efectivamente salió</strong> del
-            depósito. El pedido pasa a estado{' '}
-            <strong>&ldquo;Egreso confirmado&rdquo;</strong> y administración va a poder
-            marcarlo como entregado.
+            Confirmas que la mercaderia efectivamente salio de fabrica. Se
+            guarda fecha, usuario, remito y comentario.
           </p>
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => setMode('view')}
-              disabled={pending}
-              className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
-            >
-              Volver
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirmarEgreso}
-              disabled={pending}
-              className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
-              {pending ? 'Confirmando…' : 'Sí, confirmar egreso'}
-            </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nro remito de salida">
+              <input
+                type="text"
+                value={remitoSalida}
+                onChange={(e) => setRemitoSalida(e.target.value)}
+                placeholder="Opcional"
+                className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+              />
+            </Field>
+            <Field label="Comentario">
+              <textarea
+                value={salidaComentario}
+                onChange={(e) => setSalidaComentario(e.target.value)}
+                rows={2}
+                placeholder="Opcional"
+                className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+              />
+            </Field>
           </div>
+          <ActionsFooter
+            pending={pending}
+            onCancel={resetForms}
+            confirmLabel={pending ? 'Confirmando...' : 'Si, confirmar salida'}
+            onConfirm={handleConfirmarSalida}
+            tone="success"
+          />
         </div>
       )}
 
-      {mode === 'caer-egreso' && (
-        <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
+      {(mode === 'caer-pedido' || mode === 'confirmar-cancelar') && (
+        <div className="rounded-md bg-zinc-50 border p-3 space-y-3">
           <p className="text-sm">
-            El egreso se cae. Los rollos van a{' '}
-            <strong>volver a estar disponibles en stock</strong> y el pedido
-            queda como cancelado.
+            El pedido queda cancelado y los rollos se liberan para volver a
+            venderse.
           </p>
-          <p className="text-xs text-muted-foreground">
-            Usá esto cuando el picking ya terminó pero la mercadería no llegó a
-            salir.
-          </p>
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => setMode('view')}
-              disabled={pending}
-              className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
-            >
-              Volver
-            </button>
-            <button
-              type="button"
-              onClick={handleCaerEgreso}
-              disabled={pending}
-              className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
-              {pending ? 'Liberando…' : 'Sí, caer el egreso'}
-            </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Motivo de caida *">
+              <select
+                value={motivoCaida}
+                onChange={(e) => setMotivoCaida(e.target.value)}
+                className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Seleccionar motivo...</option>
+                {MOTIVOS_CAIDA.map((motivo) => (
+                  <option key={motivo.value} value={motivo.value}>
+                    {motivo.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Ubicacion para los rollos">
+              <SearchableCombobox
+                value={ubicacionReasignacion}
+                onChange={setUbicacionReasignacion}
+                options={UBICACION_OPTIONS}
+                placeholder="Seleccionar ubicacion..."
+                allowClear={false}
+              />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Comentario">
+                <textarea
+                  value={comentarioCaida}
+                  onChange={(e) => setComentarioCaida(e.target.value)}
+                  rows={2}
+                  placeholder="Detalle opcional"
+                  className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+                />
+              </Field>
+            </div>
           </div>
-        </div>
-      )}
-
-      {mode === 'confirmar-cancelar' && (
-        <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
-          <p className="text-sm">
-            ¿Confirmás que querés cancelar este pedido? Los rollos van a volver
-            a estar disponibles en stock.
-          </p>
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => setMode('view')}
-              disabled={pending}
-              className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
-            >
-              Volver
-            </button>
-            <button
-              type="button"
-              onClick={handleCancelar}
-              disabled={pending}
-              className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
-              {pending ? 'Cancelando…' : 'Sí, cancelar pedido'}
-            </button>
-          </div>
+          <ActionsFooter
+            pending={pending}
+            disabled={!motivoCaida}
+            onCancel={resetForms}
+            confirmLabel={pending ? 'Liberando...' : 'Si, cancelar pedido'}
+            onConfirm={handleCancelarPedido}
+            tone="destructive"
+          />
         </div>
       )}
 
       {mode === 'confirmar-entregar' && (
         <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
           <p className="text-sm">
-            ¿Marcamos el pedido como entregado al cliente? Los rollos pasan a
-            estado &ldquo;Entregado&rdquo; y dejan de figurar en stock.
+            Marcamos el pedido como entregado al cliente. Los rollos pasan a
+            estado &quot;Entregado&quot; y dejan de figurar en stock.
           </p>
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => setMode('view')}
-              disabled={pending}
-              className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
-            >
-              Volver
-            </button>
-            <button
-              type="button"
-              onClick={handleEntregar}
-              disabled={pending}
-              className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
-              {pending ? 'Marcando…' : 'Sí, marcar entregada'}
-            </button>
-          </div>
+          <ActionsFooter
+            pending={pending}
+            onCancel={resetForms}
+            confirmLabel={pending ? 'Marcando...' : 'Si, marcar entregada'}
+            onConfirm={handleEntregar}
+            tone="success"
+          />
         </div>
       )}
+    </div>
+  )
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function ActionsFooter({
+  pending,
+  disabled = false,
+  onCancel,
+  onConfirm,
+  confirmLabel,
+  tone,
+}: {
+  pending: boolean
+  disabled?: boolean
+  onCancel: () => void
+  onConfirm: () => void
+  confirmLabel: string
+  tone: 'success' | 'destructive'
+}) {
+  return (
+    <div className="flex gap-2 justify-end">
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={pending}
+        className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+      >
+        Volver
+      </button>
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={pending || disabled}
+        className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+          tone === 'success'
+            ? 'bg-success text-success-foreground'
+            : 'bg-destructive text-white'
+        }`}
+      >
+        {confirmLabel}
+      </button>
     </div>
   )
 }

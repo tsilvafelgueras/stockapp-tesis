@@ -10,7 +10,8 @@ export type CrearPedidoResult =
 export async function crearPedido(
   clienteId: string,
   numeroRemitoExterno: string,
-  rolloIds: string[]
+  rolloIds: string[],
+  fechaEntregaComprometida: string
 ): Promise<CrearPedidoResult> {
   const supabase = await createClient()
   const {
@@ -30,6 +31,7 @@ export async function crearPedido(
     p_cliente_id: clienteId,
     p_numero_remito_externo: numeroRemitoExterno.trim() || null,
     p_rollo_ids: rolloIds,
+    p_fecha_entrega_comprometida: fechaEntregaComprometida || null,
   })
 
   if (error) {
@@ -44,11 +46,17 @@ export async function crearPedido(
 export type SimpleResult = { ok: true } | { ok: false; error: string }
 
 export async function cancelarPedido(
-  pedidoId: string
+  pedidoId: string,
+  motivoCaida = '',
+  comentario = '',
+  ubicacionReasignacion = 'A ordenar'
 ): Promise<SimpleResult> {
   const supabase = await createClient()
   const { error } = await supabase.rpc('cancelar_pedido', {
     p_pedido_id: pedidoId,
+    p_motivo_caida: motivoCaida || null,
+    p_comentario: comentario || null,
+    p_ubicacion_reasignacion: ubicacionReasignacion || 'A ordenar',
   })
   if (error) return { ok: false, error: error.message }
 
@@ -59,11 +67,15 @@ export async function cancelarPedido(
 }
 
 export async function confirmarEgresoPedido(
-  pedidoId: string
+  pedidoId: string,
+  comentario = '',
+  numeroRemitoSalida = ''
 ): Promise<SimpleResult> {
   const supabase = await createClient()
   const { error } = await supabase.rpc('confirmar_egreso_pedido', {
     p_pedido_id: pedidoId,
+    p_comentario: comentario || null,
+    p_numero_remito_salida: numeroRemitoSalida || null,
   })
   if (error) return { ok: false, error: error.message }
 
