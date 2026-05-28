@@ -216,7 +216,7 @@ export async function deleteUser(userId: string): Promise<SimpleResult> {
       return {
         ok: false,
         error:
-          'No podés eliminar al último admin. Promové primero a otro usuario.',
+          'No podés eliminar al último administrador. Promové primero a otro usuario.',
       }
     }
   }

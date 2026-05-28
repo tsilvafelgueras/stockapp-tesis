@@ -314,7 +314,6 @@ export function EditArticuloRow({
   onToggle,
   onEliminado,
   colores: coloresIniciales = [],
-  role,
 }: {
   articulo: Articulo
   expanded: boolean
@@ -323,7 +322,7 @@ export function EditArticuloRow({
   colores?: Catalog[]
   role: Role
 }) {
-  const [colores, setColores] = useState(coloresIniciales)
+  const colores = coloresIniciales
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [nombre, setNombre] = useState(articulo.nombre)
   const [descripcion, setDescripcion] = useState(articulo.descripcion ?? '')
@@ -340,6 +339,27 @@ export function EditArticuloRow({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [eliminandoPending, startEliminar] = useTransition()
+  const [agregando, setAgregando] = useState(false)
+
+  const disponibles = useMemo(
+    () => colores.filter((c) => !coloresIds.includes(c.id)),
+    [colores, coloresIds]
+  )
+
+  function agregarColor(id: string) {
+    if (!id || coloresIds.includes(id)) return
+    setColoresIds((prev) => [...prev, id])
+    setAgregando(false)
+  }
+
+  function quitarColor(id: string) {
+    setColoresIds((prev) => prev.filter((x) => x !== id))
+    setStockMinimos((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -472,7 +492,7 @@ export function EditArticuloRow({
           <td />
           <td colSpan={4} className="px-4 py-4">
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1.4fr]">
+              <div className="grid gap-3 lg:grid-cols-2">
                 <Field label="Nombre">
                   <input
                     value={nombre}
@@ -489,40 +509,25 @@ export function EditArticuloRow({
                     className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </Field>
-                <Field label="Colores">
-                  <ColorMultiPicker
-                    selectedIds={coloresIds}
-                    onChange={setColoresIds}
-                    colores={colores}
-                    onColorCreated={(c) =>
-                      setColores((prev) =>
-                        prev.find((p) => p.id === c.id) ? prev : [...prev, c]
-                      )
-                    }
-                    role={role}
-                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </Field>
               </div>
 
               <div className="overflow-hidden rounded-md border bg-white">
                 <table className="w-full text-sm">
-                  <thead className="border-b bg-muted/60 text-muted-foreground">
+                  <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
                     <tr className="text-left">
                       <th className="px-3 py-2 font-medium">Color</th>
                       <th className="px-3 py-2 font-medium">Stock minimo</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
-                    {coloresIds.length > 0 ? (
-                      coloresIds.map((colorId) => {
-                        const color = colores.find((c) => c.id === colorId)
-                        return (
-                          <tr key={colorId} className="border-b last:border-0">
-                            <td className="px-3 py-2">
-                              {color?.nombre ?? 'Color'}
-                            </td>
-                            <td className="px-3 py-2">
+                    {coloresIds.map((colorId) => {
+                      const color = colores.find((c) => c.id === colorId)
+                      return (
+                        <tr key={colorId} className="border-b last:border-0">
+                          <td className="px-3 py-2">{color?.nombre ?? 'Color'}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
                               <input
                                 type="number"
                                 step="0.01"
@@ -536,25 +541,68 @@ export function EditArticuloRow({
                                   }))
                                 }
                                 placeholder="Sin limite"
-                                className="w-32 rounded-md border border-input bg-white px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="w-28 rounded-md border border-input bg-white px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               />
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                kg
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      })
-                    ) : (
+                              <span className="text-xs text-muted-foreground">kg</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => quitarColor(colorId)}
+                              className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-zinc-100 hover:text-destructive"
+                              title="Quitar color"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {coloresIds.length === 0 && (
                       <tr>
-                        <td
-                          colSpan={2}
-                          className="px-3 py-4 text-center text-sm text-muted-foreground"
-                        >
+                        <td colSpan={3} className="px-3 py-4 text-center text-sm text-muted-foreground">
                           Sin colores asociados.
                         </td>
                       </tr>
                     )}
+                    <tr>
+                      <td colSpan={3} className="px-3 py-2">
+                        {agregando ? (
+                          <div className="flex items-center gap-2">
+                            <select
+                              autoFocus
+                              value=""
+                              onChange={(e) => agregarColor(e.target.value)}
+                              className="rounded-md border border-input bg-white px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <option value="" disabled>Elegir color...</option>
+                              {disponibles.map((c) => (
+                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => setAgregando(false)}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          disponibles.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setAgregando(true)}
+                              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              <Plus className="size-3.5" />
+                              Agregar color
+                            </button>
+                          )
+                        )}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
