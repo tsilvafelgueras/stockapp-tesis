@@ -111,6 +111,47 @@ export async function createEmpresaConAdmin(input: {
 }
 
 
+// ── Invitar otro super-admin ───────────────────────────────────
+//
+// Crea la invitación con role='super' en raw_user_meta_data, que
+// es lo que el trigger handle_new_user necesita para crear el
+// profile con empresa_id=NULL sin violar el CHECK constraint.
+// El dashboard de Supabase no permite pasar metadata en el
+// "Invite user" del UI, por eso esta acción.
+
+export async function inviteSuperAdmin(input: {
+  nombre: string
+  email: string
+}) {
+  const me = await requireSuperAdmin()
+  if (!me) return { error: 'No autorizado.' }
+
+  const nombre = input.nombre.trim()
+  const email = input.email.trim()
+
+  if (!nombre) return { error: 'El nombre es obligatorio.' }
+  if (!email) return { error: 'El email es obligatorio.' }
+
+  const admin = createAdminClient()
+  const siteUrl = await getSiteUrl()
+
+  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: {
+      nombre,
+      role: 'super',
+    },
+    redirectTo: `${siteUrl}/auth/confirm?next=/auth/setup`,
+  })
+
+  if (error) {
+    return { error: `Error invitando super-admin: ${error.message}` }
+  }
+
+  revalidatePath('/super')
+  return { success: true }
+}
+
+
 // ── Impersonación: super opera dentro de una empresa cliente ──
 //
 // El super-admin setea `empresa_id_actuando` en su propio perfil.

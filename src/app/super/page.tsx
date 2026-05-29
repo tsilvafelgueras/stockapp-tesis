@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import NuevaEmpresaForm from './NuevaEmpresaForm'
+import NuevoSuperAdminForm from './NuevoSuperAdminForm'
 import EmpresaActions from './EmpresaActions'
 
 export default async function SuperPage() {
@@ -36,7 +37,10 @@ export default async function SuperPage() {
         </p>
       </div>
 
-      <NuevaEmpresaForm />
+      <div className="flex flex-wrap items-start gap-3">
+        <NuevaEmpresaForm />
+        <NuevoSuperAdminForm />
+      </div>
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
