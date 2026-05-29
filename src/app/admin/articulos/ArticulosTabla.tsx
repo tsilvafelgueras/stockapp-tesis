@@ -87,8 +87,8 @@ export default function ArticulosTabla({
             <tr className="text-left">
               <th className="w-10 px-4 py-3 font-medium"></th>
               <th className="px-4 py-3 font-medium">Articulo</th>
+              <th className="px-4 py-3 font-medium">Descripcion</th>
               <th className="px-4 py-3 font-medium">Colores</th>
-              <th className="px-4 py-3 font-medium">Stock minimo</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>

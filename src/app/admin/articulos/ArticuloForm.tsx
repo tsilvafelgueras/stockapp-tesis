@@ -182,7 +182,7 @@ function ColorMultiPicker({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="flex size-9 shrink-0 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-zinc-100"
+            className="flex shrink-0 self-stretch items-center justify-center rounded-md border border-input px-2.5 text-muted-foreground hover:bg-zinc-100"
             aria-label={
               role === 'admin' || role === 'super'
                 ? 'Crear color nuevo'
@@ -213,7 +213,6 @@ export function NuevoArticuloForm({
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [coloresIds, setColoresIds] = useState<string[]>([])
-  const [stockMinimos, setStockMinimos] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -229,7 +228,7 @@ export function NuevoArticuloForm({
       nombre,
       descripcion,
       colores_ids: coloresIds,
-      stock_minimos_por_color: stockMinimos,
+      stock_minimos_por_color: {},
     })
     if (result.error) {
       setError(result.error)
@@ -237,7 +236,6 @@ export function NuevoArticuloForm({
       setNombre('')
       setDescripcion('')
       setColoresIds([])
-      setStockMinimos({})
     }
     setLoading(false)
   }
@@ -249,7 +247,7 @@ export function NuevoArticuloForm({
     >
       <h2 className="font-semibold">Nuevo articulo</h2>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nombre *">
           <input
             value={nombre}
@@ -268,32 +266,22 @@ export function NuevoArticuloForm({
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </Field>
-
-        <Field label="Colores *">
-          <ColorMultiPicker
-            selectedIds={coloresIds}
-            onChange={setColoresIds}
-            colores={colores}
-            onColorCreated={(c) =>
-              setColores((prev) =>
-                prev.find((p) => p.id === c.id) ? prev : [...prev, c]
-              )
-            }
-            role={role}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </Field>
-
-        <Field label="Stock minimo por color">
-          <StockMinimosPorColor
-            selectedIds={coloresIds}
-            colores={colores}
-            values={stockMinimos}
-            onChange={setStockMinimos}
-            inputClassName="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </Field>
       </div>
+
+      <Field label="Colores *">
+        <ColorMultiPicker
+          selectedIds={coloresIds}
+          onChange={setColoresIds}
+          colores={colores}
+          onColorCreated={(c) =>
+            setColores((prev) =>
+              prev.find((p) => p.id === c.id) ? prev : [...prev, c]
+            )
+          }
+          role={role}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </Field>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -313,7 +301,7 @@ export function EditArticuloRow({
   expanded,
   onToggle,
   onEliminado,
-  colores: coloresIniciales = [],
+  colores = [],
 }: {
   articulo: Articulo
   expanded: boolean
@@ -322,8 +310,8 @@ export function EditArticuloRow({
   colores?: Catalog[]
   role: Role
 }) {
-  const colores = coloresIniciales
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [nombre, setNombre] = useState(articulo.nombre)
   const [descripcion, setDescripcion] = useState(articulo.descripcion ?? '')
   const [coloresIds, setColoresIds] = useState<string[]>(
@@ -345,6 +333,21 @@ export function EditArticuloRow({
     () => colores.filter((c) => !coloresIds.includes(c.id)),
     [colores, coloresIds]
   )
+
+  function resetForm() {
+    setNombre(articulo.nombre)
+    setDescripcion(articulo.descripcion ?? '')
+    setColoresIds(articulo.colores.map((c) => c.id))
+    setStockMinimos(
+      Object.fromEntries(
+        articulo.colores
+          .filter((c) => c.stock_minimo_kg != null)
+          .map((c) => [c.id, String(c.stock_minimo_kg)])
+      )
+    )
+    setAgregando(false)
+    setError(null)
+  }
 
   function agregarColor(id: string) {
     if (!id || coloresIds.includes(id)) return
@@ -381,6 +384,7 @@ export function EditArticuloRow({
       toast.error(result.error)
     } else {
       toast.success(`"${nombre}" actualizado.`)
+      setEditing(false)
     }
     setLoading(false)
   }
@@ -456,38 +460,80 @@ export function EditArticuloRow({
             )}
           </button>
         </td>
-        <td className="px-4 py-3">
-          <p className="font-medium">{articulo.nombre}</p>
-          {articulo.descripcion && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {articulo.descripcion}
-            </p>
-          )}
+        <td className="px-4 py-3 font-medium">{articulo.nombre}</td>
+        <td className="px-4 py-3 text-muted-foreground">
+          {articulo.descripcion ?? '-'}
         </td>
         <td className="px-4 py-3 text-muted-foreground">
           {articulo.colores.length}{' '}
           {articulo.colores.length === 1 ? 'color' : 'colores'}
         </td>
-        <td className="px-4 py-3 text-muted-foreground">
-          <StockMinimosResumen colores={articulo.colores} />
-        </td>
         <td className="px-4 py-3 text-right">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setConfirmandoEliminar(true)
-            }}
-            className="inline-flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
-            aria-label={`Dar de baja ${articulo.nombre}`}
-            title="Dar de baja"
-          >
-            <Trash2 className="size-4" />
-          </button>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                resetForm()
+                setEditing(true)
+              }}
+              className="rounded-md border px-3 py-1.5 text-xs transition-colors hover:bg-zinc-100"
+            >
+              Editar
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setConfirmandoEliminar(true)
+              }}
+              className="inline-flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
+              aria-label={`Dar de baja ${articulo.nombre}`}
+              title="Dar de baja"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
         </td>
       </tr>
 
-      {expanded && (
+      {expanded && !editing && (
+        <tr className="border-b bg-zinc-50/60">
+          <td />
+          <td colSpan={4} className="px-4 py-3">
+            {coloresIds.length > 0 ? (
+              <div className="overflow-hidden rounded-md border bg-white">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
+                    <tr className="text-left">
+                      <th className="px-3 py-2 font-medium">Color</th>
+                      <th className="px-3 py-2 font-medium">Stock minimo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coloresIds.map((colorId) => {
+                      const color = colores.find((c) => c.id === colorId)
+                      const stock = stockMinimos[colorId]
+                      return (
+                        <tr key={colorId} className="border-b last:border-0">
+                          <td className="px-3 py-2">{color?.nombre ?? colorId}</td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {stock ? `${parseFloat(stock)} kg` : 'Sin limite'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Sin colores asociados.</p>
+            )}
+          </td>
+        </tr>
+      )}
+
+      {editing && (
         <tr className="border-b bg-zinc-50/60">
           <td />
           <td colSpan={4} className="px-4 py-4">
@@ -561,7 +607,10 @@ export function EditArticuloRow({
                     })}
                     {coloresIds.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="px-3 py-4 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={3}
+                          className="px-3 py-4 text-center text-sm text-muted-foreground"
+                        >
                           Sin colores asociados.
                         </td>
                       </tr>
@@ -574,11 +623,15 @@ export function EditArticuloRow({
                               autoFocus
                               value=""
                               onChange={(e) => agregarColor(e.target.value)}
-                              className="rounded-md border border-input bg-white px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
-                              <option value="" disabled>Elegir color...</option>
+                              <option value="" disabled>
+                                Elegir color...
+                              </option>
                               {disponibles.map((c) => (
-                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                                <option key={c.id} value={c.id}>
+                                  {c.nombre}
+                                </option>
                               ))}
                             </select>
                             <button
@@ -594,9 +647,9 @@ export function EditArticuloRow({
                             <button
                               type="button"
                               onClick={() => setAgregando(true)}
-                              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-input px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
                             >
-                              <Plus className="size-3.5" />
+                              <Plus className="size-4" />
                               Agregar color
                             </button>
                           )
@@ -612,6 +665,17 @@ export function EditArticuloRow({
                   <span className="text-xs text-destructive">{error}</span>
                 )}
                 <button
+                  type="button"
+                  onClick={() => {
+                    resetForm()
+                    setEditing(false)
+                  }}
+                  disabled={loading}
+                  className="rounded-md border px-4 py-2 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
                   type="submit"
                   disabled={loading || !coloresIds.length}
                   className="rounded-md bg-action px-4 py-2 text-sm font-medium text-action-foreground transition-colors hover:bg-action/90 disabled:opacity-50"
@@ -624,74 +688,6 @@ export function EditArticuloRow({
         </tr>
       )}
     </>
-  )
-}
-
-function StockMinimosPorColor({
-  selectedIds,
-  colores,
-  values,
-  onChange,
-  inputClassName,
-}: {
-  selectedIds: string[]
-  colores: Catalog[]
-  values: Record<string, string>
-  onChange: React.Dispatch<React.SetStateAction<Record<string, string>>>
-  inputClassName: string
-}) {
-  const seleccionados = selectedIds
-    .map((id) => colores.find((c) => c.id === id))
-    .filter((c): c is Catalog => Boolean(c))
-
-  if (seleccionados.length === 0) {
-    return <p className="text-xs text-muted-foreground">-</p>
-  }
-
-  return (
-    <div className="space-y-2">
-      {seleccionados.map((color) => (
-        <label key={color.id} className="block space-y-1">
-          <span className="block truncate text-xs text-muted-foreground">
-            {color.nombre}
-          </span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            inputMode="decimal"
-            value={values[color.id] ?? ''}
-            onChange={(e) =>
-              onChange((prev) => ({
-                ...prev,
-                [color.id]: e.target.value,
-              }))
-            }
-            placeholder="Sin limite"
-            className={inputClassName}
-          />
-        </label>
-      ))}
-    </div>
-  )
-}
-
-function StockMinimosResumen({ colores }: { colores: Catalog[] }) {
-  const conMinimo = colores.filter((c) => c.stock_minimo_kg != null)
-  if (!conMinimo.length) return <span>-</span>
-
-  return (
-    <div className="space-y-1 text-xs">
-      {conMinimo.slice(0, 2).map((color) => (
-        <div key={color.id}>
-          <span className="text-foreground">{color.nombre}</span>{' '}
-          <span>{color.stock_minimo_kg} kg</span>
-        </div>
-      ))}
-      {conMinimo.length > 2 && (
-        <div className="text-muted-foreground">+{conMinimo.length - 2} mas</div>
-      )}
-    </div>
   )
 }
 
