@@ -5,20 +5,30 @@ import DashboardBackButton from '@/components/DashboardBackButton'
 export default async function MuestrasListPage() {
   const supabase = await createClient()
 
-  const { data } = await supabase
-    .from('muestras')
-    .select(
-      `
-        id,
-        cliente,
-        kilos_descontados,
-        motivo,
-        created_at,
-        rollos ( numero_pieza, articulos ( nombre ), colores ( nombre ) )
-      `
-    )
-    .order('created_at', { ascending: false })
-    .limit(200)
+  const [{ data }, { data: coloresRaw }] = await Promise.all([
+    supabase
+      .from('muestras')
+      .select(
+        `
+          id,
+          cliente,
+          kilos_descontados,
+          motivo,
+          created_at,
+          rollos ( numero_pieza, color_id, articulos ( nombre ) )
+        `
+      )
+      .order('created_at', { ascending: false })
+      .limit(200),
+    supabase.from('colores').select('id, nombre'),
+  ])
+
+  const colorById = new Map(
+    ((coloresRaw ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c,
+    ])
+  )
 
   type Row = {
     id: string
@@ -28,11 +38,22 @@ export default async function MuestrasListPage() {
     created_at: string
     rollos: {
       numero_pieza: string
+      color_id: string | null
       articulos: { nombre: string } | null
       colores: { nombre: string } | null
     } | null
   }
-  const rows = (data ?? []) as unknown as Row[]
+  const rows = ((data ?? []) as unknown as Row[]).map((r) => ({
+    ...r,
+    rollos: r.rollos
+      ? {
+          ...r.rollos,
+          colores: r.rollos.color_id
+            ? colorById.get(r.rollos.color_id) ?? null
+            : null,
+        }
+      : null,
+  }))
 
   const totalKilosMes = rows
     .filter((r) => {

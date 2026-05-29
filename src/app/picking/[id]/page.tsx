@@ -37,26 +37,35 @@ export default async function PickingDetailPage({
 
   if (!pedido) notFound()
 
-  const { data: prRaw } = await supabase
-    .from('pedido_rollos')
-    .select(
-      `
-        id,
-        pickeado_at,
-        rollos (
+  const [{ data: prRaw }, { data: coloresRaw }] = await Promise.all([
+    supabase
+      .from('pedido_rollos')
+      .select(
+        `
           id,
-          numero_pieza,
-          ubicacion,
-          kilos,
-          articulo_id,
-          color_id,
-          articulos ( nombre ),
-          colores ( nombre ),
-          ingresos ( tintoreria_id )
-        )
-      `
-    )
-    .eq('pedido_id', id)
+          pickeado_at,
+          rollos (
+            id,
+            numero_pieza,
+            ubicacion,
+            kilos,
+            articulo_id,
+            color_id,
+            articulos ( nombre ),
+            ingresos ( tintoreria_id )
+          )
+        `
+      )
+      .eq('pedido_id', id),
+    supabase.from('colores').select('id, nombre'),
+  ])
+
+  const colorById = new Map(
+    ((coloresRaw ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c,
+    ])
+  )
 
   type RolloRow = {
     id: string
@@ -73,7 +82,17 @@ export default async function PickingDetailPage({
       ingresos: { tintoreria_id: string | null } | null
     } | null
   }
-  const rows = (prRaw ?? []) as unknown as RolloRow[]
+  const rows = ((prRaw ?? []) as unknown as RolloRow[]).map((row) => ({
+    ...row,
+    rollos: row.rollos
+      ? {
+          ...row.rollos,
+          colores: row.rollos.color_id
+            ? colorById.get(row.rollos.color_id) ?? null
+            : null,
+        }
+      : null,
+  }))
 
   const tintoreriaIds = Array.from(
     new Set(
@@ -143,7 +162,6 @@ export default async function PickingDetailPage({
           articulo_id,
           color_id,
           articulos ( nombre ),
-          colores ( nombre ),
           pedido_rollos!left ( id )
         `
       )
@@ -160,7 +178,6 @@ export default async function PickingDetailPage({
       articulo_id: string
       color_id: string
       articulos: { nombre: string } | null
-      colores: { nombre: string } | null
       pedido_rollos: { id: string }[] | null
     }
     alternativas = ((altRaw ?? []) as unknown as AltRow[])
@@ -178,7 +195,7 @@ export default async function PickingDetailPage({
         articulo_id: a.articulo_id,
         color_id: a.color_id,
         articulo_nombre: a.articulos?.nombre ?? '—',
-        color_nombre: a.colores?.nombre ?? '—',
+        color_nombre: colorById.get(a.color_id)?.nombre ?? '—',
       }))
   }
 

@@ -276,7 +276,6 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
           articulo_id,
           color_id,
           articulos ( nombre ),
-          colores ( id, nombre ),
           ingreso_id,
           ingresos!inner (
             id,
@@ -314,7 +313,6 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
     articulo_id: string | null
     color_id: string | null
     articulos: { nombre: string } | null
-    colores: { id: string; nombre: string } | null
     ingreso_id: string
     ingresos: {
       fecha_despacho: string | null
@@ -327,6 +325,8 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
     } | null
   }
 
+  const colorById = new Map((colores ?? []).map((c) => [c.id, c.nombre]))
+
   const rollos: RolloBulk[] = ((rollosRaw ?? []) as unknown as Row[]).map(
     (r) => ({
       id: r.id,
@@ -338,7 +338,7 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
       articulo_id: r.articulo_id,
       articulo_nombre: r.articulos?.nombre ?? null,
       color_id: r.color_id,
-      color_nombre: r.colores?.nombre ?? null,
+      color_nombre: r.color_id ? colorById.get(r.color_id) ?? null : null,
       ingreso_id: r.ingreso_id,
       ingreso_fecha: r.ingresos?.fecha_despacho ?? null,
       ingreso_remito: r.ingresos?.numero_remito ?? null,

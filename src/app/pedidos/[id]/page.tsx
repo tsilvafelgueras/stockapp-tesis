@@ -44,6 +44,7 @@ type RolloRow = {
     kilos: number | null
     metros: number | null
     estado: string
+    color_id: string | null
     articulos: { nombre: string } | null
     colores: { nombre: string } | null
     ingresos: {
@@ -97,28 +98,47 @@ export default async function PedidoDetailPage({
 
   if (!pedido) notFound()
 
-  const { data: prRaw } = await supabase
-    .from('pedido_rollos')
-    .select(
-      `
-        id,
-        pickeado_at,
-        rollos (
+  const [{ data: prRaw }, { data: coloresRaw }] = await Promise.all([
+    supabase
+      .from('pedido_rollos')
+      .select(
+        `
           id,
-          numero_pieza,
-          ubicacion,
-          kilos,
-          metros,
-          estado,
-          articulos ( nombre ),
-          colores ( nombre ),
-          ingresos ( tintorerias ( nombre ) )
-        )
-      `
-    )
-    .eq('pedido_id', id)
+          pickeado_at,
+          rollos (
+            id,
+            numero_pieza,
+            ubicacion,
+            kilos,
+            metros,
+            estado,
+            color_id,
+            articulos ( nombre ),
+            ingresos ( tintorerias ( nombre ) )
+          )
+        `
+      )
+      .eq('pedido_id', id),
+    supabase.from('colores').select('id, nombre'),
+  ])
 
-  const rows = (prRaw ?? []) as unknown as RolloRow[]
+  const colorById = new Map(
+    ((coloresRaw ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c,
+    ])
+  )
+  const rows = ((prRaw ?? []) as unknown as RolloRow[]).map((row) => ({
+    ...row,
+    rollos: row.rollos
+      ? {
+          ...row.rollos,
+          colores: row.rollos.color_id
+            ? colorById.get(row.rollos.color_id) ?? null
+            : null,
+        }
+      : null,
+  }))
   const totalKilos = rows.reduce(
     (acc, r) => acc + Number(r.rollos?.kilos ?? 0),
     0

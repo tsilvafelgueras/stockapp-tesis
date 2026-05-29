@@ -30,6 +30,11 @@ function rowMatchesMonths(createdAt: string, meses: number[]): boolean {
   return meses.includes(new Date(createdAt).getMonth() + 1)
 }
 
+async function colorNameById(supabase: SupabaseClient): Promise<Map<string, string>> {
+  const { data } = await supabase.from('colores').select('id, nombre')
+  return new Map((data ?? []).map((c) => [c.id, c.nombre]))
+}
+
 // ── Stock por artículo+color ───────────────────────────────
 
 export type StockRow = {
@@ -46,7 +51,7 @@ export async function reporteStock(
   let query = supabase
     .from('rollos')
     .select(
-      'kilos, articulo_id, articulos!inner ( nombre ), colores ( nombre ), ingresos!inner ( tintoreria_id )'
+      'kilos, articulo_id, color_id, articulos!inner ( nombre ), ingresos!inner ( tintoreria_id )'
     )
     .eq('estado', 'en_stock')
 
@@ -60,19 +65,22 @@ export async function reporteStock(
     query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
-  const { data } = await query
+  const [{ data }, colorById] = await Promise.all([
+    query,
+    colorNameById(supabase),
+  ])
 
   type Raw = {
     kilos: number | null
+    color_id: string | null
     articulos: { nombre: string } | null
-    colores: { nombre: string } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
 
   const map = new Map<string, StockRow>()
   for (const r of rows) {
     const articulo = r.articulos?.nombre ?? '—'
-    const color = r.colores?.nombre ?? '—'
+    const color = r.color_id ? colorById.get(r.color_id) ?? '—' : '—'
     const key = `${articulo}|||${color}`
     const prev = map.get(key) ?? { articulo, color, rollos: 0, kilos: 0 }
     prev.rollos += 1
@@ -275,8 +283,8 @@ export async function reporteDiferencias(
     .from('rollos')
     .select(
       `id, numero_pieza, kilos, kilos_propios, articulo_id,
+       color_id,
        articulos ( nombre ),
-       colores ( nombre ),
        ingresos!inner ( tintoreria_id )`
     )
     .not('kilos_propios', 'is', null)
@@ -292,15 +300,18 @@ export async function reporteDiferencias(
     query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
-  const { data } = await query
+  const [{ data }, colorById] = await Promise.all([
+    query,
+    colorNameById(supabase),
+  ])
 
   type Raw = {
     id: string
     numero_pieza: string
     kilos: number | null
     kilos_propios: number | null
+    color_id: string | null
     articulos: { nombre: string } | null
-    colores: { nombre: string } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
 
@@ -311,7 +322,7 @@ export async function reporteDiferencias(
       id: r.id,
       numero_pieza: r.numero_pieza,
       articulo: r.articulos?.nombre ?? '—',
-      color: r.colores?.nombre ?? '—',
+      color: r.color_id ? colorById.get(r.color_id) ?? '—' : '—',
       kilos: k,
       kilos_propios: kp,
       dif_kilos: kp - k,
@@ -346,7 +357,7 @@ export async function reporteMerma(
   let query = supabase
     .from('rollos')
     .select(
-      `kilos, kilos_propios, articulo_id, articulos ( nombre ), colores ( nombre ), ingresos!inner ( tintoreria_id )`
+      `kilos, kilos_propios, articulo_id, color_id, articulos ( nombre ), ingresos!inner ( tintoreria_id )`
     )
     .not('kilos_propios', 'is', null)
     .not('kilos', 'is', null)
@@ -361,20 +372,23 @@ export async function reporteMerma(
     query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
-  const { data } = await query
+  const [{ data }, colorById] = await Promise.all([
+    query,
+    colorNameById(supabase),
+  ])
 
   type Raw = {
     kilos: number | null
     kilos_propios: number | null
+    color_id: string | null
     articulos: { nombre: string } | null
-    colores: { nombre: string } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
 
   const map = new Map<string, MermaRow>()
   for (const r of rows) {
     const articulo = r.articulos?.nombre ?? '—'
-    const color = r.colores?.nombre ?? '—'
+    const color = r.color_id ? colorById.get(r.color_id) ?? '—' : '—'
     const key = `${articulo}|||${color}`
     const prev = map.get(key) ?? {
       articulo,
@@ -605,8 +619,8 @@ export async function reporteAntiguedad(
     .from('rollos')
     .select(
       `id, numero_pieza, ubicacion, kilos, created_at, articulo_id,
+       color_id,
        articulos ( nombre ),
-       colores ( nombre ),
        ingresos!inner ( tintoreria_id )`
     )
     .eq('estado', 'en_stock')
@@ -623,7 +637,10 @@ export async function reporteAntiguedad(
     query = query.eq('ingresos.tintoreria_id', tintoreriaIds[0])
   }
 
-  const { data } = await query
+  const [{ data }, colorById] = await Promise.all([
+    query,
+    colorNameById(supabase),
+  ])
 
   type Raw = {
     id: string
@@ -631,8 +648,8 @@ export async function reporteAntiguedad(
     ubicacion: string | null
     kilos: number | null
     created_at: string
+    color_id: string | null
     articulos: { nombre: string } | null
-    colores: { nombre: string } | null
   }
   const rows = (data ?? []) as unknown as Raw[]
   const ahora = Date.now()
@@ -644,7 +661,7 @@ export async function reporteAntiguedad(
       id: r.id,
       numero_pieza: r.numero_pieza,
       articulo: r.articulos?.nombre ?? '—',
-      color: r.colores?.nombre ?? '—',
+      color: r.color_id ? colorById.get(r.color_id) ?? '—' : '—',
       ubicacion: r.ubicacion ?? '—',
       kilos: Number(r.kilos ?? 0),
       created_at: r.created_at,

@@ -49,6 +49,8 @@ export default async function NuevoPedidoPage({
     .map((r) => r.tintorerias)
     .filter((t): t is { id: string; nombre: string } => t != null)
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
+  const coloresCatalogo = (colores ?? []) as Catalogo[]
+  const colorById = new Map(coloresCatalogo.map((c) => [c.id, c]))
 
   // Rollos disponibles (en_stock). Orden default por antigüedad (created_at
   // ASC) — los más viejos primero, regla FIFO pedida por la ingeniera textil
@@ -64,8 +66,8 @@ export default async function NuevoPedidoPage({
         kilos,
         metros,
         created_at,
+        color_id,
         articulos ( id, nombre ),
-        colores ( id, nombre ),
         ingresos!inner (
           id,
           numero_lote,
@@ -93,7 +95,15 @@ export default async function NuevoPedidoPage({
   }
 
   const { data: rollosRaw, error } = await query
-  const rollos = (rollosRaw ?? []) as unknown as RolloDisponible[]
+  const rollos = ((rollosRaw ?? []) as unknown as (Omit<
+    RolloDisponible,
+    'colores'
+  > & {
+    color_id: string | null
+  })[]).map((r) => ({
+    ...r,
+    colores: r.color_id ? colorById.get(r.color_id) ?? null : null,
+  }))
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
@@ -113,7 +123,7 @@ export default async function NuevoPedidoPage({
         <NuevoPedidoForm
           rollosDisponibles={rollos}
           articulos={(articulos ?? []) as Catalogo[]}
-          colores={(colores ?? []) as Catalogo[]}
+          colores={coloresCatalogo}
           tintorerias={(tintorerias ?? []) as Catalogo[]}
           clientes={(clientes ?? []) as Catalogo[]}
           currentFilters={{

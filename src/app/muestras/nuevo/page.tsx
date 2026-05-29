@@ -7,29 +7,39 @@ import NuevaMuestraForm, {
 export default async function NuevaMuestraPage() {
   const supabase = await createClient()
 
-  const { data: rollosRaw } = await supabase
-    .from('rollos')
-    .select(
-      `
-        id,
-        numero_pieza,
-        kilos,
-        estado,
-        articulos ( nombre ),
-        colores ( nombre )
-      `
-    )
-    .in('estado', ['en_stock', 'reservado'])
-    .order('numero_pieza', { ascending: true })
-    .limit(1000)
+  const [{ data: rollosRaw }, { data: coloresRaw }] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select(
+        `
+          id,
+          numero_pieza,
+          kilos,
+          estado,
+          color_id,
+          articulos ( nombre )
+        `
+      )
+      .in('estado', ['en_stock', 'reservado'])
+      .order('numero_pieza', { ascending: true })
+      .limit(1000),
+    supabase.from('colores').select('id, nombre'),
+  ])
+
+  const colorById = new Map(
+    ((coloresRaw ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c.nombre,
+    ])
+  )
 
   type Raw = {
     id: string
     numero_pieza: string
     kilos: number | null
     estado: string
+    color_id: string | null
     articulos: { nombre: string } | null
-    colores: { nombre: string } | null
   }
   const rollos = ((rollosRaw ?? []) as unknown as Raw[]).map(
     (r): RolloOpcion => ({
@@ -38,7 +48,7 @@ export default async function NuevaMuestraPage() {
       kilos: r.kilos,
       estado: r.estado,
       articulo: r.articulos?.nombre ?? null,
-      color: r.colores?.nombre ?? null,
+      color: r.color_id ? colorById.get(r.color_id) ?? null : null,
     })
   )
 

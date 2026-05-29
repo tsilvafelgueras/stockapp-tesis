@@ -50,11 +50,42 @@ export default async function IngresoDetailPage({
 
   if (!ingreso) notFound()
 
-  const { data: rollos } = await supabase
-    .from('rollos')
-    .select('*, articulos ( id, nombre ), colores ( id, nombre )')
-    .eq('ingreso_id', id)
-    .order('numero_pieza', { ascending: true })
+  const [{ data: rollosRaw }, { data: coloresRaw }] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select('*, articulos ( id, nombre )')
+      .eq('ingreso_id', id)
+      .order('numero_pieza', { ascending: true }),
+    supabase.from('colores').select('id, nombre'),
+  ])
+
+  const colorById = new Map(
+    ((coloresRaw ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c,
+    ])
+  )
+  type RolloIngreso = {
+    id: string
+    numero_pieza: string
+    articulo_id: string | null
+    color_id: string | null
+    kilos: number | null
+    metros: number | null
+    rinde: number | null
+    gramaje_planilla: number | null
+    ubicacion: string | null
+    estado: string
+    articulos: { id: string; nombre: string } | null
+    colores: { id: string; nombre: string } | null
+  }
+  const rollos = ((rollosRaw ?? []) as unknown as Omit<
+    RolloIngreso,
+    'colores'
+  >[]).map((r): RolloIngreso => ({
+    ...r,
+    colores: r.color_id ? colorById.get(r.color_id) ?? null : null,
+  }))
 
   const articulosDelIngreso = Array.from(
     new Set(
