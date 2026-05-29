@@ -86,6 +86,23 @@ export async function updateSession(request: NextRequest) {
       .single()
 
     const role = profile?.role as Role | undefined
+
+    // Profile no encontrado o sin rol: la sesión es válida pero no
+    // hay registro en `profiles` (caso de Supabase desincronizado, o
+    // invitación que falló al insertar el profile). Antes de este
+    // guard caíamos en un loop /admin/dashboard → /admin/dashboard
+    // porque el guard de admin redirigía al default dest cuando rol
+    // era undefined. Mandamos a /login con un flag para que el user
+    // pueda re-loguearse o el admin investigue.
+    if (!role) {
+      if (pathname === '/login' || pathname.startsWith('/auth/')) {
+        return supabaseResponse
+      }
+      return NextResponse.redirect(
+        new URL('/login?profile_missing=1', request.url)
+      )
+    }
+
     const empresaActuando = (profile?.empresa_id_actuando as string | null) ?? null
     // Super-admin con empresa_id_actuando seteada: opera como admin
     // de esa empresa. El rol REAL sigue siendo 'super' (nunca cambia
