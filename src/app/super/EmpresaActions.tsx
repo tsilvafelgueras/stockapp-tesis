@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { setEmpresaActivo } from './actions'
+import { setEmpresaActivo, iniciarImpersonacion } from './actions'
 
 export default function EmpresaActions({
   empresaId,
@@ -16,6 +16,7 @@ export default function EmpresaActions({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [operando, startOperando] = useTransition()
   const [confirmando, setConfirmando] = useState(false)
 
   function handleToggle(nuevoActivo: boolean) {
@@ -35,16 +36,38 @@ export default function EmpresaActions({
     })
   }
 
+  function handleOperar() {
+    startOperando(async () => {
+      const res = await iniciarImpersonacion(empresaId)
+      // iniciarImpersonacion redirige a /admin/dashboard cuando hay éxito,
+      // así que solo llegamos acá si falló.
+      if (res?.error) {
+        toast.error(res.error)
+      }
+    })
+  }
+
   if (activo) {
     if (!confirmando) {
       return (
-        <button
-          type="button"
-          onClick={() => setConfirmando(true)}
-          className="text-xs rounded-md border border-warning/40 text-warning px-3 py-1 hover:bg-warning/5 transition-colors"
-        >
-          Pausar
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleOperar}
+            disabled={operando}
+            className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1 hover:opacity-90 disabled:opacity-50 transition-opacity"
+            title={`Entrar a operar como super-admin dentro de ${nombre}`}
+          >
+            {operando ? 'Entrando…' : 'Operar'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmando(true)}
+            className="text-xs rounded-md border border-warning/40 text-warning px-3 py-1 hover:bg-warning/5 transition-colors"
+          >
+            Pausar
+          </button>
+        </div>
       )
     }
     return (

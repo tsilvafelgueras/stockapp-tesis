@@ -21,16 +21,33 @@
 
 -- ── HELPERS (orden importante: las usan triggers + RLS) ─────
 
+-- current_empresa_id: para usuarios normales devuelve su empresa.
+-- Para un super-admin con empresa_id_actuando seteada (modo
+-- impersonación, migración 043), devuelve esa empresa.
 CREATE OR REPLACE FUNCTION public.current_empresa_id()
 RETURNS UUID
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT empresa_id FROM profiles WHERE id = auth.uid()
+  SELECT COALESCE(empresa_id_actuando, empresa_id)
+    FROM profiles WHERE id = auth.uid()
 $$;
 
 CREATE OR REPLACE FUNCTION public.is_super_admin()
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT COALESCE((SELECT role = 'super' FROM profiles WHERE id = auth.uid()), FALSE)
+$$;
+
+-- is_super_actuando: TRUE solo si role='super' Y empresa_id_actuando
+-- está seteada. Las policies y RPCs lo usan para distinguir al
+-- super-admin operando dentro de una empresa.
+CREATE OR REPLACE FUNCTION public.is_super_actuando()
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(
+    (SELECT role = 'super' AND empresa_id_actuando IS NOT NULL
+       FROM profiles WHERE id = auth.uid()),
+    FALSE
+  )
 $$;
 
 CREATE OR REPLACE FUNCTION public.set_empresa_id()
@@ -70,16 +87,26 @@ CREATE POLICY "Autenticados leen su empresa"
 -- ── PROFILES ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS profiles (
-  id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  nombre      TEXT NOT NULL,
-  role        TEXT NOT NULL CHECK (role IN ('operario', 'ventas', 'admin', 'super')),
-  empresa_id  UUID REFERENCES empresas(id),
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  id                   UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  nombre               TEXT NOT NULL,
+  role                 TEXT NOT NULL CHECK (role IN ('operario', 'ventas', 'admin', 'super')),
+  empresa_id           UUID REFERENCES empresas(id),
+  -- Solo super-admin: empresa cliente en la que está operando (impersonación).
+  -- NULL = no está actuando en ninguna empresa, opera el panel global /super.
+  empresa_id_actuando  UUID REFERENCES empresas(id),
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT profiles_super_admin_empresa_check CHECK (
     (role = 'super' AND empresa_id IS NULL)
     OR (role IN ('admin', 'ventas', 'operario') AND empresa_id IS NOT NULL)
+  ),
+  CONSTRAINT profiles_actuando_solo_super_check CHECK (
+    empresa_id_actuando IS NULL OR role = 'super'
   )
 );
+
+CREATE INDEX IF NOT EXISTS profiles_empresa_id_actuando_idx
+  ON public.profiles (empresa_id_actuando)
+  WHERE empresa_id_actuando IS NOT NULL;
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
@@ -97,7 +124,10 @@ CREATE POLICY "Admin gestiona perfiles de su empresa"
   ON profiles FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+    AND (
+      (SELECT role FROM profiles p2 WHERE p2.id = auth.uid()) = 'admin'
+      OR public.is_super_actuando()
+    )
   );
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -164,7 +194,17 @@ CREATE POLICY "Operario y admin gestionan articulos"
   ON articulos FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
+  )
+  WITH CHECK (
+    empresa_id = public.current_empresa_id()
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_articulos ON articulos;
@@ -297,7 +337,17 @@ CREATE POLICY "Operario y admin gestionan ingresos"
   ON ingresos FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
+  )
+  WITH CHECK (
+    empresa_id = public.current_empresa_id()
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_ingresos ON ingresos;
@@ -336,11 +386,17 @@ CREATE POLICY "Operario y admin gestionan articulo_colores"
   ON articulo_colores FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
   )
   WITH CHECK (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_articulo_colores ON articulo_colores;
@@ -401,7 +457,17 @@ CREATE POLICY "Admin y operario gestionan rollos de su empresa"
   ON rollos FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
+  )
+  WITH CHECK (
+    empresa_id = public.current_empresa_id()
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_rollos ON rollos;
@@ -440,7 +506,17 @@ CREATE POLICY "Ventas y admin gestionan pedidos"
   ON pedidos FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+      OR public.is_super_actuando()
+    )
+  )
+  WITH CHECK (
+    empresa_id = public.current_empresa_id()
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+      OR public.is_super_actuando()
+    )
   );
 
 DROP POLICY IF EXISTS "Operario actualiza pedidos de su empresa" ON pedidos;
@@ -448,7 +524,10 @@ CREATE POLICY "Operario actualiza pedidos de su empresa"
   ON pedidos FOR UPDATE TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'operario'
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) = 'operario'
+      OR public.is_super_actuando()
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_pedidos ON pedidos;
@@ -480,7 +559,17 @@ CREATE POLICY "Ventas y admin gestionan pedido_rollos"
   ON pedido_rollos FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+      OR public.is_super_actuando()
+    )
+  )
+  WITH CHECK (
+    empresa_id = public.current_empresa_id()
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('ventas', 'admin')
+      OR public.is_super_actuando()
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_pedido_rollos ON pedido_rollos;
@@ -514,7 +603,17 @@ CREATE POLICY "Operario y admin gestionan muestras"
   ON muestras FOR ALL TO authenticated
   USING (
     empresa_id = public.current_empresa_id()
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
+  )
+  WITH CHECK (
+    empresa_id = public.current_empresa_id()
+    AND (
+      (SELECT role FROM profiles WHERE id = auth.uid()) IN ('operario', 'admin')
+      OR public.is_super_actuando()
+    )
   );
 
 DROP TRIGGER IF EXISTS set_empresa_muestras ON muestras;

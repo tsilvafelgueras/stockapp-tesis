@@ -16,22 +16,39 @@ export default async function NotificacionesLayout({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, nombre, empresas(nombre)')
+    .select('role, nombre, empresa_id_actuando, empresas(nombre)')
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin' && profile?.role !== 'ventas') {
+  const isSuperActuando =
+    profile?.role === 'super' && !!profile?.empresa_id_actuando
+  if (
+    profile?.role !== 'admin' &&
+    profile?.role !== 'ventas' &&
+    !isSuperActuando
+  ) {
     redirect('/')
   }
 
-  const empresaNombre =
-    (profile.empresas as unknown as { nombre: string } | null)?.nombre ?? null
+  let empresaNombre: string | null = null
+  if (isSuperActuando) {
+    const { data: empresa } = await supabase
+      .from('empresas')
+      .select('nombre')
+      .eq('id', profile!.empresa_id_actuando!)
+      .single()
+    empresaNombre = empresa?.nombre ?? null
+  } else {
+    empresaNombre =
+      (profile!.empresas as unknown as { nombre: string } | null)?.nombre ?? null
+  }
 
   return (
     <AppShell
-      role={profile.role}
-      userName={profile.nombre}
+      role={profile!.role as 'admin' | 'ventas' | 'super'}
+      userName={profile!.nombre}
       empresaNombre={empresaNombre}
+      actuandoComoSuper={isSuperActuando}
     >
       {children}
     </AppShell>

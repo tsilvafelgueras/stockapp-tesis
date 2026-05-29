@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 async function getSiteUrl(): Promise<string> {
   const headerList = await headers()
@@ -107,4 +108,64 @@ export async function createEmpresaConAdmin(input: {
   revalidatePath('/super/tintorerias')
   revalidatePath('/super/tintorerias/[id]', 'page')
   return { success: true }
+}
+
+
+// ── Impersonación: super opera dentro de una empresa cliente ──
+//
+// El super-admin setea `empresa_id_actuando` en su propio perfil.
+// Mientras está seteada, `current_empresa_id()` devuelve esa
+// empresa, y las RLS + RPCs lo tratan como admin de ella.
+// Importante: profiles.role SIGUE siendo 'super' — nunca cambia.
+
+export async function iniciarImpersonacion(empresaId: string) {
+  const me = await requireSuperAdmin()
+  if (!me) return { error: 'No autorizado.' }
+  if (!empresaId) return { error: 'Falta el id de la empresa.' }
+
+  const admin = createAdminClient()
+
+  // Validar que la empresa existe y está activa.
+  const { data: empresa, error: eError } = await admin
+    .from('empresas')
+    .select('id, activo')
+    .eq('id', empresaId)
+    .single()
+
+  if (eError || !empresa) {
+    return { error: 'Empresa no encontrada.' }
+  }
+  if (!empresa.activo) {
+    return {
+      error:
+        'La empresa está pausada. Reactivala antes de operar dentro de ella.',
+    }
+  }
+
+  const { error: uError } = await admin
+    .from('profiles')
+    .update({ empresa_id_actuando: empresaId })
+    .eq('id', me.id)
+
+  if (uError) return { error: uError.message }
+
+  // El profile cambió → todos los layouts deben reevaluar.
+  revalidatePath('/', 'layout')
+  redirect('/admin/dashboard')
+}
+
+export async function terminarImpersonacion() {
+  const me = await requireSuperAdmin()
+  if (!me) return { error: 'No autorizado.' }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({ empresa_id_actuando: null })
+    .eq('id', me.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/', 'layout')
+  redirect('/super')
 }
