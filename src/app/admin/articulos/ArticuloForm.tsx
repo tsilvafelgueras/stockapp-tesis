@@ -285,13 +285,15 @@ export function NuevoArticuloForm({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={loading || !coloresIds.length}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-      >
-        {loading ? 'Guardando...' : 'Agregar articulo'}
-      </button>
+      <div className="!mt-6 flex justify-end border-t pt-4">
+        <button
+          type="submit"
+          disabled={loading || !coloresIds.length}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          {loading ? 'Guardando...' : 'Agregar artículo'}
+        </button>
+      </div>
     </form>
   )
 }
