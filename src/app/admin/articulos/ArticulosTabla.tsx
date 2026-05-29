@@ -86,8 +86,8 @@ export default function ArticulosTabla({
           <thead className="border-b bg-zinc-50 text-muted-foreground">
             <tr className="text-left">
               <th className="w-10 px-4 py-3 font-medium"></th>
-              <th className="px-4 py-3 font-medium">Articulo</th>
-              <th className="px-4 py-3 font-medium">Descripcion</th>
+              <th className="px-4 py-3 font-medium">Artículo</th>
+              <th className="px-4 py-3 font-medium">Descripción</th>
               <th className="px-4 py-3 font-medium">Colores</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
@@ -111,7 +111,7 @@ export default function ArticulosTabla({
                   colSpan={5}
                   className="px-4 py-8 text-center text-sm text-muted-foreground"
                 >
-                  Todavia no cargaste ningun articulo.
+                  Todavía no cargaste ningún artículo.
                 </td>
               </tr>
             )}

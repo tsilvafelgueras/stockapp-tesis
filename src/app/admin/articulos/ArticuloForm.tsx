@@ -118,7 +118,7 @@ function ColorMultiPicker({
       )}
 
       {creating ? (
-        <div className="flex gap-1">
+        <div className="flex gap-2">
           <input
             autoFocus
             value={nuevoNombre}
@@ -144,7 +144,7 @@ function ColorMultiPicker({
             type="button"
             onClick={crearOSolicitar}
             disabled={pending || !nuevoNombre.trim()}
-            className="rounded-md bg-action px-2 py-1 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50"
+            className="shrink-0 self-stretch rounded-md bg-action px-3 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50"
           >
             {pending ? '...' : role === 'admin' || role === 'super' ? 'Crear' : 'Solicitar'}
           </button>
@@ -154,7 +154,7 @@ function ColorMultiPicker({
               setCreating(false)
               setNuevoNombre('')
             }}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-zinc-100"
+            className="flex shrink-0 self-stretch items-center justify-center rounded-md border border-input px-2.5 text-muted-foreground hover:bg-zinc-100"
             aria-label="Cancelar"
             title="Cancelar"
           >
@@ -162,7 +162,7 @@ function ColorMultiPicker({
           </button>
         </div>
       ) : (
-        <div className="flex gap-1">
+        <div className="flex gap-2">
           <select
             value=""
             onChange={(e) => agregar(e.target.value)}
@@ -182,7 +182,7 @@ function ColorMultiPicker({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="flex shrink-0 self-stretch items-center justify-center rounded-md border border-input px-2.5 text-muted-foreground hover:bg-zinc-100"
+            className="flex shrink-0 self-stretch items-center justify-center rounded-md border border-input px-3 text-muted-foreground hover:bg-zinc-100 hover:text-foreground"
             aria-label={
               role === 'admin' || role === 'super'
                 ? 'Crear color nuevo'
@@ -243,9 +243,9 @@ export function NuevoArticuloForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border bg-white p-4 shadow-sm"
+      className="space-y-4 rounded-lg border bg-white p-4 shadow-sm"
     >
-      <h2 className="font-semibold">Nuevo articulo</h2>
+      <h2 className="font-semibold">Nuevo artículo</h2>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nombre *">
@@ -258,7 +258,7 @@ export function NuevoArticuloForm({
           />
         </Field>
 
-        <Field label="Descripcion">
+        <Field label="Descripción">
           <input
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
@@ -408,8 +408,8 @@ export function EditArticuloRow({
         <td colSpan={5} className="px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">
-              Dar de baja <strong>{articulo.nombre}</strong>. El articulo se
-              ocultara de la lista pero los rollos y pedidos que lo usan siguen
+              Dar de baja <strong>{articulo.nombre}</strong>. El artículo se
+              ocultará de la lista pero los rollos y pedidos que lo usan siguen
               accesibles.
             </p>
             <div className="flex gap-2">
@@ -499,33 +499,33 @@ export function EditArticuloRow({
 
       {expanded && !editing && (
         <tr className="border-b bg-zinc-50/60">
-          <td />
-          <td colSpan={4} className="px-4 py-3">
+          <td colSpan={5} className="pb-3 pl-14 pr-4 pt-1">
             {coloresIds.length > 0 ? (
-              <div className="overflow-hidden rounded-md border bg-white">
-                <table className="w-full text-sm">
-                  <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
-                    <tr className="text-left">
-                      <th className="px-3 py-2 font-medium">Color</th>
-                      <th className="px-3 py-2 font-medium">Stock minimo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {coloresIds.map((colorId) => {
-                      const color = colores.find((c) => c.id === colorId)
-                      const stock = stockMinimos[colorId]
-                      return (
-                        <tr key={colorId} className="border-b last:border-0">
-                          <td className="px-3 py-2">{color?.nombre ?? colorId}</td>
-                          <td className="px-3 py-2 text-muted-foreground">
-                            {stock ? `${parseFloat(stock)} kg` : 'Sin limite'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <dl className="divide-y divide-zinc-200">
+                {coloresIds.map((colorId) => {
+                  const color = colores.find((c) => c.id === colorId)
+                  const stock = stockMinimos[colorId]
+                  return (
+                    <div
+                      key={colorId}
+                      className="flex items-center justify-between gap-4 py-2"
+                    >
+                      <dt className="text-sm font-medium text-foreground">
+                        {color?.nombre ?? colorId}
+                      </dt>
+                      <dd
+                        className={
+                          stock
+                            ? 'text-sm font-medium text-foreground'
+                            : 'text-sm text-muted-foreground'
+                        }
+                      >
+                        {stock ? `${parseFloat(stock)} kg` : 'Sin límite'}
+                      </dd>
+                    </div>
+                  )
+                })}
+              </dl>
             ) : (
               <p className="text-sm text-muted-foreground">Sin colores asociados.</p>
             )}
@@ -547,7 +547,7 @@ export function EditArticuloRow({
                     className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </Field>
-                <Field label="Descripcion">
+                <Field label="Descripción">
                   <input
                     value={descripcion}
                     onChange={(e) => setDescripcion(e.target.value)}
@@ -562,7 +562,7 @@ export function EditArticuloRow({
                   <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
                     <tr className="text-left">
                       <th className="px-3 py-2 font-medium">Color</th>
-                      <th className="px-3 py-2 font-medium">Stock minimo</th>
+                      <th className="px-3 py-2 font-medium">Stock mínimo</th>
                       <th />
                     </tr>
                   </thead>
