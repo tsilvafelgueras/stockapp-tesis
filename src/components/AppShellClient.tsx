@@ -26,7 +26,6 @@ import {
 } from 'lucide-react'
 import BrandMark from './BrandMark'
 import NotificationBell from './NotificationBell'
-import SuperActuandoBanner from './SuperActuandoBanner'
 import UserMenu from './UserMenu'
 import type { Notificacion } from '@/lib/notificaciones'
 
@@ -45,10 +44,7 @@ export type NavSection = {
 
 type Role = 'operario' | 'ventas' | 'admin' | 'super'
 
-function homeHref(role: Role, actuandoComoSuper: boolean): string {
-  // Super actuando dentro de una empresa: su "home" mientras dura
-  // la impersonación es el dashboard de admin de esa empresa.
-  if (role === 'super' && actuandoComoSuper) return '/admin/dashboard'
+function homeHref(role: Role): string {
   switch (role) {
     case 'operario':
       return '/operario/dashboard'
@@ -61,52 +57,7 @@ function homeHref(role: Role, actuandoComoSuper: boolean): string {
   }
 }
 
-function navForRole(role: Role, actuandoComoSuper: boolean): NavSection[] {
-  // Super actuando: muestra todo (admin + operación + comercial)
-  // porque tiene acceso completo a la empresa cliente. Arriba va
-  // un atajo para volver al panel global de empresas.
-  if (role === 'super' && actuandoComoSuper) {
-    return [
-      {
-        items: [
-          { href: '/super', label: 'Panel super-admin', icon: Building2 },
-        ],
-      },
-      {
-        items: [{ href: '/admin/dashboard', label: 'Inicio', icon: Home }],
-      },
-      {
-        title: 'Operacion',
-        items: [
-          { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
-          { href: '/confirmar', label: 'Confirmar llegadas', icon: ScanLine },
-          { href: '/picking', label: 'Picking', icon: ClipboardCheck },
-          { href: '/muestras', label: 'Muestras', icon: Scissors },
-        ],
-      },
-      {
-        title: 'Ventas',
-        items: [
-          { href: '/stock', label: 'Stock', icon: Search },
-          { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
-          { href: '/pedidos-pendientes', label: 'Demandas', icon: Clock3 },
-          { href: '/clientes', label: 'Clientes', icon: Users },
-        ],
-      },
-      {
-        title: 'Administracion',
-        items: [
-          { href: '/admin/articulos', label: 'Articulos', icon: Boxes },
-          { href: '/admin/colores', label: 'Colores', icon: Palette },
-          { href: '/admin/tintorerias', label: 'Tintorerias', icon: Factory },
-          { href: '/admin/equipo', label: 'Equipo', icon: Users },
-          { href: '/admin/reportes', label: 'Reportes', icon: BarChart3 },
-          { href: '/admin/historial', label: 'Historial', icon: History },
-        ],
-      },
-    ]
-  }
-
+function navForRole(role: Role): NavSection[] {
   if (role === 'super') {
     return [
       {
@@ -208,14 +159,12 @@ export default function AppShellClient({
   role,
   userName,
   empresaNombre,
-  actuandoComoSuper,
   notificaciones,
   children,
 }: {
   role: Role
   userName: string
   empresaNombre: string | null
-  actuandoComoSuper: boolean
   notificaciones: Notificacion[]
   children: React.ReactNode
 }) {
@@ -234,13 +183,11 @@ export default function AppShellClient({
     writeSidebar(!collapsed)
   }
 
-  const sections = navForRole(role, actuandoComoSuper)
-  const home = homeHref(role, actuandoComoSuper)
+  const sections = navForRole(role)
+  const home = homeHref(role)
   const sidebarWidth = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
-  // Admin y ventas ven la campanita siempre. Operario no. Super-admin solo
-  // cuando está actuando dentro de una empresa (ve las alertas de esa empresa).
-  const muestraCampanita =
-    role === 'admin' || role === 'ventas' || actuandoComoSuper
+  // El usuario admin/ventas ve la campanita. Operario y super no.
+  const muestraCampanita = role === 'admin' || role === 'ventas'
 
   return (
     <div
@@ -359,11 +306,6 @@ export default function AppShellClient({
           height: `calc(100dvh - ${TOPBAR_HEIGHT})`,
         }}
       >
-        {actuandoComoSuper && (
-          <div className="sticky top-0 z-20">
-            <SuperActuandoBanner empresaNombre={empresaNombre} />
-          </div>
-        )}
         <div
           className="app-shell-main"
           style={{ transition: hydrated ? undefined : 'none' }}

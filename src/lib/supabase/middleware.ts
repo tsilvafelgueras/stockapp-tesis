@@ -3,14 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 type Role = 'operario' | 'ventas' | 'admin' | 'super'
 
-// Para super-admin con empresa_id_actuando seteada, el "home" es
-// el dashboard de admin de esa empresa (está operando como admin
-// de la cliente). Para super-admin sin impersonación, /super.
-function dashboardForRole(
-  role: Role | null | undefined,
-  empresaActuando: string | null | undefined
-): string {
-  if (role === 'super') return empresaActuando ? '/admin/dashboard' : '/super'
+function dashboardForRole(role: Role | null | undefined): string {
+  if (role === 'super') return '/super'
   if (role === 'operario') return '/operario/dashboard'
   if (role === 'ventas') return '/ventas/dashboard'
   return '/admin/dashboard'
@@ -81,18 +75,12 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, empresa_id_actuando, empresas(activo)')
+      .select('role, empresas(activo)')
       .eq('id', user.id)
       .single()
 
     const role = profile?.role as Role | undefined
-    const empresaActuando = (profile?.empresa_id_actuando as string | null) ?? null
-    // Super-admin con empresa_id_actuando seteada: opera como admin
-    // de esa empresa. El rol REAL sigue siendo 'super' (nunca cambia
-    // en profiles.role) — esto es solo un flag de contexto para el
-    // middleware y los layouts.
-    const superActuando = role === 'super' && !!empresaActuando
-    const dest = dashboardForRole(role, empresaActuando)
+    const dest = dashboardForRole(role)
 
     // Bloqueo por empresa pausada (excepto super, que no tiene empresa)
     const empresaActiva =
@@ -121,8 +109,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
 
-    // /super solo para role='super' (con o sin impersonación —
-    // el super puede volver al panel global en cualquier momento)
+    // /super solo para role='super'
     if (pathname.startsWith('/super') && role !== 'super') {
       return NextResponse.redirect(new URL(dest, request.url))
     }
@@ -149,43 +136,37 @@ export async function updateSession(request: NextRequest) {
       isStock ||
       isNotificaciones
 
-    // Super-admin sin impersonación no puede entrar a rutas
-    // de empresa-cliente (no tiene empresa_id, vería datos cruzados).
-    // Si tiene empresa_id_actuando seteada, opera como admin de esa
-    // empresa y los guards lo dejan pasar.
-    if (role === 'super' && !superActuando && isTenantArea) {
+    // Super-admin no puede entrar a rutas de empresa-cliente
+    // (no tiene empresa_id, vería datos cruzados/raros)
+    if (role === 'super' && isTenantArea) {
       return NextResponse.redirect(new URL('/super', request.url))
     }
 
-    // Guards por sección de rol. El super actuando se trata como
-    // admin (admin es superset de operario+ventas, así que pasa
-    // todos los guards). El rol REAL del usuario sigue siendo
-    // 'super' en la DB — esto solo afecta el routing.
-    const effectiveRole: Role | undefined = superActuando ? 'admin' : role
-    if (pathname.startsWith('/admin') && effectiveRole !== 'admin') {
+    // Guards por sección de rol
+    if (pathname.startsWith('/admin') && role !== 'admin') {
       return NextResponse.redirect(new URL(dest, request.url))
     }
     if (
       pathname.startsWith('/ventas') &&
-      effectiveRole !== 'ventas' &&
-      effectiveRole !== 'admin'
+      role !== 'ventas' &&
+      role !== 'admin'
     ) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
     if (
       pathname.startsWith('/operario') &&
-      effectiveRole !== 'operario' &&
-      effectiveRole !== 'admin'
+      role !== 'operario' &&
+      role !== 'admin'
     ) {
       return NextResponse.redirect(new URL(dest, request.url))
     }
-    if (isOperacion && effectiveRole !== 'operario' && effectiveRole !== 'admin') {
+    if (isOperacion && role !== 'operario' && role !== 'admin') {
       return NextResponse.redirect(new URL(dest, request.url))
     }
-    if (isComercial && effectiveRole !== 'ventas' && effectiveRole !== 'admin') {
+    if (isComercial && role !== 'ventas' && role !== 'admin') {
       return NextResponse.redirect(new URL(dest, request.url))
     }
-    if (isNotificaciones && effectiveRole !== 'ventas' && effectiveRole !== 'admin') {
+    if (isNotificaciones && role !== 'ventas' && role !== 'admin') {
       return NextResponse.redirect(new URL(dest, request.url))
     }
   }
