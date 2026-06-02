@@ -88,3 +88,154 @@ export async function confirmarRollo(
     ingresoCompleto,
   }
 }
+
+// ── Confirmar partida por conteo (flujo nuevo) ───────────────
+//
+// El operario cuenta físicamente cuántos rollos llegaron e ingresa
+// ese número en lugar de escanear cada QR. Validamos el conteo contra
+// la planilla (cantidad de rollos extraídos Y total declarado). Si
+// coincide, confirmamos toda la partida; si no, exigimos una nota y
+// confirmamos igual (la diferencia queda como traza para reclamar a
+// la tintorería).
+
+export type RolloOverride = {
+  id: string
+  ubicacion?: string | null
+  comentario?: string | null
+}
+
+export type ConfirmarPartidaInput = {
+  conteoFisico: number
+  ubicacionGeneral: string | null
+  /** Requerida cuando el conteo no coincide con la planilla. */
+  nota: string | null
+  overrides: RolloOverride[]
+}
+
+export type ConfirmarPartidaResult =
+  | { ok: true; confirmados: number }
+  | {
+      ok: false
+      error: string
+      codigo: 'DISCREPANCIA' | 'SIN_PENDIENTES' | 'NO_AUTORIZADO' | 'DB_ERROR'
+      /** Presente cuando codigo === 'DISCREPANCIA'. */
+      detalle?: { contado: number; filas: number; declarado: number | null }
+    }
+
+export async function confirmarPartida(
+  ingresoId: string,
+  input: ConfirmarPartidaInput
+): Promise<ConfirmarPartidaResult> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return {
+      ok: false,
+      error: 'Tu sesión expiró. Volvé a entrar.',
+      codigo: 'NO_AUTORIZADO',
+    }
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'operario' && profile?.role !== 'admin') {
+    return {
+      ok: false,
+      error: 'Solo el operario o el admin pueden confirmar llegadas.',
+      codigo: 'NO_AUTORIZADO',
+    }
+  }
+
+  const { data: ingreso, error: ingError } = await supabase
+    .from('ingresos')
+    .select('id, total_rollos_declarado, estado')
+    .eq('id', ingresoId)
+    .single()
+
+  if (ingError || !ingreso) {
+    return { ok: false, error: 'No se encontró el ingreso.', codigo: 'DB_ERROR' }
+  }
+
+  const { data: pendientes, error: rollosError } = await supabase
+    .from('rollos')
+    .select('id, numero_pieza')
+    .eq('ingreso_id', ingresoId)
+    .eq('estado', 'pendiente')
+
+  if (rollosError) {
+    return { ok: false, error: rollosError.message, codigo: 'DB_ERROR' }
+  }
+  if (!pendientes?.length) {
+    return {
+      ok: false,
+      error: 'Esta partida ya no tiene rollos pendientes de confirmar.',
+      codigo: 'SIN_PENDIENTES',
+    }
+  }
+
+  const filas = pendientes.length
+  const declarado = ingreso.total_rollos_declarado
+  const coincide =
+    input.conteoFisico === filas && input.conteoFisico === declarado
+
+  // Si hay discrepancia y no nos dieron una nota, no confirmamos:
+  // devolvemos los números para que la UI muestre la alerta.
+  if (!coincide && !input.nota?.trim()) {
+    return {
+      ok: false,
+      error:
+        'El conteo no coincide con la planilla. Verificá de nuevo o dejá una nota para confirmar igual.',
+      codigo: 'DISCREPANCIA',
+      detalle: { contado: input.conteoFisico, filas, declarado },
+    }
+  }
+
+  const ubicacionGeneral = input.ubicacionGeneral?.trim() || null
+  const overridesPorId = new Map(input.overrides.map((o) => [o.id, o]))
+
+  // Actualizamos cada rollo pendiente: pasa a en_stock, toma la
+  // ubicación de la partida (salvo override) y el comentario puntual.
+  for (const rollo of pendientes) {
+    const override = overridesPorId.get(rollo.id)
+    const ubicacion =
+      override?.ubicacion?.trim() || ubicacionGeneral
+    const comentario = override?.comentario?.trim() || null
+
+    const { error: updError } = await supabase
+      .from('rollos')
+      .update({ estado: 'en_stock', ubicacion, comentario })
+      .eq('id', rollo.id)
+      .eq('estado', 'pendiente')
+
+    if (updError) {
+      return { ok: false, error: updError.message, codigo: 'DB_ERROR' }
+    }
+  }
+
+  const { error: ingUpdError } = await supabase
+    .from('ingresos')
+    .update({
+      estado: 'confirmado',
+      conteo_fisico: input.conteoFisico,
+      conteo_nota: coincide ? null : input.nota?.trim() || null,
+    })
+    .eq('id', ingresoId)
+
+  if (ingUpdError) {
+    return { ok: false, error: ingUpdError.message, codigo: 'DB_ERROR' }
+  }
+
+  revalidatePath(`/confirmar/${ingresoId}`)
+  revalidatePath('/confirmar')
+  revalidatePath('/ingresos')
+  revalidatePath('/stock')
+
+  return { ok: true, confirmados: filas }
+}

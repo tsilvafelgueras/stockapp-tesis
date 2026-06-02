@@ -218,7 +218,7 @@ export default function StockList({
                     <th className="w-12 px-3 py-3 font-medium"></th>
                     <th className="px-3 py-3 font-medium">Pieza</th>
                     <th className="px-3 py-3 font-medium">Disponibilidad</th>
-                    <th className="px-3 py-3 font-medium">Lote</th>
+                    <th className="px-3 py-3 font-medium">Partida</th>
                     <th className="px-3 py-3 font-medium">Artículo</th>
                     <th className="px-3 py-3 font-medium">Color</th>
                     <th className="px-3 py-3 font-medium">Kilos</th>

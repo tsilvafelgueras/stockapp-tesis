@@ -471,8 +471,9 @@ export default function NuevoPedidoForm({
         ) : lotesOrdenados ? (
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Agrupado por lote. Los lotes con menos stock disponible aparecen
-              primero para liquidarlos antes y no quedar con rollos sueltos.
+              Agrupado por partida. Las partidas con menos stock disponible
+              aparecen primero para liquidarlas antes y no quedar con rollos
+              sueltos.
             </p>
             {lotesOrdenados.map((grupo, idx) => (
               <LoteGroup
@@ -576,7 +577,7 @@ function LoteGroup({
   priorizar: boolean
   onAgregar: (r: RolloDisponible) => void
 }) {
-  const titulo = grupo.numero_lote ?? 'Sin lote asignado'
+  const titulo = grupo.numero_lote ?? 'Sin partida asignada'
   return (
     <div
       className={`rounded-md border bg-white ${
@@ -587,7 +588,7 @@ function LoteGroup({
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-base">📦</span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">Lote {titulo}</p>
+            <p className="text-sm font-semibold truncate">Partida {titulo}</p>
             <p className="text-xs text-muted-foreground tabular-nums">
               {grupo.rollos.length}{' '}
               {grupo.rollos.length === 1 ? 'rollo' : 'rollos'} ·{' '}

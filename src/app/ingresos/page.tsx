@@ -172,7 +172,7 @@ async function IngresosListView() {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 border-b">
               <tr className="text-left">
-                <th className="px-4 py-3 font-medium">Lote</th>
+                <th className="px-4 py-3 font-medium">Partida</th>
                 <th className="px-4 py-3 font-medium">Fecha</th>
                 <th className="px-4 py-3 font-medium">Tintorería</th>
                 <th className="px-4 py-3 font-medium">Artículos</th>

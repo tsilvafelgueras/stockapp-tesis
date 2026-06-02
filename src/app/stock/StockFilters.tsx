@@ -132,7 +132,7 @@ export default function StockFilters({
           </select>
         </Field>
 
-        <Field label="Lote">
+        <Field label="Partida">
           <select
             value={current.lote}
             onChange={(e) => update('lote', e.target.value)}

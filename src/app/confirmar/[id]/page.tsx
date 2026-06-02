@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import BackButton from '@/components/BackButton'
-import Scanner from './Scanner'
+import ConfirmarPartidaForm, { type RolloPartida } from './ConfirmarPartidaForm'
 
 export default async function ConfirmarIngresoPage({
   params,
@@ -15,8 +15,7 @@ export default async function ConfirmarIngresoPage({
     .from('ingresos')
     .select(`
       id, fecha_despacho, numero_remito, estado, total_rollos_declarado,
-      tintoreria_id,
-      tintorerias ( nombre, reader_type ),
+      tintorerias ( nombre ),
       articulos ( nombre )
     `)
     .eq('id', id)
@@ -39,35 +38,32 @@ export default async function ConfirmarIngresoPage({
     )
   }
 
-  const { data: rollos } = await supabase
+  const { data: rollosData } = await supabase
     .from('rollos')
-    .select('id, numero_pieza, estado')
+    .select(`
+      id, numero_pieza, estado,
+      articulos ( nombre ),
+      colores ( nombre )
+    `)
     .eq('ingreso_id', id)
+    .eq('estado', 'pendiente')
     .order('numero_pieza')
 
-  const { data: patronesData } = await supabase
-    .from('tintoreria_codigo_patrones')
-    .select('pattern, capture_group, prioridad')
-    .or(
-      ingreso.tintoreria_id
-        ? `tintoreria_id.eq.${ingreso.tintoreria_id},tintoreria_id.is.null`
-        : 'tintoreria_id.is.null'
-    )
-    .eq('activo', true)
-    .order('prioridad', { ascending: true })
-
-  const patrones = patronesData ?? []
-
-  const tintoreriaInfo = ingreso.tintorerias as unknown as
-    | { nombre: string; reader_type: 'qr' | 'barcode' | null }
-    | null
-  const tintoreria = tintoreriaInfo?.nombre
-  const readerType: 'qr' | 'barcode' | null = tintoreriaInfo?.reader_type ?? null
+  const tintoreria = (
+    ingreso.tintorerias as unknown as { nombre: string } | null
+  )?.nombre
   const articulo = (
     ingreso.articulos as unknown as { nombre: string } | null
   )?.nombre
 
-  const pendientes = rollos?.filter((r) => r.estado === 'pendiente').length ?? 0
+  const rollos: RolloPartida[] = (rollosData ?? []).map((r) => ({
+    id: r.id as string,
+    numero_pieza: r.numero_pieza as string,
+    articulo: (r.articulos as unknown as { nombre: string } | null)?.nombre ?? null,
+    color: (r.colores as unknown as { nombre: string } | null)?.nombre ?? null,
+  }))
+
+  const pendientes = rollos.length
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
@@ -88,12 +84,10 @@ export default async function ConfirmarIngresoPage({
           ¡Todos los rollos fueron confirmados! Guardando ingreso como confirmado...
         </div>
       ) : (
-        <Scanner
+        <ConfirmarPartidaForm
           ingresoId={id}
-          rollos={rollos ?? []}
+          rollos={rollos}
           totalDeclarado={ingreso.total_rollos_declarado}
-          patrones={patrones}
-          readerType={readerType}
         />
       )}
     </div>

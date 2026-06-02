@@ -36,7 +36,7 @@ export default async function ConfirmarPage() {
         <DashboardBackButton />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Confirmar llegadas</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Escaneá los códigos de los rollos para confirmar que están en el depósito
+          Contá los rollos de cada partida y confirmá la llegada al depósito
         </p>
       </div>
 

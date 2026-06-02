@@ -343,13 +343,13 @@ function LoteSinResultadosBanner({
 
   return (
     <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
-      El lote <span className="font-mono font-medium">{lote} </span>  no tiene
+      La partida <span className="font-mono font-medium">{lote} </span>  no tiene
       rollos en estado &ldquo;{estadoLabel}&rdquo;.{' '}
       <Link
         href={`/stock?${params.toString()}`}
         className="underline hover:no-underline font-medium"
       >
-        Ver todos los rollos del lote.
+        Ver todos los rollos de la partida.
       </Link>
     </div>
   )

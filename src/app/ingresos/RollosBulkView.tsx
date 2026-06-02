@@ -325,7 +325,7 @@ export default function RollosBulkView({
           onChange={(v) => setFilter('color', v)}
         />
         <ExcelFilter
-          label="Lote (OT)"
+          label="OT"
           options={filterOptions.ot}
           selected={filters.ot}
           onChange={(v) => setFilter('ot', v)}

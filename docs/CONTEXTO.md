@@ -376,6 +376,7 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 033 | **Prompt + tipo de lector por tintorería** (iteración 2026-05-25). Agrega `tintorerias.extraction_prompt TEXT` y `tintorerias.reader_type` (CHECK `'qr'`/`'barcode'`). Borra `extraction_config_key` (reemplaza al sistema viejo de archivos `.ts`). RLS de `tintorerias` permite a `super` cross-empresa. |
 | 034 | **Tintorerías muchos-a-muchos** (iteración 2026-05-25). Refactor M:N: nueva pivote `empresa_tintorerias` con atributos por relación (contacto/email/telefono/activo/fecha_baja). DROP de `empresa_id`+`contacto`+`email`+`telefono`+`activo`+`fecha_baja` de `tintorerias` (que pasa a ser registro maestro global). Backfill: cada fila vieja queda como una tintorería pura linkeada a su empresa actual (no se unifica por nombre para no juntar negocios distintos por coincidencia). `tintoreria_codigo_patrones.empresa_id` pasa a NULLable → patrones globales por tintorería coexisten con patrones internos por empresa (caso "la empresa pega su QR propio"). |
 | 039 | **Refactor M:N artículo-color, rinde, egreso, swap rollo en picking** (iteración 2026-05-26, feedback ingeniera textil). Migración grande, autorizada por el usuario para hacer **TRUNCATE** de datos de prueba (`rollos`/`ingresos`/`pedidos`/`pedido_rollos`/`muestras`/`pedidos_pendientes`/`articulos`/`colores`/`rollo_fotos`/`movimientos`) y rehacer la estructura limpia. Cambios: (a) `rollos.ratio_rendimiento` → `rinde`. (b) Estado `pedidos.confirmada_venta` → `confirmada_egreso` (CHECK + columnas de auditoría + RPC `confirmar_venta_pedido` → `confirmar_egreso_pedido`; `entregar_pedido` y `cancelar_pedido` actualizadas). (c) Refactor M:N artículo↔color: DROP `articulos.color`, nueva UNIQUE `(empresa_id, nombre)`, DROP `rollos.color` (texto) + DROP trigger `sync_rollo_color_from_articulo`, nueva `rollos.color_id NOT NULL REFERENCES colores(id)`, nueva pivote `articulo_colores(articulo_id, color_id)`, FK compuesta `rollos.(articulo_id, color_id) → articulo_colores` para enforce a nivel BD. (d) Nueva tabla `solicitudes_color` + RPCs `aprobar_solicitud_color`/`rechazar_solicitud_color` con SECURITY DEFINER (workflow: operario/ventas piden, admin resuelve). (e) Nueva RPC `reemplazar_rollo_en_pedido(pedido, viejo, nuevo, motivo_categoria, motivo_texto)` que valida match `(articulo_id, color_id)`, valida estado del par, DELETE+INSERT en `pedido_rollos`, marca el viejo como `segunda` con `falla_categoria`/`falla_descripcion`, e inserta movimiento con `accion='reemplazar_rollo'`. |
+| 045 | **Confirmar partida por conteo** (iteración 2026-06-02, feedback visita cliente Muter). Soporta el nuevo flujo de confirmación de llegadas (ya no se escanea rollo por rollo, ver Sección 10.x). Agrega `rollos.comentario TEXT` (detalle puntual por rollo), `ingresos.conteo_fisico INT` (cuántos rollos contó el operario) y `ingresos.conteo_nota TEXT` (nota de discrepancia cuando el conteo no coincide con la planilla y se confirma igual). Idempotente, sin TRUNCATE. |
 
 **Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual (post-039). Para DB nueva: correr `schema.sql` y después las migraciones `009`..`039` en orden.
 
@@ -595,6 +596,13 @@ Después del primer test de la Etapa 3 base, el user identificó 6 cosas a corre
 **Dependencias instaladas**: `@zxing/browser@0.2.0`, `@zxing/library@0.22.0`
 
 **Confirmado con el cliente**: los rollos físicos de Muter tienen QR/barcode escaneable (no es solo número impreso). El flujo principal es scanner; el modo manual es fallback.
+
+> ⚠️ **Cambio de flujo (iteración 2026-06-02, visita cliente Muter)** — ver Sección 10.x.
+> La confirmación rollo-por-rollo con scanner fue **reemplazada** por confirmación de
+> partida **por conteo**: el operario cuenta físicamente los rollos e ingresa el número;
+> el sistema valida contra la planilla y confirma toda la partida de una. El `Scanner.tsx`
+> de confirmar y la action `confirmarRollo` quedaron **sin uso pero NO se borraron** (el
+> stack de scanner compartido sigue vivo para el picking y un futuro escaneo de muestras).
 
 **Fixes previos aplicados en la misma sesión** (antes de arrancar Etapa 4):
 - Tintorerías: removido form de creación del admin (solo devs las crean vía SQL)
@@ -1559,6 +1567,56 @@ Los JOINs que ya tenían `tintorerias ( nombre )` para mostrar el nombre asociad
 
 **Borrados**:
 - `src/lib/extraccion/tintorerias/` (todo el directorio: `_registry.ts`, `_default.ts`, `_types.ts`, `muter-textil.ts`)
+
+---
+
+## 10.12. Iteración 2026-06-02 — "Partida" + confirmación por conteo
+
+Feedback de la visita al cliente Muter. Dos cambios:
+
+### Bloque A — Terminología "lote" → "partida" (solo UI)
+
+El cliente no entiende "lote"; en su día a día llaman **partida** al batch de rollos que
+entra de la tintorería. Se reemplazó **solo el texto visible** en pantalla
+(ingresos, stock, pedidos): encabezados de tabla, filtros, banners y títulos de grupo.
+
+**Importante**: NO se tocó la columna BD `numero_lote`, ni `lote_secuencias`, ni los
+triggers, ni el prefijo de formato `L-AAAA-NNN`, ni las variables/tipos internos
+(`lote`, `lotes`, `agruparRollosPorLote`, etc.). Razón: StockApp es multi-tenant y todavía
+no se validó con otros clientes que sí podrían usar "lote". El nombre de columna es
+invisible para el usuario. Si en el futuro hace falta terminología distinta por empresa,
+se hace configurable por tenant (feature aparte), sin hardcodear la jerga de un cliente
+en el schema.
+
+### Bloque B — Confirmación de llegada por conteo (migración 045)
+
+Antes el operario confirmaba la llegada **escaneando el QR de cada rollo** uno por uno. En
+días de alta carga (ej. 6 partidas × 24 rollos = 144 escaneos) era demasiado trabajo. El
+nuevo flujo en `/confirmar/[id]`:
+
+1. La planilla se sube **igual que antes** (manual o IA): crea los rollos en `pendiente`.
+2. El operario **cuenta físicamente** cuántos rollos llegaron e ingresa el número.
+3. El sistema valida que el conteo coincida con la planilla — **ambos**: la cantidad de
+   rollos extraídos (filas) Y `total_rollos_declarado`.
+   - **Coincide** → asigna ubicación a toda la partida (más override de ubicación y
+     comentario por rollo puntual) y confirma. Todos los rollos pasan a `en_stock`, el
+     ingreso a `confirmado`.
+   - **No coincide** → alerta con los números (contado / filas / declarado) y pide una
+     **nota obligatoria**. Con la nota se puede confirmar igual (no bloquea); la diferencia
+     queda en `ingresos.conteo_nota` para reclamar a la tintorería. Como no se escanea, no
+     se identifica *cuál* rollo falta: se confirman igual los registros de la planilla y la
+     discrepancia queda documentada.
+
+**Archivos**:
+- Nuevos: `supabase/migrations/045_confirmar_partida_por_conteo.sql`
+  (`rollos.comentario`, `ingresos.conteo_fisico`, `ingresos.conteo_nota`),
+  `src/app/confirmar/[id]/ConfirmarPartidaForm.tsx`.
+- Modificados: `src/app/confirmar/[id]/{page.tsx,actions.ts}` (nueva action
+  `confirmarPartida`), `src/app/confirmar/page.tsx` (copy).
+- Sin uso pero conservados (no borrados): `src/app/confirmar/[id]/Scanner.tsx` y la action
+  `confirmarRollo`. El stack de scanner compartido
+  (`CodeScanner`/`ScannerByReaderType`/`QRScanner`/`BarcodeScanner`/`lib/scanner.ts`) sigue
+  vivo para el **picking** y un futuro escaneo al **sacar muestras**.
 
 ---
 

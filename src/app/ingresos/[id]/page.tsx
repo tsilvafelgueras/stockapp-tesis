@@ -174,7 +174,7 @@ export default async function IngresoDetailPage({
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-bold">
               {ingreso.numero_lote
-                ? `Lote ${ingreso.numero_lote} · ${ingreso.fecha_despacho}`
+                ? `Partida ${ingreso.numero_lote} · ${ingreso.fecha_despacho}`
                 : `Ingreso del ${ingreso.fecha_despacho}`}
             </h1>
             <span
