@@ -10,7 +10,7 @@ import {
   subirFotoFalla,
   type RolloInput,
 } from './actions'
-import { solicitarColor } from '@/app/admin/colores/actions'
+import { createColor, solicitarColor } from '@/app/admin/colores/actions'
 import {
   UMBRAL_BAJA_CONFIANZA,
   type IngresoExtraido,
@@ -1574,6 +1574,25 @@ function SolicitarColorButton({
     const limpio = value.trim()
     if (!limpio) return
     startTransition(async () => {
+      // El admin puede crear el color directo (tiene permiso). Operario y
+      // ventas mandan una solicitud que el admin aprueba desde /admin/colores.
+      if (role === 'admin') {
+        const res = await createColor({ nombre: limpio })
+        if ('error' in res && res.error) {
+          toast.error(res.error)
+          return
+        }
+        if ('color' in res && res.color) onCreated(res.color as Catalog)
+        toast.success(
+          'alreadyExists' in res && res.alreadyExists
+            ? `"${limpio}" ya existía en el catálogo.`
+            : `Color "${limpio}" creado.`
+        )
+        setValue('')
+        setOpen(false)
+        return
+      }
+
       const res = await solicitarColor({ nombre: limpio })
       if ('error' in res) {
         toast.error(res.error ?? 'No se pudo enviar la solicitud.')
@@ -1584,11 +1603,6 @@ function SolicitarColorButton({
         onCreated(res.color as Catalog)
       } else if ('alreadyPending' in res) {
         toast.info(`Ya hay una solicitud pendiente para "${limpio}".`)
-      } else if (role === 'admin' || role === 'super') {
-        // Para admin, solicitarColor no es la vía habitual: igual avisamos
-        // que se generó solicitud, aunque podría crearlo directo desde
-        // /admin/colores.
-        toast.success(`Solicitud enviada.`)
       } else {
         toast.success(
           `Solicitud enviada al admin. Te avisamos cuando aprueben "${limpio}".`
@@ -1607,7 +1621,7 @@ function SolicitarColorButton({
         className="text-xs text-primary hover:underline"
       >
         {role === 'admin' || role === 'super'
-          ? '+ Pedir color nuevo'
+          ? '+ Crear color nuevo'
           : '+ Solicitar color al admin'}
       </button>
     )

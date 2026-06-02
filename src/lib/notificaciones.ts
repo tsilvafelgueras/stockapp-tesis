@@ -2,13 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 
 export type Notificacion = {
   id: string
-  tipo: 'stock_minimo'
+  tipo: 'stock_minimo' | 'solicitud_color'
   titulo: string
   mensaje: string
   articulo_id: string | null
   leida_at: string | null
   resuelta_at: string | null
   created_at: string
+  /** Si está, la notificación es un link (no vive en la tabla `notificaciones`). */
+  href?: string
+  /** false = no se puede marcar como leída (notificación sintética que se
+   * autoresuelve sola cuando deja de aplicar). Default true. */
+  dismissable?: boolean
 }
 
 /**

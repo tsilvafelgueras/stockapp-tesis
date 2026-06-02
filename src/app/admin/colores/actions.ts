@@ -39,17 +39,29 @@ export async function createColor(formData: { nombre: string }) {
   const nombre = normalizar(formData.nombre)
   if (!nombre) return { error: 'El nombre es obligatorio.' }
 
-  const { error } = await supabase.from('colores').insert({ nombre })
+  const { data, error } = await supabase
+    .from('colores')
+    .insert({ nombre })
+    .select('id, nombre')
+    .single()
 
   if (error) {
+    // Si ya existe, lo devolvemos igual para que el caller (ej. el form de
+    // ingreso) pueda seleccionarlo sin fricción en vez de mostrar un error.
     if (error.code === '23505') {
+      const { data: existente } = await supabase
+        .from('colores')
+        .select('id, nombre')
+        .eq('nombre', nombre)
+        .maybeSingle()
+      if (existente) return { success: true, color: existente, alreadyExists: true }
       return { error: `El color "${nombre}" ya existe.` }
     }
     return { error: error.message }
   }
 
   revalidatePath('/admin/colores')
-  return { success: true }
+  return { success: true, color: data }
 }
 
 export async function editarColor(id: string, nuevoNombre: string) {

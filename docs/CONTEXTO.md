@@ -1618,6 +1618,40 @@ nuevo flujo en `/confirmar/[id]`:
   (`CodeScanner`/`ScannerByReaderType`/`QRScanner`/`BarcodeScanner`/`lib/scanner.ts`) sigue
   vivo para el **picking** y un futuro escaneo al **sacar muestras**.
 
+### Bloque C — Color nuevo desde el ingreso: admin crea directo + aviso de solicitudes
+
+Dos fixes al workflow de colores (el flujo BD ya estaba bien: trigger `set_empresa_id` +
+RLS en `solicitudes_color`):
+
+1. **Admin crea el color directo desde el ingreso**. Antes el botón "+ Pedir color nuevo"
+   del form de ingreso llamaba a `solicitarColor` para *todos* los roles — el admin
+   terminaba generando una solicitud para sí mismo en vez de crear el color. Ahora el botón
+   (`SolicitarColorButton` en `NuevoIngresoForm.tsx`) ramifica por rol: **admin → `createColor`**
+   (crea y selecciona al toque, label "+ Crear color nuevo"); operario/ventas →
+   `solicitarColor` (label "+ Solicitar color al admin"). `createColor` ahora devuelve el
+   color creado (`{ id, nombre }`) y, si ya existía, lo devuelve igual con `alreadyExists`
+   para seleccionarlo sin fricción.
+2. **La solicitud "llega a algún lado"**. Dos lugares:
+   - En la pestaña **Colores** (`/admin/colores`): el `SolicitudesColorPanel` (banner ámbar
+     arriba de todo) lista las `solicitudes_color` en estado `pendiente` con botones
+     Aprobar/Rechazar. Header: "N colores pendientes de verificación".
+   - **Notificación "Verificar colores"** en la campanita del admin (`NotificationBell`).
+     Es **sintética** (no vive en la tabla `notificaciones`, no necesitó migración): se
+     inyecta en `AppShell` solo para admin mientras haya solicitudes `pendiente`, linkea a
+     `/admin/colores` y es **no descartable** (`dismissable: false`) — se autoresuelve sola
+     cuando ya no quedan pendientes. El tipo `Notificacion` ganó campos opcionales `href` y
+     `dismissable`. NO se agregó al dashboard principal (decisión del usuario: no es tan
+     crucial).
+
+### Bloque D — Reintento automático ante Gemini sobrecargado (503)
+
+Gemini (free tier) devuelve errores transitorios —503 `UNAVAILABLE` "high demand", 429
+rate-limit, 500 `INTERNAL`— que se resuelven reintentando. Antes el operario veía el error
+crudo. Ahora `extraerConGemini` (`src/lib/extraccion/gemini.ts`) reintenta hasta 3 veces con
+backoff exponencial (1s, 2s) ante errores transitorios (helper `esErrorTransitorio`); errores
+no transitorios (ej. API key inválida, JSON malformado) cortan de una. Si tras los reintentos
+sigue sobrecargado, muestra un mensaje claro sugiriendo esperar o cargar a mano.
+
 ---
 
 ## 11. Decisiones de dominio importantes

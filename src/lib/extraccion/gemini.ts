@@ -151,6 +151,30 @@ const SCHEMA: Schema = {
 
 // ── Implementación ──────────────────────────────────────────
 
+// Detecta errores transitorios de la API de Gemini que vale la pena
+// reintentar: 503 (UNAVAILABLE / "high demand"), 429 (rate-limit /
+// RESOURCE_EXHAUSTED), 500 (INTERNAL) y el timeout local. El SDK
+// `@google/genai` expone a veces `status`/`code` numérico y siempre
+// incluye el código en el mensaje, así que chequeamos ambos.
+function esErrorTransitorio(e: unknown): boolean {
+  const err = e as { status?: number; code?: number; message?: string }
+  const code = err?.status ?? err?.code
+  if (code === 503 || code === 429 || code === 500) return true
+  const msg = (err?.message ?? String(e)).toLowerCase()
+  return (
+    msg.includes('503') ||
+    msg.includes('unavailable') ||
+    msg.includes('overloaded') ||
+    msg.includes('high demand') ||
+    msg.includes('429') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('rate limit') ||
+    msg.includes('500') ||
+    msg.includes('internal') ||
+    msg.includes('tardó demasiado')
+  )
+}
+
 export async function extraerConGemini(
   fileBuffer: Buffer,
   mimeType: string,
@@ -168,17 +192,18 @@ export async function extraerConGemini(
   const prompt = buildPrompt(customPrompt)
 
   const TIMEOUT_MS = 45_000
+  const MAX_INTENTOS = 3
 
-  let response
-  try {
-    const ai = new GoogleGenAI({ apiKey })
+  const ai = new GoogleGenAI({ apiKey })
+
+  const llamarGemini = () => {
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(
         () => reject(new Error('La IA tardó demasiado. Intentá de nuevo o cargá manualmente.')),
         TIMEOUT_MS
       )
     )
-    response = await Promise.race([
+    return Promise.race([
       ai.models.generateContent({
         model: MODELO,
         contents: [
@@ -202,13 +227,37 @@ export async function extraerConGemini(
       }),
       timeout,
     ])
-  } catch (e) {
-    const msg = (e as Error).message ?? String(e)
-    return {
-      ok: false,
-      error: msg,
-      codigo: 'GEMINI_ERROR',
+  }
+
+  // Gemini (sobre todo en free tier) devuelve errores transitorios —503
+  // UNAVAILABLE "high demand", 429 rate-limit, 500 INTERNAL— que se resuelven
+  // reintentando. Hacemos hasta MAX_INTENTOS con backoff exponencial (1s, 2s)
+  // antes de rendirnos. Errores no transitorios (ej. API key inválida) cortan
+  // de una.
+  let response
+  let ultimoError = ''
+  for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+    try {
+      response = await llamarGemini()
+      break
+    } catch (e) {
+      ultimoError = (e as Error).message ?? String(e)
+      if (!esErrorTransitorio(e) || intento === MAX_INTENTOS) {
+        return {
+          ok: false,
+          error: esErrorTransitorio(e)
+            ? 'El servicio de IA está sobrecargado en este momento. Esperá unos segundos y volvé a intentar, o cargá la planilla a mano.'
+            : ultimoError,
+          codigo: 'GEMINI_ERROR',
+        }
+      }
+      // Backoff: 1s tras el 1er fallo, 2s tras el 2do.
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** (intento - 1)))
     }
+  }
+
+  if (!response) {
+    return { ok: false, error: ultimoError || 'La IA no respondió', codigo: 'GEMINI_ERROR' }
   }
 
   const text = response.text

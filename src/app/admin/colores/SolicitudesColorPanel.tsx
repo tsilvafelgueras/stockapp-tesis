@@ -58,12 +58,13 @@ export default function SolicitudesColorPanel({
         <p className="text-sm font-medium text-amber-900">
           {solicitudes.length}{' '}
           {solicitudes.length === 1
-            ? 'solicitud de color pendiente'
-            : 'solicitudes de color pendientes'}
+            ? 'color pendiente de verificación'
+            : 'colores pendientes de verificación'}
         </p>
         <p className="text-xs text-amber-800/80 mt-0.5">
           Operarios o ventas pidieron agregar estos colores al catálogo.
-          Aprobalos para que aparezcan en los formularios.
+          Verificalos: aprobalos para que aparezcan en los formularios, o
+          rechazalos.
         </p>
       </div>
 

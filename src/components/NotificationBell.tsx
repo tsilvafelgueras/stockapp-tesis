@@ -73,7 +73,9 @@ export default function NotificationBell({
         toast.error(res.error)
         return
       }
-      setItems([])
+      // Las sintéticas (no descartables) siguen visibles: se resuelven solas
+      // cuando deja de aplicar la condición (ej. ya no hay colores pendientes).
+      setItems((prev) => prev.filter((n) => n.dismissable === false))
       toast.success('Notificaciones marcadas como leídas.')
     })
   }
@@ -131,12 +133,9 @@ export default function NotificationBell({
               </div>
             ) : (
               <ul className="divide-y">
-                {items.map((n) => (
-                  <li key={n.id} className="group flex items-start gap-3 px-4 py-3 hover:bg-zinc-50">
-                    <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
-                      <Bell className="size-3.5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
+                {items.map((n) => {
+                  const cuerpo = (
+                    <>
                       <p className="text-sm font-medium leading-snug">{n.titulo}</p>
                       <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
                         {n.mensaje}
@@ -147,19 +146,39 @@ export default function NotificationBell({
                           timeStyle: 'short',
                         })}
                       </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleMarcarUna(n.id)}
-                      disabled={pending}
-                      className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-action/10 hover:text-action group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
-                      aria-label="Marcar como leída"
-                      title="Marcar como leída"
-                    >
-                      <Check className="size-4" />
-                    </button>
-                  </li>
-                ))}
+                    </>
+                  )
+                  return (
+                    <li key={n.id} className="group flex items-start gap-3 px-4 py-3 hover:bg-zinc-50">
+                      <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
+                        <Bell className="size-3.5" />
+                      </span>
+                      {n.href ? (
+                        <Link
+                          href={n.href}
+                          onClick={() => setOpen(false)}
+                          className="min-w-0 flex-1"
+                        >
+                          {cuerpo}
+                        </Link>
+                      ) : (
+                        <div className="min-w-0 flex-1">{cuerpo}</div>
+                      )}
+                      {n.dismissable !== false && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarcarUna(n.id)}
+                          disabled={pending}
+                          className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-action/10 hover:text-action group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
+                          aria-label="Marcar como leída"
+                          title="Marcar como leída"
+                        >
+                          <Check className="size-4" />
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
