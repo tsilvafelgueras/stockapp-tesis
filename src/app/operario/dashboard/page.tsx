@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import {
   ClipboardCheck,
+  PackageCheck,
   PackagePlus,
-  ScanLine,
   Scissors,
   Search,
   Truck,
@@ -23,9 +23,9 @@ const actions: {
   },
   {
     href: '/confirmar',
-    title: 'Escanear llegadas',
-    description: 'Confirmar rollos pendientes y asignarles ubicación.',
-    icon: ScanLine,
+    title: 'Confirmar llegadas',
+    description: 'Contá los rollos que llegaron y confirmá la partida.',
+    icon: PackageCheck,
   },
   {
     href: '/stock',

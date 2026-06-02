@@ -80,8 +80,14 @@ export default async function ConfirmarIngresoPage({
       </div>
 
       {pendientes === 0 ? (
-        <div className="rounded-lg border bg-success/10 border-success/30 px-4 py-3 text-sm text-success font-medium">
-          ¡Todos los rollos fueron confirmados! Guardando ingreso como confirmado...
+        <div className="rounded-lg border bg-success/10 border-success/30 p-5 text-center space-y-2">
+          <p className="text-2xl">✓</p>
+          <p className="font-semibold text-success">
+            Esta partida ya no tiene rollos pendientes
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Ya fueron confirmados. Volvé para confirmar otra llegada.
+          </p>
         </div>
       ) : (
         <ConfirmarPartidaForm

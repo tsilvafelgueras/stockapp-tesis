@@ -71,31 +71,44 @@ export default function ConfirmarPartidaForm({
     }
 
     setConfirmando(true)
-    const result = await confirmarPartida(ingresoId, {
-      conteoFisico: conteo,
-      ubicacionGeneral: ubicacionGeneral || null,
-      nota: coincide ? null : nota,
-      overrides: rollos
-        .map((r) => {
-          const o = overrides[r.id]
-          if (!o) return null
-          const ubic = o.ubicacion.trim()
-          const com = o.comentario.trim()
-          if (!ubic && !com) return null
-          return { id: r.id, ubicacion: ubic || null, comentario: com || null }
-        })
-        .filter((o): o is NonNullable<typeof o> => o !== null),
-    })
-    setConfirmando(false)
+    try {
+      const result = await confirmarPartida(ingresoId, {
+        conteoFisico: conteo,
+        ubicacionGeneral: ubicacionGeneral || null,
+        nota: coincide ? null : nota,
+        overrides: rollos
+          .map((r) => {
+            const o = overrides[r.id]
+            if (!o) return null
+            const ubic = o.ubicacion.trim()
+            const com = o.comentario.trim()
+            if (!ubic && !com) return null
+            return { id: r.id, ubicacion: ubic || null, comentario: com || null }
+          })
+          .filter((o): o is NonNullable<typeof o> => o !== null),
+      })
 
-    if (!result.ok) {
-      toast.error(result.error)
-      return
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+
+      toast.success(
+        `Partida confirmada — ${result.confirmados} rollos en stock.`
+      )
+      router.push('/confirmar')
+      router.refresh()
+    } catch (e) {
+      // Si la server action lanza (en vez de devolver {ok:false}), evitamos
+      // que el botón quede clavado en "Confirmando…" y mostramos el error.
+      toast.error(
+        `No se pudo confirmar la partida: ${
+          e instanceof Error ? e.message : 'error inesperado'
+        }`
+      )
+    } finally {
+      setConfirmando(false)
     }
-
-    toast.success(`Partida confirmada — ${result.confirmados} rollos en stock.`)
-    router.push('/confirmar')
-    router.refresh()
   }
 
   // ── Paso 1: conteo ─────────────────────────────────────────
