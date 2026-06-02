@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
+import { RotateCcw, SlidersHorizontal } from 'lucide-react'
+import ExcelFilter from '@/components/ExcelFilter'
 
 type Catalogo = { id: string; nombre: string }
 
@@ -10,7 +12,8 @@ export type ReportesFiltersState = {
   meses: string[]
   tintorerias: string[]
   articulos: string[]
-  dias: string
+  desde: string
+  hasta: string
 }
 
 const MESES = [
@@ -65,34 +68,45 @@ export default function ReportesFilters({
     ? anios
     : [anioActual, ...anios]
 
+  const rangoActivo = !!current.desde && !!current.hasta
+
   const hasFilters =
     current.anio !== String(anioActual) ||
     current.meses.length > 0 ||
     current.tintorerias.length > 0 ||
     current.articulos.length > 0 ||
-    (!!current.dias && current.dias !== '30')
+    !!current.desde ||
+    !!current.hasta
 
   return (
     <div className="space-y-3 rounded-lg border bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Filtros</h2>
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="size-4 text-action" />
+          <h2 className="text-sm font-semibold">Filtros</h2>
+          {pending && (
+            <span className="text-xs text-muted-foreground">Aplicando…</span>
+          )}
+        </div>
         {hasFilters && (
           <button
             type="button"
             onClick={reset}
-            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            className="inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-action/40 hover:text-foreground"
           >
+            <RotateCcw className="size-3.5" />
             Limpiar
           </button>
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
         <Field label="Año">
           <select
             value={current.anio}
             onChange={(e) => update('anio', e.target.value)}
-            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            disabled={rangoActivo}
+            className="h-9 w-28 rounded-md border bg-white px-2 text-sm disabled:opacity-50"
           >
             {aniosOpciones
               .sort((a, b) => b - a)
@@ -105,48 +119,60 @@ export default function ReportesFilters({
         </Field>
 
         <Field label="Meses">
-          <MultiSelect
-            values={current.meses}
-            options={MESES}
-            onChange={(values) => update('mes', values)}
-          />
+          <div className={rangoActivo ? 'pointer-events-none opacity-50' : ''}>
+            <ExcelFilter
+              label="Meses"
+              options={MESES}
+              selected={current.meses}
+              onChange={(values) => update('mes', values)}
+            />
+          </div>
         </Field>
 
         <Field label="Tintorerías">
-          <MultiSelect
-            values={current.tintorerias}
+          <ExcelFilter
+            label="Tintorerías"
             options={tintorerias.map((t) => ({ value: t.id, label: t.nombre }))}
+            selected={current.tintorerias}
             onChange={(values) => update('tintoreria', values)}
           />
         </Field>
 
         <Field label="Artículos">
-          <MultiSelect
-            values={current.articulos}
+          <ExcelFilter
+            label="Artículos"
             options={articulos.map((a) => ({ value: a.id, label: a.nombre }))}
+            selected={current.articulos}
             onChange={(values) => update('articulo', values)}
           />
         </Field>
 
-        <Field label="Días en mano">
-          <select
-            value={current.dias || '30'}
-            onChange={(e) => update('dias', e.target.value)}
-            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
-          >
-            {[7, 15, 30, 60, 90, 180].map((d) => (
-              <option key={d} value={d}>
-                {d} días
-              </option>
-            ))}
-          </select>
+        <span className="mx-1 hidden h-9 w-px self-end bg-border sm:block" />
+
+        <Field label="Desde">
+          <input
+            type="date"
+            value={current.desde}
+            max={current.hasta || undefined}
+            onChange={(e) => update('desde', e.target.value)}
+            className="h-9 rounded-md border bg-white px-2 text-sm"
+          />
+        </Field>
+        <Field label="Hasta">
+          <input
+            type="date"
+            value={current.hasta}
+            min={current.desde || undefined}
+            onChange={(e) => update('hasta', e.target.value)}
+            className="h-9 rounded-md border bg-white px-2 text-sm"
+          />
         </Field>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {pending
-          ? 'Aplicando filtros...'
-          : 'Podés combinar varios meses, tintorerías y artículos en el mismo reporte.'}
+        {rangoActivo
+          ? 'Rango de fechas activo: reemplaza el filtro de año y meses.'
+          : 'Podés combinar varios meses, tintorerías y artículos. Un rango de fechas reemplaza año/meses.'}
       </p>
     </div>
   )
@@ -161,45 +187,10 @@ function Field({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="block text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
       {children}
-    </div>
-  )
-}
-
-function MultiSelect({
-  values,
-  options,
-  onChange,
-}: {
-  values: string[]
-  options: { value: string; label: string }[]
-  onChange: (values: string[]) => void
-}) {
-  function toggle(value: string) {
-    if (values.includes(value)) {
-      onChange(values.filter((v) => v !== value))
-    } else {
-      onChange([...values, value])
-    }
-  }
-
-  return (
-    <div className="max-h-32 overflow-y-auto rounded-md border bg-white p-2">
-      {options.map((option) => (
-        <label
-          key={option.value}
-          className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-2 text-sm hover:bg-accent"
-        >
-          <input
-            type="checkbox"
-            checked={values.includes(option.value)}
-            onChange={() => toggle(option.value)}
-            className="size-4 accent-action"
-          />
-          <span className="min-w-0 truncate">{option.label}</span>
-        </label>
-      ))}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import MermaPartidaCard from './MermaPartidaCard'
 
 const ESTADO_INGRESO: Record<string, { text: string; className: string }> = {
   borrador: { text: 'Borrador', className: 'bg-zinc-100 text-zinc-700' },
@@ -219,6 +220,19 @@ export default async function IngresoDetailPage({
           <Field label="Referencia" value={ingreso.referencia} />
         )}
       </div>
+
+      <MermaPartidaCard
+        ingresoId={id}
+        kilosCrudoInicial={
+          ingreso.kilos_crudo_enviado != null
+            ? Number(ingreso.kilos_crudo_enviado)
+            : null
+        }
+        kilosTenidoRecibido={totalKilos}
+        puedeEditar={
+          profile?.role === 'admin' || profile?.role === 'operario'
+        }
+      />
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b bg-zinc-50 flex items-center justify-between">
