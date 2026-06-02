@@ -38,16 +38,29 @@ export default async function ConfirmarIngresoPage({
     )
   }
 
-  const { data: rollosData } = await supabase
-    .from('rollos')
-    .select(`
-      id, numero_pieza, estado,
-      articulos ( nombre ),
-      colores ( nombre )
-    `)
-    .eq('ingreso_id', id)
-    .eq('estado', 'pendiente')
-    .order('numero_pieza')
+  // Nota: el color del rollo se resuelve con una query aparte + map por
+  // color_id (igual que en pedidos/stock/reportes). El embed PostgREST
+  // `colores ( nombre )` sobre `rollos` NO resuelve la relación y hace fallar
+  // toda la query (devolvía rollos=[] → parecía "sin pendientes").
+  const [{ data: rollosData }, { data: coloresRaw }] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select(`
+        id, numero_pieza, estado, color_id,
+        articulos ( nombre )
+      `)
+      .eq('ingreso_id', id)
+      .eq('estado', 'pendiente')
+      .order('numero_pieza'),
+    supabase.from('colores').select('id, nombre'),
+  ])
+
+  const colorById = new Map(
+    ((coloresRaw ?? []) as { id: string; nombre: string }[]).map((c) => [
+      c.id,
+      c.nombre,
+    ])
+  )
 
   const tintoreria = (
     ingreso.tintorerias as unknown as { nombre: string } | null
@@ -60,7 +73,7 @@ export default async function ConfirmarIngresoPage({
     id: r.id as string,
     numero_pieza: r.numero_pieza as string,
     articulo: (r.articulos as unknown as { nombre: string } | null)?.nombre ?? null,
-    color: (r.colores as unknown as { nombre: string } | null)?.nombre ?? null,
+    color: r.color_id ? colorById.get(r.color_id as string) ?? null : null,
   }))
 
   const pendientes = rollos.length
