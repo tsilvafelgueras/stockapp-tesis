@@ -20,12 +20,12 @@ export type StockFiltersState = {
 }
 
 export const ORDEN_OPCIONES: { value: string; label: string }[] = [
-  { value: 'reciente', label: 'Ingreso (mas reciente primero)' },
-  { value: 'antiguo', label: 'Ingreso (mas antiguo primero)' },
+  { value: 'reciente', label: 'Ingreso (más reciente primero)' },
+  { value: 'antiguo', label: 'Ingreso (más antiguo primero)' },
   { value: 'kilos_desc', label: 'Kilos (mayor a menor)' },
   { value: 'kilos_asc', label: 'Kilos (menor a mayor)' },
-  { value: 'articulo_asc', label: 'Articulo (A-Z)' },
-  { value: 'articulo_desc', label: 'Articulo (Z-A)' },
+  { value: 'articulo_asc', label: 'Artículo (A-Z)' },
+  { value: 'articulo_desc', label: 'Artículo (Z-A)' },
 ]
 
 const UBICACION_OPTIONS = UBICACIONES.map((u) => ({ value: u, label: u }))
@@ -102,7 +102,7 @@ export default function StockFilters({
           />
         </Field>
 
-        <Field label="Articulo">
+        <Field label="Artículo">
           <select
             value={current.articulo}
             onChange={(e) => update('articulo', e.target.value)}
@@ -147,7 +147,7 @@ export default function StockFilters({
           </select>
         </Field>
 
-        <Field label="Tintoreria">
+        <Field label="Tintorería">
           <select
             value={current.tintoreria}
             onChange={(e) => update('tintoreria', e.target.value)}
@@ -162,7 +162,7 @@ export default function StockFilters({
           </select>
         </Field>
 
-        <Field label="Ubicacion">
+        <Field label="Ubicación">
           <SearchableCombobox
             value={current.ubicacion}
             onChange={(value) => update('ubicacion', value)}

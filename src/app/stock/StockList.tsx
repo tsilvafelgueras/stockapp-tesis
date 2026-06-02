@@ -219,15 +219,15 @@ export default function StockList({
                     <th className="px-3 py-3 font-medium">Pieza</th>
                     <th className="px-3 py-3 font-medium">Disponibilidad</th>
                     <th className="px-3 py-3 font-medium">Lote</th>
-                    <th className="px-3 py-3 font-medium">Articulo</th>
+                    <th className="px-3 py-3 font-medium">Artículo</th>
                     <th className="px-3 py-3 font-medium">Color</th>
                     <th className="px-3 py-3 font-medium">Kilos</th>
                     <th className="px-3 py-3 font-medium">Metros</th>
-                    <th className="px-3 py-3 font-medium">Ubicacion</th>
-                    <th className="px-3 py-3 font-medium">Tintoreria</th>
+                    <th className="px-3 py-3 font-medium">Ubicación</th>
+                    <th className="px-3 py-3 font-medium">Tintorería</th>
                     <th className="px-3 py-3 font-medium">Ingreso</th>
                     <th className="px-3 py-3 font-medium">
-                      Dias de inventario
+                      Días de inventario
                     </th>
                     <th className="px-3 py-3 font-medium w-24"></th>
                   </tr>
@@ -356,7 +356,7 @@ function ResumenStock({ grupos }: { grupos: SummaryGroup[] }) {
           <table className="w-full text-sm">
             <thead className="border-b bg-muted">
               <tr className="text-left">
-                <th className="px-3 py-3 font-medium">Articulo</th>
+                <th className="px-3 py-3 font-medium">Artículo</th>
                 <th className="px-3 py-3 font-medium">Color</th>
                 <th className="px-3 py-3 font-medium">Rollos</th>
                 <th className="px-3 py-3 font-medium">Kg total</th>
