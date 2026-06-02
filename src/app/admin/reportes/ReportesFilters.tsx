@@ -100,13 +100,13 @@ export default function ReportesFilters({
         )}
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Field label="Año">
           <select
             value={current.anio}
             onChange={(e) => update('anio', e.target.value)}
             disabled={rangoActivo}
-            className="h-9 w-28 rounded-md border bg-white px-2 text-sm disabled:opacity-50"
+            className="h-9 w-full rounded-md border bg-white px-2 text-sm disabled:opacity-50"
           >
             {aniosOpciones
               .sort((a, b) => b - a)
@@ -125,6 +125,7 @@ export default function ReportesFilters({
               options={MESES}
               selected={current.meses}
               onChange={(values) => update('mes', values)}
+              triggerClassName="h-9 w-full px-3 text-sm"
             />
           </div>
         </Field>
@@ -135,6 +136,7 @@ export default function ReportesFilters({
             options={tintorerias.map((t) => ({ value: t.id, label: t.nombre }))}
             selected={current.tintorerias}
             onChange={(values) => update('tintoreria', values)}
+            triggerClassName="h-9 w-full px-3 text-sm"
           />
         </Field>
 
@@ -144,10 +146,9 @@ export default function ReportesFilters({
             options={articulos.map((a) => ({ value: a.id, label: a.nombre }))}
             selected={current.articulos}
             onChange={(values) => update('articulo', values)}
+            triggerClassName="h-9 w-full px-3 text-sm"
           />
         </Field>
-
-        <span className="mx-1 hidden h-9 w-px self-end bg-border sm:block" />
 
         <Field label="Desde">
           <input
@@ -155,7 +156,7 @@ export default function ReportesFilters({
             value={current.desde}
             max={current.hasta || undefined}
             onChange={(e) => update('desde', e.target.value)}
-            className="h-9 rounded-md border bg-white px-2 text-sm"
+            className="h-9 w-full rounded-md border bg-white px-2 text-sm"
           />
         </Field>
         <Field label="Hasta">
@@ -164,7 +165,7 @@ export default function ReportesFilters({
             value={current.hasta}
             min={current.desde || undefined}
             onChange={(e) => update('hasta', e.target.value)}
-            className="h-9 rounded-md border bg-white px-2 text-sm"
+            className="h-9 w-full rounded-md border bg-white px-2 text-sm"
           />
         </Field>
       </div>

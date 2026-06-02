@@ -20,30 +20,28 @@ export default function ReportesTabs({ active }: { active: string }) {
   }
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <nav
-        className="flex min-w-max gap-1 border-b"
-        aria-label="Secciones de reportes"
-      >
-        {REPORTE_TABS.map((tab) => {
-          const isActive = tab.slug === active
-          return (
-            <Link
-              key={tab.slug}
-              href={hrefFor(tab.slug)}
-              scroll={false}
-              aria-current={isActive ? 'page' : undefined}
-              className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'border-action text-action'
-                  : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          )
-        })}
-      </nav>
-    </div>
+    <nav
+      className="flex w-full overflow-hidden rounded-lg border bg-white shadow-sm"
+      aria-label="Secciones de reportes"
+    >
+      {REPORTE_TABS.map((tab) => {
+        const isActive = tab.slug === active
+        return (
+          <Link
+            key={tab.slug}
+            href={hrefFor(tab.slug)}
+            scroll={false}
+            aria-current={isActive ? 'page' : undefined}
+            className={`flex min-h-12 flex-1 items-center justify-center border-b-2 px-2 text-center text-sm leading-tight transition-colors ${
+              isActive
+                ? 'border-action bg-action/5 font-bold text-foreground'
+                : 'border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        )
+      })}
+    </nav>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 
 export type ExcelFilterOption = {
   value: string
@@ -23,6 +24,7 @@ export default function ExcelFilter({
   onChange,
   emptyLabel = '(vacío)',
   align = 'start',
+  triggerClassName,
 }: {
   label: string
   options: ExcelFilterOption[]
@@ -31,6 +33,8 @@ export default function ExcelFilter({
   /** Texto a mostrar para la opción "valor vacío" si aparece. */
   emptyLabel?: string
   align?: 'start' | 'end'
+  /** Clases extra para el botón disparador (override de tamaño/ancho). */
+  triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -85,13 +89,15 @@ export default function ExcelFilter({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors',
           activos > 0
             ? 'border-primary/40 bg-primary/5 text-primary'
-            : 'border-input bg-white hover:bg-zinc-50 text-foreground'
-        }`}
+            : 'border-input bg-white hover:bg-zinc-50 text-foreground',
+          triggerClassName
+        )}
       >
-        <span>{label}</span>
+        <span className="flex-1 truncate text-left">{label}</span>
         {activos > 0 && (
           <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5 min-w-[18px] text-center">
             {activos}
