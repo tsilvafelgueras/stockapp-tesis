@@ -165,7 +165,7 @@ export default function NuevoPedidoForm({
       <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
         <h2 className="font-semibold text-sm">Datos del pedido</h2>
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
               Cliente <span className="text-destructive">*</span>
             </label>
@@ -193,7 +193,7 @@ export default function NuevoPedidoForm({
                 </button>
               </>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col gap-2">
                 <input
                   type="text"
                   value={nuevoClienteNombre}
@@ -209,7 +209,7 @@ export default function NuevoPedidoForm({
                       setNuevoClienteNombre('')
                     }
                   }}
-                  className="flex-1 rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border px-3 py-2 text-sm"
                 />
                 <div className="flex gap-2">
                   <button
