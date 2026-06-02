@@ -61,11 +61,11 @@ export default function SolicitudesColorPanel({
             ? 'color pendiente de verificación'
             : 'colores pendientes de verificación'}
         </p>
-        <p className="text-xs text-amber-800/80 mt-0.5">
+        {/* <p className="text-xs text-amber-800/80 mt-0.5">
           Operarios o ventas pidieron agregar estos colores al catálogo.
           Verificalos: aprobalos para que aparezcan en los formularios, o
           rechazalos.
-        </p>
+        </p> */}
       </div>
 
       <ul className="divide-y divide-amber-200">
