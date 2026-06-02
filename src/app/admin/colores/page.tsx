@@ -4,15 +4,6 @@ import ColorForm from './ColorForm'
 import ColorRow from './ColorRow'
 import SolicitudesColorPanel from './SolicitudesColorPanel'
 
-type SolicitudRow = {
-  id: string
-  nombre_solicitado: string
-  motivo: string | null
-  created_at: string
-  solicitado_por: string
-  profiles: { nombre: string } | { nombre: string }[] | null
-}
-
 export default async function ColoresPage() {
   const supabase = await createClient()
 
@@ -23,24 +14,34 @@ export default async function ColoresPage() {
       .order('nombre', { ascending: true }),
     supabase
       .from('solicitudes_color')
-      .select(
-        `id, nombre_solicitado, motivo, created_at, solicitado_por,
-         profiles:solicitado_por(nombre)`
-      )
+      .select('id, nombre_solicitado, motivo, created_at, solicitado_por')
       .eq('estado', 'pendiente')
       .order('created_at', { ascending: false }),
   ])
 
-  const solicitudes = (solicitudesRaw ?? []).map((s: SolicitudRow) => {
-    const prof = Array.isArray(s.profiles) ? s.profiles[0] : s.profiles
-    return {
-      id: s.id,
-      nombre_solicitado: s.nombre_solicitado,
-      motivo: s.motivo,
-      created_at: s.created_at,
-      solicitante: prof?.nombre ?? null,
-    }
-  })
+  // Resolvemos el nombre del solicitante en una segunda query: NO hay FK directa
+  // de solicitudes_color.solicitado_por → profiles (apunta a auth.users), así que
+  // el embed de PostgREST (profiles:solicitado_por) no funciona y dejaba el panel
+  // vacío.
+  const solicitanteIds = [
+    ...new Set((solicitudesRaw ?? []).map((s) => s.solicitado_por)),
+  ]
+  const nombrePorId = new Map<string, string>()
+  if (solicitanteIds.length) {
+    const { data: perfiles } = await supabase
+      .from('profiles')
+      .select('id, nombre')
+      .in('id', solicitanteIds)
+    for (const p of perfiles ?? []) nombrePorId.set(p.id, p.nombre as string)
+  }
+
+  const solicitudes = (solicitudesRaw ?? []).map((s) => ({
+    id: s.id,
+    nombre_solicitado: s.nombre_solicitado,
+    motivo: s.motivo,
+    created_at: s.created_at,
+    solicitante: nombrePorId.get(s.solicitado_por) ?? null,
+  }))
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
