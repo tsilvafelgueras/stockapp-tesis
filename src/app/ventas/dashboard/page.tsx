@@ -1,8 +1,13 @@
 import Link from 'next/link'
 import { ArrowLeft, Clock3, Search, ShoppingCart, Users, type LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { getResumenDiaPedidos } from '@/lib/resumenDiario'
+import { reporteStock } from '@/app/admin/reportes/queries'
 import NotificationBanner from '@/components/NotificationBanner'
 import SeccionDenegadaBanner from '@/components/SeccionDenegadaBanner'
+
+const kg = (n: number) =>
+  n.toLocaleString('es-AR', { maximumFractionDigits: 2 })
 
 const actions: {
   href: string
@@ -51,13 +56,15 @@ export default async function VentasDashboard({
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('nombre, role')
-    .eq('id', user!.id)
-    .single()
+  const [{ data: profile }, resumenDia, stock] = await Promise.all([
+    supabase.from('profiles').select('nombre, role').eq('id', user!.id).single(),
+    getResumenDiaPedidos(supabase),
+    reporteStock(supabase),
+  ])
 
   const isAdmin = profile?.role === 'admin'
+  const totalRollos = stock.reduce((acc, r) => acc + r.rollos, 0)
+  const totalKilos = stock.reduce((acc, r) => acc + r.kilos, 0)
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-5 sm:px-6 md:py-8">
@@ -87,6 +94,113 @@ export default async function VentasDashboard({
 
       <NotificationBanner />
 
+      <section className="grid gap-3 sm:grid-cols-2">
+        <DiaTile
+          label="Rollos pedidos hoy"
+          value={resumenDia.rollosPedidos}
+          detail={`${kg(resumenDia.kilosPedidos)} kg`}
+        />
+        <DiaTile
+          label="Rollos enviados hoy"
+          value={resumenDia.rollosEnviados}
+          detail={`${kg(resumenDia.kilosEnviados)} kg`}
+        />
+      </section>
+
+      <section className="rounded-lg border bg-white shadow-sm">
+        <div className="flex items-end justify-between gap-2 border-b px-4 py-3">
+          <div>
+            <h2 className="font-heading text-lg font-semibold">
+              Stock disponible
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Rollos en stock agrupados por artículo y color.
+            </p>
+          </div>
+          <Link
+            href="/stock"
+            className="shrink-0 text-sm font-medium text-action underline-offset-2 hover:underline"
+          >
+            Ver detalle
+          </Link>
+        </div>
+
+        {stock.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+            No hay rollos en stock por ahora.
+          </p>
+        ) : (
+          <>
+            {/* Mobile: cards */}
+            <ul className="divide-y sm:hidden">
+              {stock.map((r) => (
+                <li
+                  key={`${r.articulo}|||${r.color}`}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{r.articulo}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {r.color}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right text-sm tabular-nums">
+                    <p className="font-medium">{kg(r.kilos)} kg</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.rollos} {r.rollos === 1 ? 'rollo' : 'rollos'}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            {/* Desktop: tabla */}
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-sm">
+                <thead className="border-b bg-zinc-50 text-left">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Artículo</th>
+                    <th className="px-4 py-2 font-medium">Color</th>
+                    <th className="px-4 py-2 text-right font-medium">Rollos</th>
+                    <th className="px-4 py-2 text-right font-medium">Kilos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stock.map((r) => (
+                    <tr
+                      key={`${r.articulo}|||${r.color}`}
+                      className="border-b last:border-0"
+                    >
+                      <td className="px-4 py-2 font-medium">{r.articulo}</td>
+                      <td className="px-4 py-2">{r.color}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {r.rollos}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {kg(r.kilos)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t bg-zinc-50">
+                  <tr>
+                    <td className="px-4 py-2 font-semibold" colSpan={2}>
+                      Total
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                      {totalRollos}
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                      {kg(totalKilos)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+
       <div className="grid gap-3 sm:grid-cols-2">
         {actions.map((item) => {
           const Icon = item.icon
@@ -107,6 +221,28 @@ export default async function VentasDashboard({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function DiaTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string
+  value: number
+  detail: string
+}) {
+  return (
+    <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 font-heading text-3xl font-bold tabular-nums">
+        {value.toLocaleString('es-AR')}
+      </p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
     </div>
   )
 }

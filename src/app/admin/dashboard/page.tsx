@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { getResumenDiaPedidos } from '@/lib/resumenDiario'
 import NotificationBanner from '@/components/NotificationBanner'
 import SeccionDenegadaBanner from '@/components/SeccionDenegadaBanner'
 
@@ -211,7 +212,7 @@ export default async function AdminDashboard({
     alertas,
     resumenDiario,
     { count: rollosEnStock },
-    { count: pendientes },
+    resumenDia,
   ] =
     await Promise.all([
       supabase
@@ -225,10 +226,7 @@ export default async function AdminDashboard({
         .from('rollos')
         .select('id', { count: 'exact', head: true })
         .eq('estado', 'en_stock'),
-      supabase
-        .from('rollos')
-        .select('id', { count: 'exact', head: true })
-        .eq('estado', 'pendiente'),
+      getResumenDiaPedidos(supabase),
     ])
 
   return (
@@ -258,12 +256,6 @@ export default async function AdminDashboard({
 
       <SeccionDenegadaBanner denegado={sp.denegado} />
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <Metric label="Rollos en stock" value={rollosEnStock ?? 0} />
-        <Metric label="Pendientes de verificar" value={pendientes ?? 0} />
-        <Metric label="Alertas de stock" value={alertas.length} tone="warning" />
-      </section>
-
       <section className="rounded-lg border bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -271,7 +263,7 @@ export default async function AdminDashboard({
               Resumen de hoy
             </h2>
             <p className="text-sm text-muted-foreground">
-              Actividad operativa registrada durante el día.
+              Estado del depósito y actividad registrada durante el día.
             </p>
           </div>
           <Link
@@ -283,6 +275,17 @@ export default async function AdminDashboard({
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryTile
+            label="Rollos en stock"
+            value={rollosEnStock ?? 0}
+            detail="Disponibles en depósito"
+          />
+          <SummaryTile
+            label="Alertas de stock"
+            value={alertas.length}
+            detail="Artículos bajo el mínimo"
+            tone={alertas.length > 0 ? 'warning' : undefined}
+          />
+          <SummaryTile
             label="Ingresos"
             value={resumenDiario.ingresosRollos}
             detail={`${resumenDiario.ingresosKilos.toLocaleString('es-AR', {
@@ -293,6 +296,20 @@ export default async function AdminDashboard({
             label="Pedidos creados"
             value={resumenDiario.pedidosCreados}
             detail={`${resumenDiario.pedidosEntregados} entregados hoy`}
+          />
+          <SummaryTile
+            label="Rollos pedidos"
+            value={resumenDia.rollosPedidos}
+            detail={`${resumenDia.kilosPedidos.toLocaleString('es-AR', {
+              maximumFractionDigits: 2,
+            })} kg`}
+          />
+          <SummaryTile
+            label="Rollos enviados"
+            value={resumenDia.rollosEnviados}
+            detail={`${resumenDia.kilosEnviados.toLocaleString('es-AR', {
+              maximumFractionDigits: 2,
+            })} kg`}
           />
           <SummaryTile
             label="Pedidos activos"
@@ -322,46 +339,27 @@ export default async function AdminDashboard({
   )
 }
 
-function Metric({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: number
-  tone?: 'warning'
-}) {
-  return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-heading text-3xl font-bold tabular-nums ${
-          tone === 'warning' ? 'text-warning' : 'text-foreground'
-        }`}
-      >
-        {value.toLocaleString('es-AR')}
-      </p>
-    </div>
-  )
-}
-
 function SummaryTile({
   label,
   value,
   detail,
+  tone,
 }: {
   label: string
   value: number
   detail: string
+  tone?: 'warning'
 }) {
   return (
     <div className="rounded-lg border border-border/70 bg-muted/35 p-4">
       <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 font-heading text-2xl font-bold tabular-nums">
+      <p
+        className={`mt-2 font-heading text-2xl font-bold tabular-nums ${
+          tone === 'warning' ? 'text-warning' : ''
+        }`}
+      >
         {value.toLocaleString('es-AR')}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>

@@ -1652,6 +1652,23 @@ backoff exponencial (1s, 2s) ante errores transitorios (helper `esErrorTransitor
 no transitorios (ej. API key inválida, JSON malformado) cortan de una. Si tras los reintentos
 sigue sobrecargado, muestra un mensaje claro sugiriendo esperar o cargar a mano.
 
+### Bloque E — Dashboards: stock en ventas + resumen del día por rollos
+
+1. **Helper compartido** `src/lib/resumenDiario.ts` → `getResumenDiaPedidos(supabase)`:
+   *rollos pedidos* = rollos de `pedidos` creados hoy (excluye `cancelada`); *rollos
+   enviados* = rollos de `pedidos` con `confirmada_egreso_at` dentro del día (cubre salida
+   confirmada/entregada hoy). Devuelve cantidades + kilos.
+2. **Inicio de ventas** (`/ventas/dashboard`, antes placeholder) ahora muestra: tiles
+   "Rollos pedidos/enviados hoy" y un **resumen de stock disponible agregado por
+   artículo+color** (cantidad + kg), reusando `reporteStock` de
+   `admin/reportes/queries.ts`.
+3. **Dashboard admin**: se **sacó la métrica "Pendientes de verificar"** (con el ingreso por
+   conteo ya no representa trabajo real) y se agregaron al "Resumen de hoy" los tiles
+   "Rollos pedidos" y "Rollos enviados" (mismo helper).
+4. **Cancelar pedidos por admin**: se verificó que ya funcionaba (guard + UI + RPC
+   `cancelar_pedido` permiten admin; en estado "Lista" el botón es "Caer pedido"). No
+   requirió cambios.
+
 ---
 
 ## 11. Decisiones de dominio importantes
