@@ -5,7 +5,7 @@ import type {
 } from './extraerPlanilla'
 import { normalizarFechaISO } from '@/lib/fechas'
 
-const MODELO = 'gemini-2.5-flash'
+const MODELO = 'gemini-2.5-flash-lite'
 
 // ── Prompt base ────────────────────────────────────────────
 //
@@ -223,6 +223,9 @@ export async function extraerConGemini(
         config: {
           responseMimeType: 'application/json',
           responseSchema: SCHEMA,
+          // Thinking apagado: para extracción con schema fijo no aporta y
+          // agrega latencia.
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       timeout,
@@ -240,8 +243,9 @@ export async function extraerConGemini(
   for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
     try {
       response = await llamarGemini()
+      const u = response.usageMetadata
       console.info(
-        `[extraccion] Gemini respondió en ${Date.now() - t0}ms (intento ${intento})`
+        `[extraccion] ${MODELO} respondió en ${Date.now() - t0}ms (intento ${intento}) — tokens in:${u?.promptTokenCount ?? '?'} out:${u?.candidatesTokenCount ?? '?'}`
       )
       break
     } catch (e) {
