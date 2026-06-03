@@ -25,6 +25,7 @@ export default function ExcelFilter({
   emptyLabel = '(vacío)',
   align = 'start',
   triggerClassName,
+  panelClassName,
 }: {
   label: string
   options: ExcelFilterOption[]
@@ -35,6 +36,8 @@ export default function ExcelFilter({
   align?: 'start' | 'end'
   /** Clases extra para el botón disparador (override de tamaño/ancho). */
   triggerClassName?: string
+  /** Clases extra para el panel desplegable (override del ancho w-64). */
+  panelClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -118,9 +121,11 @@ export default function ExcelFilter({
 
       {open && (
         <div
-          className={`absolute z-30 mt-1 w-64 rounded-lg border bg-white shadow-lg ${
-            align === 'end' ? 'right-0' : 'left-0'
-          }`}
+          className={cn(
+            'absolute z-30 mt-1 w-64 rounded-lg border bg-white shadow-lg',
+            align === 'end' ? 'right-0' : 'left-0',
+            panelClassName
+          )}
         >
           <div className="p-2 border-b">
             <input

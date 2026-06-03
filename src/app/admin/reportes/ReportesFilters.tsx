@@ -126,6 +126,7 @@ export default function ReportesFilters({
               selected={current.meses}
               onChange={(values) => update('mes', values)}
               triggerClassName="h-9 w-full px-3 text-sm"
+              panelClassName="w-full"
             />
           </div>
         </Field>
@@ -137,6 +138,7 @@ export default function ReportesFilters({
             selected={current.tintorerias}
             onChange={(values) => update('tintoreria', values)}
             triggerClassName="h-9 w-full px-3 text-sm"
+            panelClassName="w-full"
           />
         </Field>
 
@@ -147,6 +149,7 @@ export default function ReportesFilters({
             selected={current.articulos}
             onChange={(values) => update('articulo', values)}
             triggerClassName="h-9 w-full px-3 text-sm"
+            panelClassName="w-full"
           />
         </Field>
 
