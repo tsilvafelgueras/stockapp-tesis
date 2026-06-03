@@ -5,7 +5,7 @@ import type {
 } from './extraerPlanilla'
 import { normalizarFechaISO } from '@/lib/fechas'
 
-const MODELO = 'gemini-2.5-flash-lite'
+const MODELO = 'gemini-2.5-flash'
 
 // ── Prompt base ────────────────────────────────────────────
 //
