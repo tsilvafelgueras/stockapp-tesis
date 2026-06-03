@@ -223,9 +223,6 @@ export async function extraerConGemini(
         config: {
           responseMimeType: 'application/json',
           responseSchema: SCHEMA,
-          // Apagamos el "thinking" de Gemini 2.5 Flash: para extracción con
-          // schema fijo no aporta y agrega varios segundos de latencia.
-          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       timeout,
