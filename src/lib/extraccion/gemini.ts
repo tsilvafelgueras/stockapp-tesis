@@ -225,7 +225,7 @@ export async function extraerConGemini(
           responseSchema: SCHEMA,
           // Thinking apagado: para extracción con schema fijo no aporta y
           // agrega latencia.
-          thinkingConfig: { thinkingBudget: 0 },
+          // thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       timeout,
@@ -239,7 +239,7 @@ export async function extraerConGemini(
   // de una.
   let response
   let ultimoError = ''
-  const t0 = Date.now()
+  // const t0 = Date.now()
   for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
     try {
       response = await llamarGemini()
