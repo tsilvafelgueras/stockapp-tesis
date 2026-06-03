@@ -223,6 +223,9 @@ export async function extraerConGemini(
         config: {
           responseMimeType: 'application/json',
           responseSchema: SCHEMA,
+          // Apagamos el "thinking" de Gemini 2.5 Flash: para extracción con
+          // schema fijo no aporta y agrega varios segundos de latencia.
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       timeout,
@@ -236,9 +239,13 @@ export async function extraerConGemini(
   // de una.
   let response
   let ultimoError = ''
+  const t0 = Date.now()
   for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
     try {
       response = await llamarGemini()
+      console.info(
+        `[extraccion] Gemini respondió en ${Date.now() - t0}ms (intento ${intento})`
+      )
       break
     } catch (e) {
       ultimoError = (e as Error).message ?? String(e)
