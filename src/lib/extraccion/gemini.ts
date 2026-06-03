@@ -250,6 +250,12 @@ export async function extraerConGemini(
       break
     } catch (e) {
       ultimoError = (e as Error).message ?? String(e)
+      const errCode =
+        (e as { status?: number; code?: number }).status ??
+        (e as { status?: number; code?: number }).code
+      console.error(
+        `[extraccion] fallo Gemini (intento ${intento}) code=${errCode ?? '?'}: ${ultimoError}`
+      )
       if (!esErrorTransitorio(e) || intento === MAX_INTENTOS) {
         return {
           ok: false,
