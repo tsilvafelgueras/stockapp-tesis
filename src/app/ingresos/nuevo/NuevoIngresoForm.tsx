@@ -380,19 +380,28 @@ export default function NuevoIngresoForm({
       return match?.id ?? null
     }
 
+    // Nombre del artículo a nivel header: algunas planillas lo traen en la
+    // columna "REFERENCIA" (la IA lo mete en `referencia`), no en `articulo`.
+    // Probamos ese valor contra el catálogo como fallback global.
+    const articuloHeaderId = articuloIdFromText(datos.referencia.value ?? '')
+
     const rollosFromIA: RolloInput[] = datos.rollos.map((r) => {
       const articuloNombre = r.articulo?.value?.trim() ?? ''
-      const articuloId = articuloIdFromText(articuloNombre)
+      const articuloId = articuloIdFromText(articuloNombre) ?? articuloHeaderId
       const colorRolloId = colorIdFromText(r.color?.value)
       const colorEfectivoId = colorRolloId ?? colorGlobalId
 
-      // Si la combinación (articulo, color) no existe en la pivot,
-      // limpiar color_id para forzar que el usuario lo elija.
+      // Si el artículo matcheó, solo aplicamos el color si está asociado a ese
+      // artículo en la pivot (si no, lo limpiamos para que el usuario elija y
+      // evitar el error de FK al guardar). Si el artículo NO matcheó (null),
+      // aplicamos igual el color global: no hay riesgo de FK porque articulo_id
+      // queda null, y así el color no se pierde.
       const articulo = articuloId
         ? articulos.find((a) => a.id === articuloId)
         : null
-      const colorValido =
-        articulo?.colores.some((c) => c.id === colorEfectivoId) ?? false
+      const colorValido = articulo
+        ? articulo.colores.some((c) => c.id === colorEfectivoId)
+        : true
 
       return {
         numero_pieza: valOf(r.numero_pieza),
@@ -462,14 +471,48 @@ export default function NuevoIngresoForm({
 
     const cantidadCoincide =
       totalRollosNum === null || totalRollosNum === cantidadRollos
+    // Tolerancia: las planillas OCR (y a veces el propio total impreso) tienen
+    // ruido de decimales/redondeo. Solo avisamos si la diferencia es
+    // significativa (> 0.5 kg o > 0.1% del total declarado). Una diferencia
+    // chica como 0.2 kg en 477 no es un error accionable; un rollo mal leído
+    // por varios kg o uno que falta sí supera la tolerancia y se avisa.
+    const toleranciaKilos = Math.max(0.5, (totalKilosNum ?? 0) * 0.001)
     const kilosCoinciden =
-      totalKilosNum === null || Math.abs(totalKilosNum - sumaKilos) < 0.01
+      totalKilosNum === null ||
+      Math.abs(totalKilosNum - sumaKilos) <= toleranciaKilos
 
     const rollosSinArticulo = rollosConPieza.filter((r) => !r.articulo_id).length
     const rollosSinColor = rollosConPieza.filter((r) => !r.color_id).length
     const rollosSegundaSinCategoria = rollosConPieza.filter(
       (r) => r.segunda && !r.falla_categoria
     ).length
+
+    // Cross-check Kilos vs Metros/Rdto. En la planilla Rdto = Metros / Kilos,
+    // así que los kilos esperados ≈ Metros / Rdto. Si los kilos cargados no
+    // cierran con ese cálculo por más del umbral, el rollo probablemente tiene
+    // un error de lectura (un decimal mal leído de varios kg). El umbral (3%)
+    // está por encima del ruido de redondeo del propio Rdto (2 decimales), así
+    // que no genera falsos positivos por diferencias chicas.
+    const TOLERANCIA_RDTO = 0.03
+    const rollosInconsistentes: {
+      numero_pieza: string
+      kilos: number
+      esperado: number
+    }[] = []
+    for (const r of rollos) {
+      const kg = parseFloat(r.kilos)
+      const m = parseFloat(r.metros)
+      const rd = parseFloat(r.rinde)
+      if (!r.numero_pieza.trim() || !(kg > 0) || !(m > 0) || !(rd > 0)) continue
+      const esperado = m / rd
+      if (Math.abs(kg - esperado) / esperado > TOLERANCIA_RDTO) {
+        rollosInconsistentes.push({
+          numero_pieza: r.numero_pieza.trim(),
+          kilos: kg,
+          esperado,
+        })
+      }
+    }
 
     return {
       sumaKilos,
@@ -480,6 +523,7 @@ export default function NuevoIngresoForm({
       rollosSinArticulo,
       rollosSinColor,
       rollosSegundaSinCategoria,
+      rollosInconsistentes,
     }
   }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
 
@@ -1190,6 +1234,7 @@ export default function NuevoIngresoForm({
         validations.rollosSinArticulo > 0 ||
         validations.rollosSinColor > 0 ||
         validations.rollosSegundaSinCategoria > 0 ||
+        validations.rollosInconsistentes.length > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-3 sm:p-4 space-y-1 text-sm">
@@ -1228,6 +1273,25 @@ export default function NuevoIngresoForm({
               ⚠ Suma de kilos {validations.sumaKilos.toFixed(2)} kg vs{' '}
               {totalKilosDeclarado} kg declarados.
             </p>
+          )}
+          {validations.rollosInconsistentes.length > 0 && (
+            <div className="text-warning">
+              <p>
+                ⚠ {validations.rollosInconsistentes.length} rollo
+                {validations.rollosInconsistentes.length === 1 ? '' : 's'} con
+                Kilos que no cierran con Metros/Rdto — posible error de lectura,
+                revisá el peso:
+              </p>
+              <ul className="mt-0.5 list-disc pl-5 text-xs">
+                {validations.rollosInconsistentes.map((r) => (
+                  <li key={r.numero_pieza}>
+                    <strong>#{r.numero_pieza}</strong>: {r.kilos.toFixed(2)} kg
+                    cargados vs ≈ {r.esperado.toFixed(2)} kg esperados (según
+                    Metros/Rdto)
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
