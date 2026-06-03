@@ -198,6 +198,18 @@ function calcularWarnings(data: IngresoExtraido): string[] {
     }
   }
 
+  // Solo contamos celdas CON valor. Un campo ausente (null) — ej. OT, rinde o
+  // gramaje en planillas que no los traen — no es una "lectura de baja
+  // confianza", así que no debe inflar el % ni disparar el banner.
+  const tieneValor = (f: { value: unknown }): boolean =>
+    f.value !== null && f.value !== undefined && String(f.value).trim() !== ''
+  const pushSiTiene = (
+    acc: number[],
+    f: { value: unknown; confidence: number } | null | undefined
+  ) => {
+    if (f && tieneValor(f)) acc.push(f.confidence)
+  }
+
   const todasLasCeldas: number[] = []
   for (const k of [
     'numero_remito',
@@ -209,17 +221,15 @@ function calcularWarnings(data: IngresoExtraido): string[] {
     'total_rollos_declarado',
     'total_kilos_declarado',
   ] as const) {
-    todasLasCeldas.push(data[k].confidence)
+    pushSiTiene(todasLasCeldas, data[k])
   }
   for (const r of data.rollos) {
-    todasLasCeldas.push(
-      r.numero_pieza.confidence,
-      r.kilos.confidence,
-      r.metros.confidence,
-      r.ratio.confidence,
-      r.gramaje_planilla.confidence,
-      r.articulo?.confidence ?? 1
-    )
+    pushSiTiene(todasLasCeldas, r.numero_pieza)
+    pushSiTiene(todasLasCeldas, r.kilos)
+    pushSiTiene(todasLasCeldas, r.metros)
+    pushSiTiene(todasLasCeldas, r.ratio)
+    pushSiTiene(todasLasCeldas, r.gramaje_planilla)
+    pushSiTiene(todasLasCeldas, r.articulo)
   }
   const bajas = todasLasCeldas.filter((c) => c < UMBRAL_BAJA_CONFIANZA).length
   const pctBajas = todasLasCeldas.length > 0 ? bajas / todasLasCeldas.length : 0

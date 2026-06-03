@@ -67,6 +67,67 @@ function normColor(raw: string | null | undefined): string | null {
   return trimmed.toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase())
 }
 
+/** Tokeniza un nombre normalizado en palabras significativas (len ≥ 2). */
+function tokens(s: string): string[] {
+  return s.split(/\W+/).filter((t) => t.length >= 2)
+}
+
+/** ¿La distancia de edición entre `a` y `b` es ≤ 1 (1 sustitución/alta/baja)? */
+function casiIgual(a: string, b: string): boolean {
+  if (a === b) return true
+  const la = a.length
+  const lb = b.length
+  if (Math.abs(la - lb) > 1) return false
+  let i = 0
+  let j = 0
+  let diffs = 0
+  while (i < la && j < lb) {
+    if (a[i] === b[j]) {
+      i++
+      j++
+      continue
+    }
+    if (++diffs > 1) return false
+    if (la > lb) i++ // sobra un char en a
+    else if (lb > la) j++ // falta un char en a
+    else {
+      i++
+      j++
+    } // sustitución
+  }
+  if (i < la || j < lb) diffs++
+  return diffs <= 1
+}
+
+/**
+ * ¿El token del catálogo matchea el token del texto? Matchea si: son iguales;
+ * uno es prefijo del otro (≥ 3 chars, ej. "ml70" ↔ "ml70c"); o difieren en 1
+ * sola letra en tokens de ≥ 4 chars (variantes de género/typo, ej. "frisado"
+ * ↔ "frisada", "negro" ↔ "negra").
+ */
+function tokenMatch(catTok: string, txtTok: string): boolean {
+  if (catTok === txtTok) return true
+  if (catTok.length >= 3 && txtTok.startsWith(catTok)) return true
+  if (txtTok.length >= 3 && catTok.startsWith(txtTok)) return true
+  if (Math.min(catTok.length, txtTok.length) >= 4 && casiIgual(catTok, txtTok))
+    return true
+  return false
+}
+
+/**
+ * Confianza para el resaltado naranja por celda. Si el campo vino vacío
+ * (null/''), no hay nada que revisar → devolvemos 1 (sin warning). Solo los
+ * campos CON valor y baja confianza se resaltan.
+ */
+function confDe(
+  f: { value: unknown; confidence: number } | null | undefined
+): number {
+  if (!f) return 1
+  const v = f.value
+  const tiene = v !== null && v !== undefined && String(v).trim() !== ''
+  return tiene ? f.confidence : 1
+}
+
 function emptyRollo(): RolloInput {
   return {
     numero_pieza: '',
@@ -374,10 +435,38 @@ export default function NuevoIngresoForm({
     // Acá filtramos: si el color global no está en los colores del articulo
     // encontrado, dejamos color_id en null para que el usuario lo elija.
     function articuloIdFromText(nombreRaw: string): string | null {
-      const nombreNorm = normNombre(nombreRaw)
-      if (!nombreNorm) return null
-      const match = articulos.find((a) => normNombre(a.nombre) === nombreNorm)
-      return match?.id ?? null
+      const texto = normNombre(nombreRaw)
+      if (!texto) return null
+      const tokensTexto = tokens(texto)
+      const cat = articulos
+        .map((a) => ({ a, n: normNombre(a.nombre), toks: tokens(normNombre(a.nombre)) }))
+        .filter(({ n }) => n)
+
+      // 1. Match exacto.
+      const exacto = cat.find(({ n }) => n === texto)
+      if (exacto) return exacto.a.id
+
+      // 2. Match por tokens: contamos cuántos tokens del catálogo aparecen en
+      //    el texto extraído (exacto o por prefijo, ej. "ml70" ↔ "ml70c").
+      //    Es candidato si coincide la MAYORÍA de sus tokens (≥ 60%), así
+      //    tolera palabras extra en cualquiera de los dos lados:
+      //    catálogo "ML70 Frisada" ↔ texto "...TELA ML70C FRISADA TERMINADA".
+      //    Elegimos el de más coincidencias (más específico).
+      const candidatos = cat
+        .map(({ a, n, toks }) => {
+          const coinc = toks.filter((ct) =>
+            tokensTexto.some((tt) => tokenMatch(ct, tt))
+          ).length
+          return { a, n, total: toks.length, coinc, ratio: coinc / toks.length }
+        })
+        .filter((c) => c.total > 0 && c.coinc >= 1 && c.ratio >= 0.6)
+        .sort(
+          (x, y) =>
+            y.coinc - x.coinc || y.ratio - x.ratio || y.n.length - x.n.length
+        )
+      if (candidatos.length) return candidatos[0].a.id
+
+      return null
     }
 
     // Nombre del artículo a nivel header: algunas planillas lo traen en la
@@ -425,26 +514,27 @@ export default function NuevoIngresoForm({
     setRollos(rollosFromIA.length > 0 ? rollosFromIA : [emptyRollo()])
 
     setConfianzas({
-      numero_remito: datos.numero_remito.confidence,
-      fecha: datos.fecha.confidence,
-      ot: datos.ot.confidence,
-      rem_tejeduria: datos.rem_tejeduria.confidence,
-      referencia: datos.referencia.confidence,
-      total_rollos_declarado: datos.total_rollos_declarado.confidence,
-      total_kilos_declarado: datos.total_kilos_declarado.confidence,
+      numero_remito: confDe(datos.numero_remito),
+      fecha: confDe(datos.fecha),
+      ot: confDe(datos.ot),
+      rem_tejeduria: confDe(datos.rem_tejeduria),
+      referencia: confDe(datos.referencia),
+      total_rollos_declarado: confDe(datos.total_rollos_declarado),
+      total_kilos_declarado: confDe(datos.total_kilos_declarado),
       rollos: datos.rollos.map((r) => ({
-        numero_pieza: r.numero_pieza.confidence,
-        kilos: r.kilos.confidence,
-        metros: r.metros.confidence,
-        rinde: r.ratio.confidence,
-        gramaje_planilla: r.gramaje_planilla.confidence,
-        articulo: r.articulo?.confidence ?? 0,
-        color:
-          (r.color?.value?.trim()
-            ? r.color?.confidence
-            : datos.color.value?.trim()
-              ? datos.color.confidence
-              : 0) ?? 0,
+        numero_pieza: confDe(r.numero_pieza),
+        kilos: confDe(r.kilos),
+        metros: confDe(r.metros),
+        rinde: confDe(r.ratio),
+        gramaje_planilla: confDe(r.gramaje_planilla),
+        articulo: confDe(r.articulo),
+        // El color efectivo puede venir del rollo o del header; si ninguno
+        // tiene valor, no resaltamos (confianza 1).
+        color: r.color?.value?.trim()
+          ? (r.color?.confidence ?? 1)
+          : datos.color.value?.trim()
+            ? datos.color.confidence
+            : 1,
       })),
     })
   }
