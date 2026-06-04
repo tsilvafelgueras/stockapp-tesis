@@ -182,8 +182,10 @@ export async function confirmarPartida(
 
   const filas = pendientes.length
   const declarado = ingreso.total_rollos_declarado
-  const coincide =
-    input.conteoFisico === filas && input.conteoFisico === declarado
+  // Comparamos contra los rollos PENDIENTES, no contra el total declarado:
+  // la partida puede estar confirmada a medias (scanner viejo), así que lo que
+  // se cuenta ahora es lo que falta. El total declarado queda informativo.
+  const coincide = input.conteoFisico === filas
 
   // Si hay discrepancia y no nos dieron una nota, no confirmamos:
   // devolvemos los números para que la UI muestre la alerta.

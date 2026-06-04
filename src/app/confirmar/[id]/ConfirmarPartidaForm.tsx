@@ -37,10 +37,13 @@ export default function ConfirmarPartidaForm({
   const [overrides, setOverrides] = useState<Record<string, Override>>({})
   const [confirmando, setConfirmando] = useState(false)
 
-  // ¿El conteo coincide con la planilla? (filas extraídas Y total declarado)
+  // ¿El conteo coincide con lo que falta confirmar? Comparamos contra los
+  // rollos PENDIENTES (`filas`), no contra el total declarado: una partida
+  // puede haber sido confirmada a medias (ej. con el scanner viejo), así que
+  // lo que el operario cuenta ahora es lo que queda pendiente.
   const coincide = useMemo(
-    () => conteo !== null && conteo === filas && conteo === totalDeclarado,
-    [conteo, filas, totalDeclarado]
+    () => conteo !== null && conteo === filas,
+    [conteo, filas]
   )
 
   function setOverride(id: string, campo: keyof Override, valor: string) {
@@ -142,11 +145,11 @@ export default function ConfirmarPartidaForm({
               autoFocus
             />
             <p className="text-xs text-muted-foreground">
-              La planilla tiene {filas} {filas === 1 ? 'rollo' : 'rollos'}
+              Quedan {filas} {filas === 1 ? 'rollo pendiente' : 'rollos pendientes'} de
+              confirmar en esta partida
               {totalDeclarado != null && totalDeclarado !== filas
-                ? ` (y declara ${totalDeclarado})`
-                : ''}
-              .
+                ? ` (la planilla declaró ${totalDeclarado} en total; el resto ya fue confirmado).`
+                : '.'}
             </p>
           </div>
 
@@ -167,26 +170,26 @@ export default function ConfirmarPartidaForm({
     <div className="space-y-4">
       {coincide ? (
         <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-success">
-          ✓ El conteo coincide con la planilla ({conteo} rollos). Asigná la
-          ubicación y confirmá.
+          ✓ El conteo coincide con lo pendiente ({conteo}{' '}
+          {conteo === 1 ? 'rollo' : 'rollos'}). Asigná la ubicación y confirmá.
         </div>
       ) : (
         <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 p-4">
           <div>
             <p className="text-sm font-semibold text-warning">
-              El conteo no coincide con la planilla
+              El conteo no coincide con lo pendiente
             </p>
             <p className="mt-1 text-sm text-warning/90">
-              Contaste <strong>{conteo}</strong>, la planilla tiene{' '}
-              <strong>{filas}</strong> {filas === 1 ? 'rollo' : 'rollos'}
-              {totalDeclarado != null ? (
+              Contaste <strong>{conteo}</strong>, pero quedan{' '}
+              <strong>{filas}</strong>{' '}
+              {filas === 1 ? 'rollo pendiente' : 'rollos pendientes'} de confirmar
+              {totalDeclarado != null && totalDeclarado !== filas ? (
                 <>
                   {' '}
-                  y declara <strong>{totalDeclarado}</strong>
+                  (la planilla declaró <strong>{totalDeclarado}</strong> en total)
                 </>
               ) : null}
-              . Verificá de nuevo o contactá a la tintorería para reclamar la
-              diferencia.
+              . Podés verificar de nuevo, o dejar una nota y confirmar igual.
             </p>
           </div>
           <div className="space-y-1">
@@ -227,7 +230,7 @@ export default function ConfirmarPartidaForm({
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">
-            Rollos de la partida ({filas})
+            Rollos pendientes ({filas})
           </h2>
           <p className="text-xs text-muted-foreground">
             Opcional: ajustá la ubicación o agregá un comentario por rollo.
