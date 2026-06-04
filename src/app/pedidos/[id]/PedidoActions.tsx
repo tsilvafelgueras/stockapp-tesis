@@ -128,9 +128,9 @@ export default function PedidoActions({
     <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
       {estado === 'lista' && mode === 'view' && (
         <p className="text-xs text-muted-foreground">
-          El picking termino. Confirmar salida registra el momento en que la
-          mercaderia salio de fabrica. Si se cae, los rollos vuelven a stock en
-          la ubicacion indicada.
+          El picking terminó. Confirmar salida registra el momento en que la
+          mercadería sale de la fábrica. Si se cae, los rollos vuelven a stock en
+          la ubicación indicada.
         </p>
       )}
 
@@ -176,7 +176,7 @@ export default function PedidoActions({
       {mode === 'confirmar-salida' && (
         <div className="rounded-md bg-zinc-50 border p-3 space-y-3">
           <p className="text-sm">
-            Confirmas que la mercaderia efectivamente salio de fabrica. Se
+            Confirmás que la mercadería efectivamente salió de la fábrica. Se
             guarda fecha, usuario, remito y comentario.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">

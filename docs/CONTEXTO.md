@@ -376,9 +376,14 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 033 | **Prompt + tipo de lector por tintorería** (iteración 2026-05-25). Agrega `tintorerias.extraction_prompt TEXT` y `tintorerias.reader_type` (CHECK `'qr'`/`'barcode'`). Borra `extraction_config_key` (reemplaza al sistema viejo de archivos `.ts`). RLS de `tintorerias` permite a `super` cross-empresa. |
 | 034 | **Tintorerías muchos-a-muchos** (iteración 2026-05-25). Refactor M:N: nueva pivote `empresa_tintorerias` con atributos por relación (contacto/email/telefono/activo/fecha_baja). DROP de `empresa_id`+`contacto`+`email`+`telefono`+`activo`+`fecha_baja` de `tintorerias` (que pasa a ser registro maestro global). Backfill: cada fila vieja queda como una tintorería pura linkeada a su empresa actual (no se unifica por nombre para no juntar negocios distintos por coincidencia). `tintoreria_codigo_patrones.empresa_id` pasa a NULLable → patrones globales por tintorería coexisten con patrones internos por empresa (caso "la empresa pega su QR propio"). |
 | 039 | **Refactor M:N artículo-color, rinde, egreso, swap rollo en picking** (iteración 2026-05-26, feedback ingeniera textil). Migración grande, autorizada por el usuario para hacer **TRUNCATE** de datos de prueba (`rollos`/`ingresos`/`pedidos`/`pedido_rollos`/`muestras`/`pedidos_pendientes`/`articulos`/`colores`/`rollo_fotos`/`movimientos`) y rehacer la estructura limpia. Cambios: (a) `rollos.ratio_rendimiento` → `rinde`. (b) Estado `pedidos.confirmada_venta` → `confirmada_egreso` (CHECK + columnas de auditoría + RPC `confirmar_venta_pedido` → `confirmar_egreso_pedido`; `entregar_pedido` y `cancelar_pedido` actualizadas). (c) Refactor M:N artículo↔color: DROP `articulos.color`, nueva UNIQUE `(empresa_id, nombre)`, DROP `rollos.color` (texto) + DROP trigger `sync_rollo_color_from_articulo`, nueva `rollos.color_id NOT NULL REFERENCES colores(id)`, nueva pivote `articulo_colores(articulo_id, color_id)`, FK compuesta `rollos.(articulo_id, color_id) → articulo_colores` para enforce a nivel BD. (d) Nueva tabla `solicitudes_color` + RPCs `aprobar_solicitud_color`/`rechazar_solicitud_color` con SECURITY DEFINER (workflow: operario/ventas piden, admin resuelve). (e) Nueva RPC `reemplazar_rollo_en_pedido(pedido, viejo, nuevo, motivo_categoria, motivo_texto)` que valida match `(articulo_id, color_id)`, valida estado del par, DELETE+INSERT en `pedido_rollos`, marca el viejo como `segunda` con `falla_categoria`/`falla_descripcion`, e inserta movimiento con `accion='reemplazar_rollo'`. |
+| 040 | **Feedback perfil ventas** (iteración 2026-05). `clientes`: `cuit_cuil`, `condicion_pago`, `categoria_precio`, `estado_cliente` (`activo`/`inactivo`/`potencial`), `vendedor_asignado`. `pedidos_pendientes`: `cliente_id`, `color_id`, `tipo_demanda` (`pedido_a_producir`/`demanda_sin_stock`), `prioridad`, `fecha_requerida`. `pedidos`: `fecha_entrega_comprometida`, `numero_remito_salida`, `salida_comentario`, `caida_motivo`/`caida_comentario`/`caida_at`/`caida_por`. `pedido_rollos`: `liberado_at`/`liberado_motivo` + UNIQUE parcial sobre asignaciones activas (permite reasignar rollos de pedidos cancelados). Reescribe RPCs: `crear_pedido` (+ `p_fecha_entrega_comprometida`), `confirmar_egreso_pedido` (+ comentario + remito de salida), `cancelar_pedido` (+ motivo de caída + libera rollos a una ubicación de reasignación). |
+| 041 | **Prioridad profesional en demandas** (iteración 2026-05). Consolida `pedidos_pendientes.prioridad` (`critica`/`alta`/`programada`/`flexible`) + `fecha_requerida`, migrando los viejos `urgencia`/`fecha_limite` y dropeándolos. |
+| 042 | **Stock mínimo por color + ajustes comerciales** (iteración 2026-05). `articulo_colores.stock_minimo_kg`: el stock mínimo pasa a ser por combinación **artículo+color** (migra el valor desde `articulos.stock_minimo_kg`, que queda legacy). `clientes.cuit_cuil` solo numérico (CHECK). `notificaciones.color_id` + UNIQUE parcial por `(empresa, tipo, articulo, color)`; el helper de stock mínimo recalcula por artículo+color. |
+| 044 | **Revertir impersonation de super-admin** (iteración 2026-06). Revierte la suplantación de empresa por el super-admin y reescribe/consolida las RPCs `crear_pedido`, `confirmar_egreso_pedido`, `cancelar_pedido` y `entregar_pedido` (esta última deja los rollos en `entregado`). No existe migración 043. |
 | 045 | **Confirmar partida por conteo** (iteración 2026-06-02, feedback visita cliente Muter). Soporta el nuevo flujo de confirmación de llegadas (ya no se escanea rollo por rollo, ver Sección 10.x). Agrega `rollos.comentario TEXT` (detalle puntual por rollo), `ingresos.conteo_fisico INT` (cuántos rollos contó el operario) y `ingresos.conteo_nota TEXT` (nota de discrepancia cuando el conteo no coincide con la planilla y se confirma igual). Idempotente, sin TRUNCATE. |
+| 046 | **Kilos de crudo por partida (merma real)** (iteración 2026-06-03). `ingresos.kilos_crudo_enviado` (total de kg de crudo que salió a teñir, **un total por partida**, no por rollo) + `kilos_crudo_cargado_at`/`kilos_crudo_cargado_por`. Habilita el cálculo de la **merma real del proceso de teñido** (crudo enviado vs teñido recibido = suma de rollos), que el modelo viejo no podía calcular. Se carga en el detalle del ingreso (`/ingresos/[id]`). Idempotente, sin TRUNCATE. |
 
-**Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual (post-039). Para DB nueva: correr `schema.sql` y después las migraciones `009`..`039` en orden.
+**Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual (post-039). Para DB nueva: correr `schema.sql` y después las migraciones `040`..`046` en orden.
 
 ---
 
@@ -1776,7 +1781,7 @@ Cuando otra persona del equipo (compañero, futuro contributor) toma una tarea:
 4. Pedirle a Trinidad el `.env.local` (canal seguro) — contiene `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`. Cada dev puede generar SU propia `GEMINI_API_KEY` gratis en https://aistudio.google.com (es preferible para tracking de quotas).
 5. `npm install` (Node 24 LTS, npm 11)
 6. `npm run dev` → http://localhost:3000
-7. Para cambios en DB schema: las migraciones en `supabase/migrations/` se aplican manualmente en Supabase SQL Editor (ya están aplicadas las 001-023 en el proyecto compartido — solo aplicar nuevas que se agreguen).
+7. Para cambios en DB schema: las migraciones en `supabase/migrations/` se aplican manualmente en Supabase SQL Editor (ya están aplicadas las 001-046 en el proyecto compartido — solo aplicar nuevas que se agreguen).
 
 **Para retomar contexto en chat con asistente**:
 1. Pegá este documento (`docs/CONTEXTO.md`) entero al inicio del chat.
@@ -1796,6 +1801,78 @@ patrones regex por tintorería.
 - Login con username + alta sin email para operario/ventas (ver
   Sección 10.5, "Login con username").
 - Setup Resend SMTP (bloqueante para onboarding masivo de empresas).
-- Regenerar `supabase/schema.sql` con migraciones 012..023.
+- Regenerar `supabase/schema.sql` con migraciones 012..046.
 - Valorización del stock, control de calidad avanzado, módulo chofer,
   multi-idioma (ver Sección 10.5, "Lo que NO está en el MVP").
+
+---
+
+## Iteración 2026-06 — Rediseño de reportes + merma real + mejoras de extracción IA
+
+### Rediseño de `/admin/reportes` (tablero de gestión)
+
+La pestaña de reportes pasó de un listado de tablas a un **tablero por
+decisión de negocio**, con **tabs full-width** (`?tab=` en la URL, el server
+solo corre las queries del tab activo), **filtros globales** (año, meses,
+tintorerías y artículos como chips multi-select `ExcelFilter` + **rango de
+fechas**) y **gráficos con Recharts** usando los tokens de tema `--chart-1..5`.
+
+Estructura (`src/app/admin/reportes/`): `queries/` dividido por bloque
+(`_shared`, `stock`, `demanda`, `tintorerias`, `calidad`, `eficiencia`),
+`components/` (tabs + Tab\* por bloque + KpiCard + ChartCard + accordion),
+`charts/` (client components Recharts), y `csv/route.ts` con un tipo de export
+por reporte. `queries.ts` quedó como barrel.
+
+Los 5 bloques:
+- **A — Stock y rotación**: KPIs, stock x artículo+color (resalta bajo
+  `stock_minimo_kg`, que **post-042 es por artículo+color**), días de cobertura
+  (semáforo), rotación ABC (Pareto), top rollos más viejos, dona por estado.
+- **B — Demanda comercial**: demanda no satisfecha por art+color, demanda por
+  antigüedad + prioridad, funnel de pedidos, tiempo por etapa (reconstruido de
+  `movimientos`), ranking de clientes, **pedidos caídos** (accordion jerárquico
+  por `caida_motivo` → detalle de cada pedido).
+- **C — Tintorerías**: scorecard (rinde ponderado por kilos, tasa de fallas,
+  diferencia declarado vs propio, tiempo de ciclo), rinde por tintorería,
+  fallas apiladas por categoría (teñido vs tejeduría), volumen.
+- **D — Calidad y mermas**: **merma de teñido por partida** (ver abajo),
+  distribución de fallas, kg degradados (baja+segunda) mensual, diferencia
+  declarado vs propio, diferencia de gramaje, muestras por cliente.
+- **E — Eficiencia operativa**: health check (% ingresos con planilla, %
+  rollos con ubicación, % ingresos por IA), IA vs manual, tendencia mensual de
+  kilos, actividad por usuario (detrás de un toggle, leyendo `movimientos`).
+
+Restricciones respetadas: **sin valorización en pesos** (no hay costo en el
+modelo), NULLs tratados como "sin dato" (no 0), proxies de fecha comentados en
+el código, multi-tenant/RLS intacto. Dependencia nueva: `recharts`.
+
+### Merma real de partida (migración 046)
+
+Antes la merma real (crudo enviado → teñido recibido) era imposible porque no
+se registraba el crudo que salía a teñir. Ahora el operario/admin carga en el
+detalle del ingreso (`/ingresos/[id]`, tarjeta "Merma de la partida") los
+**kg de crudo enviados** (`ingresos.kilos_crudo_enviado`, un total por partida).
+El reporte "Merma de teñido por partida" (Bloque D) compara ese crudo contra la
+suma de kilos teñidos recibidos. El "peso propio" por rollo (`kilos_propios`,
+`gramaje_propio`) sigue siendo otra cosa (control fino, opcional, se carga en el
+detalle del rollo en `/stock`).
+
+### Mejoras de extracción IA de planillas
+
+- **Matcheo de artículo/color contra el catálogo** (en `NuevoIngresoForm`): el
+  texto extraído por la IA (verboso, ej. "ART1253FTR - ...TELA ML70C FRISADA
+  TERMINADA") se matchea al artículo del catálogo por **tokens con prefijo y
+  tolerancia de 1 letra** ("ml70"↔"ml70c", "frisado"↔"frisada"). El color se
+  aplica a todos los rollos aunque el artículo no matchee. Si la IA deja el
+  artículo en `referencia`, se usa como fallback.
+- **Confianza de campos ausentes**: los campos vacíos (NULL) ya no se resaltan
+  en naranja ni inflan el banner de "baja confianza" (afecta planillas que no
+  traen OT/rinde/gramaje, ej. Galfione).
+- **Prompts por tintorería** (`tintorerias.extraction_prompt`, editados por el
+  super en `/super/tintorerias`): afinados para Muter (grilla con dos columnas
+  "DESP" — KILOS vs METROS) y Galfione (PDF por bloques, sin metros/rinde). Se
+  le instruye que **no haga aritmética** (los totales los calcula la app).
+- **Confirmar partida por conteo**: la validación compara el conteo contra los
+  **rollos pendientes** (no contra el total declarado), para soportar partidas
+  confirmadas a medias con el scanner viejo. Hay tolerancia en la suma de kilos
+  y un **cross-check Kilos vs Metros/Rdto** que marca rollos con posible error
+  de lectura.

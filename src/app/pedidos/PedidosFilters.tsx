@@ -15,7 +15,7 @@ export type PedidosFiltersState = {
 const ESTADO_OPCIONES: Array<{ value: string; label: string }> = [
   { value: '', label: 'Todos' },
   { value: 'pendiente', label: 'Pendientes' },
-  { value: 'en_preparacion', label: 'En preparacion' },
+  { value: 'en_preparacion', label: 'En preparación' },
   { value: 'lista', label: 'Lista (esperando salida)' },
   { value: 'confirmada_egreso', label: 'Salida confirmada' },
   { value: 'entregada', label: 'Entregados' },
