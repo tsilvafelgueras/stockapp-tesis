@@ -1,6 +1,14 @@
 'use client'
 
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react'
+import {
+  Fragment,
+  type ReactNode,
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Bot,
@@ -26,7 +34,7 @@ const initialMessages: ChatMessage[] = [
   {
     role: 'assistant',
     content:
-      'Hola, soy el agente de reportes. Puedo ayudarte a leer stock, demanda, tintorerias, calidad y eficiencia usando los filtros actuales de esta pantalla.',
+      'Hola, soy el agente de reportes. Puedo ayudarte a leer stock, demanda, tintorerías, calidad y eficiencia usando los filtros actuales de esta pantalla.',
   },
 ]
 
@@ -39,6 +47,172 @@ const CONTEXT_KEYS = [
   'desde',
   'hasta',
 ] as const
+
+function renderInline(text: string): ReactNode[] {
+  const parts: ReactNode[] = []
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    const token = match[0]
+    if (token.startsWith('**')) {
+      parts.push(
+        <strong key={`${match.index}-strong`} className="font-semibold">
+          {token.slice(2, -2)}
+        </strong>
+      )
+    } else {
+      parts.push(
+        <code
+          key={`${match.index}-code`}
+          className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]"
+        >
+          {token.slice(1, -1)}
+        </code>
+      )
+    }
+
+    lastIndex = match.index + token.length
+  }
+
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+  return parts
+}
+
+function parseTable(lines: string[], start: number) {
+  const rows: string[][] = []
+  let cursor = start
+
+  while (cursor < lines.length && /^\s*\|.*\|\s*$/.test(lines[cursor])) {
+    const cells = lines[cursor]
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((cell) => cell.trim())
+    rows.push(cells)
+    cursor += 1
+  }
+
+  if (rows.length < 2) return null
+  const separator = rows[1].every((cell) => /^:?-{3,}:?$/.test(cell))
+  if (!separator) return null
+
+  return {
+    headers: rows[0],
+    body: rows.slice(2),
+    next: cursor,
+  }
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  const lines = content.split('\n')
+  const blocks: ReactNode[] = []
+  let cursor = 0
+
+  while (cursor < lines.length) {
+    const line = lines[cursor]
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      cursor += 1
+      continue
+    }
+
+    const table = parseTable(lines, cursor)
+    if (table) {
+      blocks.push(
+        <div key={`table-${cursor}`} className="overflow-x-auto">
+          <table className="w-full min-w-max border-collapse text-left text-[12px]">
+            <thead>
+              <tr>
+                {table.headers.map((header, index) => (
+                  <th
+                    key={`${header}-${index}`}
+                    className="border-b border-border bg-muted/60 px-2 py-1.5 font-semibold text-foreground"
+                  >
+                    {renderInline(header)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.body.map((row, rowIndex) => (
+                <tr key={rowIndex} className="border-b border-border/70 last:border-0">
+                  {row.map((cell, cellIndex) => (
+                    <td key={`${rowIndex}-${cellIndex}`} className="px-2 py-1.5">
+                      {renderInline(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+      cursor = table.next
+      continue
+    }
+
+    const heading = trimmed.match(/^(#{2,4})\s+(.+)$/)
+    if (heading) {
+      blocks.push(
+        <h3 key={`heading-${cursor}`} className="mt-2 text-sm font-semibold first:mt-0">
+          {renderInline(heading[2])}
+        </h3>
+      )
+      cursor += 1
+      continue
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items: string[] = []
+      while (cursor < lines.length && /^[-*]\s+/.test(lines[cursor].trim())) {
+        items.push(lines[cursor].trim().replace(/^[-*]\s+/, ''))
+        cursor += 1
+      }
+      blocks.push(
+        <ul key={`list-${cursor}`} className="list-disc space-y-1 pl-4">
+          {items.map((item, index) => (
+            <li key={index}>{renderInline(item)}</li>
+          ))}
+        </ul>
+      )
+      continue
+    }
+
+    const paragraph: string[] = []
+    while (
+      cursor < lines.length &&
+      lines[cursor].trim() &&
+      !/^\s*\|.*\|\s*$/.test(lines[cursor]) &&
+      !/^(#{2,4})\s+/.test(lines[cursor].trim()) &&
+      !/^[-*]\s+/.test(lines[cursor].trim())
+    ) {
+      paragraph.push(lines[cursor].trim())
+      cursor += 1
+    }
+
+    blocks.push(
+      <p key={`paragraph-${cursor}`} className="leading-5">
+        {renderInline(paragraph.join(' '))}
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-2 text-sm leading-5">
+      {blocks.map((block, index) => (
+        <Fragment key={index}>{block}</Fragment>
+      ))}
+    </div>
+  )
+}
 
 export default function ReportesAgentWidget() {
   const searchParams = useSearchParams()
@@ -95,7 +269,7 @@ export default function ReportesAgentWidget() {
           role: 'assistant',
           content:
             payload.message ??
-            'No pude generar una respuesta. Proba reformular la pregunta.',
+            'No pude generar una respuesta. Probá reformular la pregunta.',
         },
       ])
     } catch (err) {
@@ -142,9 +316,9 @@ export default function ReportesAgentWidget() {
               <h2 className="truncate text-sm font-semibold">
                 Agente de reportes
               </h2>
-              <p className="truncate text-[11px] text-white/62">
+              {/* <p className="truncate text-[11px] text-white/62">
                 Consulta datos con RLS y SQL solo lectura
-              </p>
+              </p> */}
             </div>
             <Button
               type="button"
@@ -183,15 +357,15 @@ export default function ReportesAgentWidget() {
                     message.role === 'user'
                       ? 'border-action/30 bg-action text-action-foreground'
                       : 'border-border bg-white text-foreground'
-                  }`}
-                >
-                  <pre
-                    className={`whitespace-pre-wrap break-words font-mono text-[12px] leading-5 ${
-                      message.role === 'user' ? 'text-white' : ''
                     }`}
-                  >
-                    {message.content}
-                  </pre>
+                >
+                  {message.role === 'assistant' ? (
+                    <MarkdownContent content={message.content} />
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words text-sm text-white">
+                      {message.content}
+                    </p>
+                  )}
                 </div>
               </article>
             ))}
@@ -221,7 +395,7 @@ export default function ReportesAgentWidget() {
                 onKeyDown={handleKeyDown}
                 rows={2}
                 disabled={loading}
-                placeholder="Ej: comparame merma por tintoreria este anio"
+                placeholder="Ej: Comparame merma por tintorería este año"
                 className="max-h-28 min-h-11 flex-1 resize-none rounded-md border border-input px-3 py-2 text-sm"
               />
               <Button
@@ -255,4 +429,3 @@ export default function ReportesAgentWidget() {
     </div>
   )
 }
-
