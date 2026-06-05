@@ -209,7 +209,6 @@ export async function POST(request: Request) {
     toolConfig: {
       functionCallingConfig: {
         mode: FunctionCallingConfigMode.AUTO,
-        allowedFunctionNames: [TOOL_NAME],
       },
     },
   }
