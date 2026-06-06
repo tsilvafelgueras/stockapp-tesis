@@ -124,7 +124,8 @@ pedidos
 - numero_remito_externo text
 - numero_remito_salida text
 - fecha_entrega_comprometida date
-- estado text: pendiente | en_preparacion | lista | confirmada_egreso | entregada | cancelada
+- estado text: pendiente | en_preparacion | lista | confirmada_egreso | entregada legacy | cancelada
+- nota: lista significa pedido listo; confirmada_egreso es el cierre operativo de la venta
 - confirmada_egreso_at timestamptz
 - confirmada_egreso_por uuid
 - salida_comentario text
@@ -139,10 +140,22 @@ pedido_rollos
 - id uuid PK
 - empresa_id uuid
 - pedido_id uuid -> pedidos.id
-- rollo_id uuid -> rollos.id
+- pedido_partida_id uuid -> pedido_partidas.id
+- rollo_id uuid -> rollos.id, rollo real asignado por deposito
 - pickeado_at timestamptz
 - liberado_at timestamptz
 - liberado_motivo text
+- created_at timestamptz
+
+pedido_partidas
+- id uuid PK
+- empresa_id uuid
+- pedido_id uuid -> pedidos.id
+- ingreso_id uuid -> ingresos.id, partida solicitada
+- articulo_id uuid -> articulos.id
+- color_id uuid -> colores.id
+- rollos_solicitados integer
+- kilos_estimados numeric, proyeccion interna; no lo presentes como kilos reales de venta
 - created_at timestamptz
 
 pedidos_pendientes
@@ -201,7 +214,9 @@ RELACIONES FRECUENTES
 - stock disponible: rollos.estado = 'en_stock'
 - articulo y color de un rollo: rollos.articulo_id -> articulos.id, rollos.color_id -> colores.id
 - origen/tintoreria de un rollo: rollos.ingreso_id -> ingresos.id -> tintorerias.id
-- rollos de un pedido: pedidos.id -> pedido_rollos.pedido_id -> rollos.id, ignorar pedido_rollos liberados cuando liberado_at no es null
+- partidas solicitadas de un pedido: pedidos.id -> pedido_partidas.pedido_id
+- rollos reales de un pedido: pedidos.id -> pedido_rollos.pedido_id -> rollos.id, ignorar pedido_rollos liberados cuando liberado_at no es null
+- kilos reales de un pedido/venta: sumar rollos.kilos desde pedido_rollos activos. Para pedidos sin picking, responder en rollos solicitados y decir que los kilos reales quedan pendientes.
 - demandas sin stock: pedidos_pendientes.estado = 'activo'
 - partida/lote: ingresos.numero_lote; usar la palabra "partida" al responder
 - merma real de tintoreria por partida: ingresos.kilos_crudo_enviado vs SUM(rollos.kilos) de ese ingreso
@@ -213,4 +228,3 @@ REGLAS
 - Cuando agregues por articulo/color, mostra nombres usando articulos.nombre y colores.nombre.
 - Para periodos, created_at suele medir cuando se cargo el registro; fecha_despacho mide fecha del remito/partida.
 `.trim()
-

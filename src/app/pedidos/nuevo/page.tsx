@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
 import NuevoPedidoForm, {
-  type RolloDisponible,
   type Catalogo,
+  type PartidaDisponible,
 } from './NuevoPedidoForm'
 
 type SearchParams = {
@@ -11,6 +11,48 @@ type SearchParams = {
   color?: string
   tintoreria?: string
   diasMinimos?: string
+}
+
+type RolloRaw = {
+  id: string
+  numero_pieza: string
+  ubicacion: string | null
+  kilos: number | null
+  created_at: string
+  articulo_id: string
+  color_id: string
+  articulos: { id: string; nombre: string } | null
+  ingresos: {
+    id: string
+    numero_lote: string | null
+    tintoreria_id: string | null
+    tintorerias: { id: string; nombre: string } | null
+  } | null
+}
+
+type PedidoPartidaRaw = {
+  ingreso_id: string
+  articulo_id: string
+  color_id: string
+  rollos_solicitados: number
+  pedido_rollos: { id: string; liberado_at: string | null }[] | null
+}
+
+type GrupoPartida = {
+  ingresoId: string
+  numeroLote: string | null
+  articuloId: string
+  articuloNombre: string
+  colorId: string
+  colorNombre: string
+  tintoreriaNombre: string | null
+  rollos: Array<{
+    id: string
+    numeroPieza: string
+    ubicacion: string | null
+    kilos: number
+    createdAt: string
+  }>
 }
 
 export default async function NuevoPedidoPage({
@@ -48,15 +90,13 @@ export default async function NuevoPedidoPage({
   const tintorerias = ((empresaTints ?? []) as unknown as EmpresaTintRow[])
     .map((r) => r.tintorerias)
     .filter((t): t is { id: string; nombre: string } => t != null)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre))
-  const coloresCatalogo = (colores ?? []) as Catalogo[]
-  const colorById = new Map(coloresCatalogo.map((c) => [c.id, c]))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
-  // Rollos disponibles (en_stock). Orden default por antigüedad (created_at
-  // ASC) — los más viejos primero, regla FIFO pedida por la ingeniera textil
-  // para evitar que los rollos pierdan propiedades en depósito. Tiebreak por
-  // numero_pieza para que el orden quede determinista.
-  let query = supabase
+  const colorById = new Map(
+    ((colores ?? []) as Catalogo[]).map((c) => [c.id, c.nombre])
+  )
+
+  let qRollos = supabase
     .from('rollos')
     .select(
       `
@@ -64,13 +104,14 @@ export default async function NuevoPedidoPage({
         numero_pieza,
         ubicacion,
         kilos,
-        metros,
         created_at,
+        articulo_id,
         color_id,
         articulos ( id, nombre ),
         ingresos!inner (
           id,
           numero_lote,
+          tintoreria_id,
           tintorerias ( id, nombre )
         )
       `
@@ -78,32 +119,125 @@ export default async function NuevoPedidoPage({
     .eq('estado', 'en_stock')
     .order('created_at', { ascending: true })
     .order('numero_pieza', { ascending: true })
-    .limit(500)
+    .limit(1500)
 
-  if (sp.articulo) query = query.eq('articulo_id', sp.articulo)
-  if (sp.color) query = query.eq('color_id', sp.color)
-  if (sp.tintoreria) query = query.eq('ingresos.tintoreria_id', sp.tintoreria)
-  if (sp.q) query = query.ilike('numero_pieza', `%${sp.q.trim()}%`)
+  if (sp.articulo) qRollos = qRollos.eq('articulo_id', sp.articulo)
+  if (sp.color) qRollos = qRollos.eq('color_id', sp.color)
+  if (sp.tintoreria) qRollos = qRollos.eq('ingresos.tintoreria_id', sp.tintoreria)
 
-  // Filtro por antigüedad mínima: rollos con created_at <= NOW() - X días.
-  // Calculamos la fecha límite en el server para evitar issues de zona horaria.
   const diasMinimos = sp.diasMinimos ? parseInt(sp.diasMinimos) : null
   if (diasMinimos && diasMinimos > 0) {
     const limite = new Date()
     limite.setDate(limite.getDate() - diasMinimos)
-    query = query.lte('created_at', limite.toISOString())
+    qRollos = qRollos.lte('created_at', limite.toISOString())
   }
 
-  const { data: rollosRaw, error } = await query
-  const rollos = ((rollosRaw ?? []) as unknown as (Omit<
-    RolloDisponible,
-    'colores'
-  > & {
-    color_id: string | null
-  })[]).map((r) => ({
-    ...r,
-    colores: r.color_id ? colorById.get(r.color_id) ?? null : null,
-  }))
+  const [{ data: rollosRaw, error }, { data: pendientesRaw }] = await Promise.all([
+    qRollos,
+    supabase
+      .from('pedido_partidas')
+      .select(
+        `
+          ingreso_id,
+          articulo_id,
+          color_id,
+          rollos_solicitados,
+          pedidos!inner ( estado ),
+          pedido_rollos ( id, liberado_at )
+        `
+      )
+      .in('pedidos.estado', [
+        'pendiente',
+        'en_preparacion',
+        'lista',
+        'confirmada_egreso',
+      ]),
+  ])
+
+  const pendientesPorPartida = new Map<string, number>()
+  for (const p of (pendientesRaw ?? []) as unknown as PedidoPartidaRaw[]) {
+    const key = keyPartida(p.ingreso_id, p.articulo_id, p.color_id)
+    const asignados =
+      p.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0
+    const pendientes = Math.max(0, Number(p.rollos_solicitados) - asignados)
+    pendientesPorPartida.set(key, (pendientesPorPartida.get(key) ?? 0) + pendientes)
+  }
+
+  const grupos = new Map<string, GrupoPartida>()
+  for (const r of (rollosRaw ?? []) as unknown as RolloRaw[]) {
+    if (!r.ingresos || !r.articulo_id || !r.color_id) continue
+    const key = keyPartida(r.ingresos.id, r.articulo_id, r.color_id)
+    const grupo =
+      grupos.get(key) ??
+      ({
+        ingresoId: r.ingresos.id,
+        numeroLote: r.ingresos.numero_lote,
+        articuloId: r.articulo_id,
+        articuloNombre: r.articulos?.nombre ?? 'Articulo',
+        colorId: r.color_id,
+        colorNombre: colorById.get(r.color_id) ?? 'Color',
+        tintoreriaNombre: r.ingresos.tintorerias?.nombre ?? null,
+        rollos: [],
+      } satisfies GrupoPartida)
+
+    grupo.rollos.push({
+      id: r.id,
+      numeroPieza: r.numero_pieza,
+      ubicacion: r.ubicacion,
+      kilos: Number(r.kilos ?? 0),
+      createdAt: r.created_at,
+    })
+    grupos.set(key, grupo)
+  }
+
+  const search = sp.q?.trim().toLowerCase() ?? ''
+  const partidas: PartidaDisponible[] = Array.from(grupos.values())
+    .map((g) => {
+      g.rollos.sort((a, b) => {
+        const byDate = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        if (byDate !== 0) return byDate
+        return a.numeroPieza.localeCompare(b.numeroPieza, 'es', { numeric: true })
+      })
+      const key = keyPartida(g.ingresoId, g.articuloId, g.colorId)
+      const pendientes = pendientesPorPartida.get(key) ?? 0
+      const rollosEstimacion = g.rollos.slice(pendientes)
+      const kilosDisponibles = rollosEstimacion.reduce((acc, r) => acc + r.kilos, 0)
+      return {
+        key,
+        ingresoId: g.ingresoId,
+        numeroLote: g.numeroLote,
+        articuloId: g.articuloId,
+        articuloNombre: g.articuloNombre,
+        colorId: g.colorId,
+        colorNombre: g.colorNombre,
+        tintoreriaNombre: g.tintoreriaNombre,
+        rollosDisponibles: rollosEstimacion.length,
+        kilosDisponibles,
+        rollosPendientesPrevios: pendientes,
+        rollosEstimacion: rollosEstimacion.map((r) => ({
+          numeroPieza: r.numeroPieza,
+          kilos: r.kilos,
+          ubicacion: r.ubicacion,
+        })),
+      }
+    })
+    .filter((p) => p.rollosDisponibles > 0)
+    .filter((p) => {
+      if (!search) return true
+      return (
+        p.numeroLote?.toLowerCase().includes(search) ||
+        p.articuloNombre.toLowerCase().includes(search) ||
+        p.colorNombre.toLowerCase().includes(search) ||
+        p.rollosEstimacion.some((r) => r.numeroPieza.toLowerCase().includes(search))
+      )
+    })
+    .sort((a, b) => {
+      const byLote = (a.numeroLote ?? '').localeCompare(b.numeroLote ?? '', 'es', {
+        numeric: true,
+      })
+      if (byLote !== 0) return byLote
+      return a.articuloNombre.localeCompare(b.articuloNombre, 'es')
+    })
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
@@ -111,20 +245,20 @@ export default async function NuevoPedidoPage({
         <BackButton href="/pedidos" label="Volver a pedidos" />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Nuevo pedido</h1>
         <p className="text-sm text-muted-foreground">
-          Reservá rollos del stock para un cliente. Los más viejos aparecen primero.
+          Elegi la partida y la cantidad de rollos. Deposito define las piezas reales al pickear.
         </p>
       </div>
 
       {error ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Error al cargar rollos: {error.message}
+          Error al cargar partidas: {error.message}
         </div>
       ) : (
         <NuevoPedidoForm
-          rollosDisponibles={rollos}
+          partidasDisponibles={partidas}
           articulos={(articulos ?? []) as Catalogo[]}
-          colores={coloresCatalogo}
-          tintorerias={(tintorerias ?? []) as Catalogo[]}
+          colores={(colores ?? []) as Catalogo[]}
+          tintorerias={tintorerias}
           clientes={(clientes ?? []) as Catalogo[]}
           currentFilters={{
             q: sp.q ?? '',
@@ -137,4 +271,8 @@ export default async function NuevoPedidoPage({
       )}
     </div>
   )
+}
+
+function keyPartida(ingresoId: string, articuloId: string, colorId: string) {
+  return `${ingresoId}|${articuloId}|${colorId}`
 }

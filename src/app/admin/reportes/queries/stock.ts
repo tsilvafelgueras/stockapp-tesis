@@ -182,7 +182,7 @@ export async function reporteStockPorCombo(
 
 // ── Helper interno: kilos vendidos por artículo en una ventana ──
 //
-// "Vendido" = rollos cuyo pedido está en estado 'entregada' dentro de la
+// "Vendido" = rollos cuyo pedido tiene egreso confirmado dentro de la
 // ventana [desde, hasta). Cruza pedido_rollos → rollos → pedidos.
 //
 // ⚠ PROXY DE FECHA: usamos `pedidos.confirmada_egreso_at` (cuándo egresó del
@@ -203,7 +203,7 @@ async function kilosVendidosPorArticulo(
       `id, created_at, confirmada_egreso_at,
        pedido_rollos ( rollos ( kilos, articulo_id, ingreso_id ) )`
     )
-    .eq('estado', 'entregada')
+    .eq('estado', 'confirmada_egreso')
     .limit(5000)
 
   type PedRaw = {

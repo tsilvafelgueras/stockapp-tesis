@@ -24,7 +24,7 @@ const actions: {
   {
     href: '/pedidos/nuevo',
     title: 'Nuevo pedido',
-    description: 'Reservá rollos concretos para un cliente.',
+    description: 'Pedi rollos por partida para un cliente.',
     icon: ShoppingCart,
   },
   {
@@ -98,7 +98,7 @@ export default async function VentasDashboard({
         <DiaTile
           label="Rollos pedidos hoy"
           value={resumenDia.rollosPedidos}
-          detail={`${kg(resumenDia.kilosPedidos)} kg`}
+          detail="Kilos reales al pickear"
         />
         <DiaTile
           label="Rollos enviados hoy"

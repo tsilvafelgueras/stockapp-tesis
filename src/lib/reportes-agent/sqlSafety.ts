@@ -35,6 +35,7 @@ const FORBIDDEN_PATTERNS: { label: string; pattern: RegExp }[] = [
   { label: 'FOR UPDATE', pattern: /\bfor\s+(no\s+key\s+)?update\b/i },
   { label: 'FOR SHARE', pattern: /\bfor\s+(key\s+)?share\b/i },
   { label: 'crear_pedido', pattern: /\b(public\.)?crear_pedido\s*\(/i },
+  { label: 'crear_pedido_por_partidas', pattern: /\b(public\.)?crear_pedido_por_partidas\s*\(/i },
   { label: 'cancelar_pedido', pattern: /\b(public\.)?cancelar_pedido\s*\(/i },
   { label: 'entregar_pedido', pattern: /\b(public\.)?entregar_pedido\s*\(/i },
   { label: 'confirmar_egreso_pedido', pattern: /\b(public\.)?confirmar_egreso_pedido\s*\(/i },

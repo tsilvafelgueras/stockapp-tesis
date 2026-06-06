@@ -61,7 +61,7 @@ BEGIN
     RAISE EXCEPTION 'La consulta usa locking o SELECT INTO, no permitido.';
   END IF;
 
-  IF v_sql ~* '\m(public\.)?(crear_pedido|cancelar_pedido|entregar_pedido|confirmar_egreso_pedido|pickear_rollo|registrar_muestra|aprobar_solicitud_color|rechazar_solicitud_color|reemplazar_rollo_en_pedido|log_movimiento|pg_sleep|pg_read_file|pg_read_binary_file|nextval|setval|pg_advisory_lock|pg_advisory_xact_lock|pg_terminate_backend|lo_import|lo_export)\s*\(' THEN
+  IF v_sql ~* '\m(public\.)?(crear_pedido|crear_pedido_por_partidas|cancelar_pedido|entregar_pedido|confirmar_egreso_pedido|pickear_rollo|registrar_muestra|aprobar_solicitud_color|rechazar_solicitud_color|reemplazar_rollo_en_pedido|log_movimiento|pg_sleep|pg_read_file|pg_read_binary_file|nextval|setval|pg_advisory_lock|pg_advisory_xact_lock|pg_terminate_backend|lo_import|lo_export)\s*\(' THEN
     RAISE EXCEPTION 'La consulta llama una funcion no permitida.';
   END IF;
 

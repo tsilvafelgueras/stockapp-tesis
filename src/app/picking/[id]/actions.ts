@@ -6,7 +6,12 @@ import { createClient } from '@/lib/supabase/server'
 export type PickearRolloResult =
   | {
       ok: true
+      rolloId: string
       numeroPieza: string
+      kilos: number | null
+      articuloId: string | null
+      colorId: string | null
+      pedidoPartidaId: string
       pendientes: number
       total: number
       pedidoCompleto: boolean
@@ -35,6 +40,10 @@ export async function pickearRollo(
   const json = data as {
     rollo_id: string
     numero_pieza: string
+    kilos: number | null
+    articulo_id: string | null
+    color_id: string | null
+    pedido_partida_id: string
     pendientes: number
     total: number
     pedido_completo: boolean
@@ -42,10 +51,17 @@ export async function pickearRollo(
 
   revalidatePath(`/picking/${pedidoId}`)
   revalidatePath('/picking')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/pedidos')
 
   return {
     ok: true,
+    rolloId: json.rollo_id,
     numeroPieza: json.numero_pieza,
+    kilos: json.kilos,
+    articuloId: json.articulo_id,
+    colorId: json.color_id,
+    pedidoPartidaId: json.pedido_partida_id,
     pendientes: json.pendientes,
     total: json.total,
     pedidoCompleto: json.pedido_completo,

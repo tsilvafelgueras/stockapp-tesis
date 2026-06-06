@@ -3,20 +3,28 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Replace } from 'lucide-react'
 import { type CodeScannerResult } from '@/components/CodeScanner'
 import ScannerByReaderType, {
   type ReaderType,
 } from '@/components/ScannerByReaderType'
-import {
-  extraerCodigoCandidato,
-  extraerCodigoRollo,
-  type PatronCodigo,
-} from '@/lib/scanner'
-import { pickearRollo, reemplazarRolloEnPicking } from './actions'
+import { extraerCodigoCandidato, type PatronCodigo } from '@/lib/scanner'
+import { pickearRollo } from './actions'
+
+export type PickPartida = {
+  id: string
+  numeroLote: string | null
+  articuloId: string
+  colorId: string
+  articulo: string
+  color: string
+  tintoreria: string | null
+  rollosSolicitados: number
+  rollosAsignados: number
+}
 
 export type PickRollo = {
   pedido_rollo_id: string
+  pedido_partida_id: string | null
   pickeado_at: string | null
   rollo_id: string
   numero_pieza: string
@@ -39,44 +47,40 @@ export type AlternativaRollo = {
   color_nombre: string
 }
 
-const FALLA_CATEGORIAS: { value: string; label: string }[] = [
-  { value: 'mancha', label: 'Mancha' },
-  { value: 'agujero', label: 'Agujero' },
-  { value: 'color_disparejo', label: 'Color disparejo' },
-  { value: 'tono_diferente', label: 'Tono diferente' },
-  { value: 'rotura_tejido', label: 'Rotura de tejido' },
-  { value: 'otro', label: 'Otro' },
-]
-
 export default function PickingScanner({
   pedidoId,
+  partidas,
   items,
-  alternativas,
   patrones,
   readerType,
 }: {
   pedidoId: string
+  partidas: PickPartida[]
   items: PickRollo[]
   alternativas: AlternativaRollo[]
   patrones: PatronCodigo[]
   readerType: ReaderType
 }) {
   const router = useRouter()
+  const [partidasLocales, setPartidasLocales] = useState<PickPartida[]>(partidas)
   const [itemsLocales, setItemsLocales] = useState<PickRollo[]>(items)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState(false)
-  const [mostrarPendientes, setMostrarPendientes] = useState(true)
-  const [reemplazando, setReemplazando] = useState<PickRollo | null>(null)
+  const [mostrarPartidas, setMostrarPartidas] = useState(true)
+  const [mostrarPickeados, setMostrarPickeados] = useState(true)
 
-  const pendientes = itemsLocales.filter((r) => r.pickeado_at == null)
-  const pickeados = itemsLocales.length - pendientes.length
-  const total = itemsLocales.length
+  const total = partidasLocales.reduce((acc, p) => acc + p.rollosSolicitados, 0)
+  const pickeados = itemsLocales.filter((r) => r.pickeado_at != null).length
+  const pendientes = Math.max(0, total - pickeados)
   const progresoPct = total > 0 ? Math.round((pickeados / total) * 100) : 0
-  const completo = pendientes.length === 0
-  const codigosRollos = useMemo(
-    () => itemsLocales.map((r) => r.numero_pieza),
-    [itemsLocales]
-  )
+  const completo = total > 0 && pendientes === 0
+  const kilosReales = itemsLocales.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0)
+
+  const articuloColorByPartida = useMemo(() => {
+    const map = new Map<string, PickPartida>()
+    for (const p of partidasLocales) map.set(p.id, p)
+    return map
+  }, [partidasLocales])
 
   const ejecutarPickeo = useCallback(
     async (textoEscaneado: string) => {
@@ -86,26 +90,42 @@ export default function PickingScanner({
 
       if (!res.ok) {
         setPendingCode(null)
-        if (res.error.includes('ya fue pickeado')) {
-          toast.warning(res.error)
-        } else {
-          toast.error(res.error)
-        }
+        if (res.error.includes('ya fue pickeado')) toast.warning(res.error)
+        else toast.error(res.error)
         return
       }
 
-      setItemsLocales((prev) =>
-        prev.map((r) =>
-          r.numero_pieza === res.numeroPieza
-            ? { ...r, pickeado_at: new Date().toISOString() }
-            : r
+      const partida = articuloColorByPartida.get(res.pedidoPartidaId)
+      const now = new Date().toISOString()
+
+      setItemsLocales((prev) => [
+        ...prev,
+        {
+          pedido_rollo_id: res.rolloId,
+          pedido_partida_id: res.pedidoPartidaId,
+          pickeado_at: now,
+          rollo_id: res.rolloId,
+          numero_pieza: res.numeroPieza,
+          ubicacion: null,
+          kilos: res.kilos,
+          articulo_id: res.articuloId,
+          color_id: res.colorId,
+          articulo: partida?.articulo ?? null,
+          color: partida?.color ?? null,
+        },
+      ])
+      setPartidasLocales((prev) =>
+        prev.map((p) =>
+          p.id === res.pedidoPartidaId
+            ? { ...p, rollosAsignados: p.rollosAsignados + 1 }
+            : p
         )
       )
       setPendingCode(null)
 
       if (res.pedidoCompleto) {
-        toast.success('¡Picking completo! El pedido pasa a "Lista".')
-        setTimeout(() => router.refresh(), 1500)
+        toast.success('Picking completo. El pedido queda Listo.')
+        setTimeout(() => router.refresh(), 900)
         return
       }
 
@@ -113,33 +133,20 @@ export default function PickingScanner({
         `Pieza ${res.numeroPieza} pickeada (${res.total - res.pendientes}/${res.total}).`
       )
     },
-    [pedidoId, router]
+    [articuloColorByPartida, pedidoId, router]
   )
 
   const handleLectura = useCallback(
     (result: CodeScannerResult) => {
-      const extraido = extraerCodigoRollo(result.texto, patrones, codigosRollos)
-      if (extraido.ok) {
-        setPendingCode(extraido.codigo)
+      const candidato = extraerCodigoCandidato(result.texto, patrones) ?? result.texto.trim()
+      if (!candidato) {
+        toast.error('No reconocimos el codigo. Probalo de nuevo o ingresalo manualmente.')
         return
       }
-
-      const candidato = extraerCodigoCandidato(result.texto, patrones)
-      if (candidato) {
-        void ejecutarPickeo(candidato)
-        return
-      }
-
-      toast.error(
-        'No reconocimos el código. Probá de nuevo o ingresalo manualmente.'
-      )
+      setPendingCode(candidato)
     },
-    [codigosRollos, patrones, ejecutarPickeo]
+    [patrones]
   )
-
-  function cancelarModal() {
-    setPendingCode(null)
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -156,90 +163,149 @@ export default function PickingScanner({
             style={{ width: `${progresoPct}%` }}
           />
         </div>
+        <p className="text-xs text-muted-foreground tabular-nums">
+          Kg reales pickeados:{' '}
+          <strong className="text-foreground">{kilosReales.toFixed(2)}</strong>
+        </p>
+      </div>
 
-        {pendientes.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setMostrarPendientes((v) => !v)}
-            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {mostrarPendientes ? 'Ocultar' : 'Ver'} pendientes (
-            {pendientes.length})
-          </button>
-        )}
-
-        {mostrarPendientes && pendientes.length > 0 && (
-          <ul className="space-y-1 pt-1 text-xs">
-            {pendientes.map((r) => (
-              <li
-                key={r.pedido_rollo_id}
-                className="flex items-center justify-between gap-2 rounded bg-warning/5 px-2 py-1.5"
-              >
-                <span className="flex-1 min-w-0">
-                  <span className="font-mono">{r.numero_pieza}</span>
-                  <span className="text-muted-foreground ml-2">
-                    {r.articulo ?? '—'}
-                    {r.color ? ` · ${r.color}` : ''}
-                    {r.ubicacion ? ` · ${r.ubicacion}` : ''}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setReemplazando(r)}
-                  className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100 transition-colors"
-                  title="Reemplazar por otro rollo (falla detectada)"
-                >
-                  <Replace className="size-3" />
-                  Reemplazar
-                </button>
-              </li>
-            ))}
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setMostrarPartidas((v) => !v)}
+          className="flex w-full items-center justify-between text-left text-sm font-semibold"
+        >
+          <span>Partidas solicitadas</span>
+          <span className="text-xs text-muted-foreground">
+            {mostrarPartidas ? 'Ocultar' : 'Ver'}
+          </span>
+        </button>
+        {mostrarPartidas && (
+          <ul className="mt-3 space-y-2 text-sm">
+            {partidasLocales.map((p) => {
+              const faltan = Math.max(0, p.rollosSolicitados - p.rollosAsignados)
+              return (
+                <li key={p.id} className="rounded-md border bg-zinc-50 px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        Partida {p.numeroLote ?? 'sin numero'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.articulo} - {p.color}
+                        {p.tintoreria ? ` - ${p.tintoreria}` : ''}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${
+                        faltan === 0
+                          ? 'bg-success/15 text-success'
+                          : 'bg-warning/15 text-warning'
+                      }`}
+                    >
+                      {p.rollosAsignados}/{p.rollosSolicitados}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {faltan === 0 ? 'Completa' : `Faltan ${faltan} rollos`}
+                  </p>
+                </li>
+              )
+            })}
           </ul>
         )}
-      </div>
+      </section>
 
       {completo ? (
         <div className="space-y-2 rounded-lg border border-success/30 bg-success/10 p-5 text-center">
-          <p className="text-2xl">✓</p>
-          <p className="font-semibold text-success">Picking completo</p>
+          <p className="font-semibold text-success">Pedido listo</p>
           <p className="text-sm text-muted-foreground">
-            El pedido pasa a estado &ldquo;Lista&rdquo; y queda esperando
-            despacho.
+            Ya se pickearon todos los rollos solicitados. Queda esperando egreso.
           </p>
         </div>
       ) : (
         <ScannerByReaderType
           readerType={readerType}
           onRead={handleLectura}
-          paused={Boolean(pendingCode) || confirmando || !!reemplazando}
+          paused={Boolean(pendingCode) || confirmando}
           title={
             readerType === 'qr'
-              ? 'Escanear código QR'
+              ? 'Escanear codigo QR'
               : readerType === 'barcode'
-                ? 'Escanear código de barras'
-                : 'Escanear QR o código de barras'
+                ? 'Escanear codigo de barras'
+                : 'Escanear QR o codigo de barras'
           }
-          manualLabel="Ingresar código manualmente"
+          manualLabel="Ingresar pieza manualmente"
           manualPlaceholder="Ej: 204021911"
         />
       )}
+
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setMostrarPickeados((v) => !v)}
+          className="flex w-full items-center justify-between text-left text-sm font-semibold"
+        >
+          <span>Rollos reales pickeados</span>
+          <span className="text-xs text-muted-foreground">
+            {mostrarPickeados ? 'Ocultar' : 'Ver'} ({itemsLocales.length})
+          </span>
+        </button>
+        {mostrarPickeados && (
+          <div className="mt-3 overflow-x-auto">
+            {itemsLocales.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Todavia no se pickeo ningun rollo.
+              </p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="border-b text-left text-muted-foreground">
+                  <tr>
+                    <th className="py-2 pr-3 font-medium">Pieza</th>
+                    <th className="py-2 pr-3 font-medium">Articulo</th>
+                    <th className="py-2 pr-3 font-medium">Color</th>
+                    <th className="py-2 text-right font-medium">Kg</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsLocales.map((r) => (
+                    <tr key={`${r.rollo_id}-${r.pickeado_at}`} className="border-b last:border-0">
+                      <td className="py-2 pr-3 font-mono font-medium">
+                        {r.numero_pieza}
+                      </td>
+                      <td className="py-2 pr-3">{r.articulo ?? '-'}</td>
+                      <td className="py-2 pr-3">{r.color ?? '-'}</td>
+                      <td className="py-2 text-right tabular-nums">
+                        {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </section>
 
       {pendingCode && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
           <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Código detectado
+                Pieza detectada
               </p>
               <p className="mt-0.5 break-all font-mono text-lg font-bold">
                 {pendingCode}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                El sistema va a validar que pertenezca a una partida pendiente de este pedido.
               </p>
             </div>
 
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={cancelarModal}
+                onClick={() => setPendingCode(null)}
                 disabled={confirmando}
                 className="flex-1 rounded-md border px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
               >
@@ -257,192 +323,6 @@ export default function PickingScanner({
           </div>
         </div>
       )}
-
-      {reemplazando && (
-        <ReemplazoModal
-          pedidoId={pedidoId}
-          rollo={reemplazando}
-          alternativas={alternativas}
-          onClose={() => setReemplazando(null)}
-          onReemplazado={(rolloNuevo) => {
-            setItemsLocales((prev) =>
-              prev.map((r) =>
-                r.pedido_rollo_id === reemplazando.pedido_rollo_id
-                  ? {
-                      ...r,
-                      rollo_id: rolloNuevo.id,
-                      numero_pieza: rolloNuevo.numero_pieza,
-                      ubicacion: rolloNuevo.ubicacion,
-                      kilos: rolloNuevo.kilos,
-                    }
-                  : r
-              )
-            )
-            setReemplazando(null)
-            router.refresh()
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-function ReemplazoModal({
-  pedidoId,
-  rollo,
-  alternativas,
-  onClose,
-  onReemplazado,
-}: {
-  pedidoId: string
-  rollo: PickRollo
-  alternativas: AlternativaRollo[]
-  onClose: () => void
-  onReemplazado: (rolloNuevo: AlternativaRollo) => void
-}) {
-  const [motivo, setMotivo] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [seleccionado, setSeleccionado] = useState<string>('')
-  const [pending, setPending] = useState(false)
-
-  const compatibles = useMemo(
-    () =>
-      alternativas.filter(
-        (a) =>
-          a.articulo_id === rollo.articulo_id &&
-          a.color_id === rollo.color_id
-      ),
-    [alternativas, rollo.articulo_id, rollo.color_id]
-  )
-
-  async function confirmar() {
-    if (!motivo) {
-      toast.error('Elegí el motivo del reemplazo.')
-      return
-    }
-    if (!seleccionado) {
-      toast.error('Seleccioná el rollo de reemplazo.')
-      return
-    }
-    setPending(true)
-    const res = await reemplazarRolloEnPicking({
-      pedidoId,
-      rolloViejoId: rollo.rollo_id,
-      rolloNuevoId: seleccionado,
-      motivoCategoria: motivo,
-      motivoTexto: descripcion,
-    })
-    setPending(false)
-    if (!res.ok) {
-      toast.error(res.error)
-      return
-    }
-    const nuevo = compatibles.find((a) => a.id === seleccionado)!
-    toast.success(
-      `Pieza ${rollo.numero_pieza} reemplazada por ${nuevo.numero_pieza}.`
-    )
-    onReemplazado(nuevo)
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-      <div className="w-full max-w-md space-y-4 rounded-xl bg-white p-5 shadow-xl">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Reemplazar pieza
-          </p>
-          <p className="mt-0.5 font-mono text-lg font-bold">
-            {rollo.numero_pieza}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {rollo.articulo ?? '—'}
-            {rollo.color ? ` · ${rollo.color}` : ''}
-            {rollo.kilos != null ? ` · ${Number(rollo.kilos).toFixed(2)} kg` : ''}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            El rollo viejo va a quedar marcado como{' '}
-            <strong>segunda calidad</strong> con el motivo elegido. Queda en el
-            historial de movimientos.
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Motivo del reemplazo *
-          </label>
-          <select
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Seleccionar...</option>
-            {FALLA_CATEGORIAS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Descripción (opcional)
-          </label>
-          <textarea
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            rows={2}
-            placeholder="Ej. mancha de 5cm en el extremo"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Rollo de reemplazo *
-          </label>
-          {compatibles.length === 0 ? (
-            <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
-              No hay rollos disponibles del mismo artículo y color para reemplazar.
-              Avisá al admin para que dé de alta nuevo stock o reasigne uno reservado.
-            </p>
-          ) : (
-            <select
-              value={seleccionado}
-              onChange={(e) => setSeleccionado(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Seleccionar...</option>
-              {compatibles.map((a) => (
-                <option key={a.id} value={a.id}>
-                  Pieza {a.numero_pieza}
-                  {a.kilos != null ? ` · ${Number(a.kilos).toFixed(2)} kg` : ''}
-                  {a.ubicacion ? ` · ${a.ubicacion}` : ''}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className="flex-1 rounded-md border px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={confirmar}
-            disabled={pending || !motivo || !seleccionado}
-            className="flex-1 rounded-md bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
-          >
-            {pending ? 'Reemplazando…' : 'Reemplazar'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

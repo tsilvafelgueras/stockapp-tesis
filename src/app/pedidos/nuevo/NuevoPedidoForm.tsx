@@ -1,27 +1,30 @@
 'use client'
 
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { crearPedido } from '../actions'
 import { crearCliente } from '@/app/clientes/actions'
+import { crearPedidoPorPartidas } from '../actions'
 
 export type Catalogo = { id: string; nombre: string }
 
-export type RolloDisponible = {
-  id: string
-  numero_pieza: string
-  ubicacion: string | null
-  kilos: number | null
-  metros: number | null
-  created_at: string
-  articulos: { id: string; nombre: string } | null
-  colores: { id: string; nombre: string } | null
-  ingresos: {
-    id: string
-    numero_lote: string | null
-    tintorerias: { id: string; nombre: string } | null
-  } | null
+export type PartidaDisponible = {
+  key: string
+  ingresoId: string
+  numeroLote: string | null
+  articuloId: string
+  articuloNombre: string
+  colorId: string
+  colorNombre: string
+  tintoreriaNombre: string | null
+  rollosDisponibles: number
+  kilosDisponibles: number
+  rollosPendientesPrevios: number
+  rollosEstimacion: Array<{
+    numeroPieza: string
+    kilos: number
+    ubicacion: string | null
+  }>
 }
 
 type Filters = {
@@ -32,20 +35,15 @@ type Filters = {
   diasMinimos: string
 }
 
-function diasEnInventario(createdAt: string): number {
-  const ms = Date.now() - new Date(createdAt).getTime()
-  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)))
-}
-
 export default function NuevoPedidoForm({
-  rollosDisponibles,
+  partidasDisponibles,
   articulos,
   colores,
   tintorerias,
   clientes: clientesIniciales,
   currentFilters,
 }: {
-  rollosDisponibles: RolloDisponible[]
+  partidasDisponibles: PartidaDisponible[]
   articulos: Catalogo[]
   colores: Catalogo[]
   tintorerias: Catalogo[]
@@ -62,27 +60,24 @@ export default function NuevoPedidoForm({
   const [creandoCliente, startClienteTransition] = useTransition()
   const [remito, setRemito] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState('')
-  const [carrito, setCarrito] = useState<RolloDisponible[]>([])
+  const [cantidades, setCantidades] = useState<Record<string, number>>({})
   const [error, setError] = useState<string | null>(null)
   const [filtroPending, startFiltroTransition] = useTransition()
   const [submitPending, startSubmitTransition] = useTransition()
 
-  const carritoIds = new Set(carrito.map((r) => r.id))
-  const rollosNoEnCarrito = rollosDisponibles.filter(
-    (r) => !carritoIds.has(r.id)
-  )
-  const totalKilos = carrito.reduce(
-    (acc, r) => acc + Number(r.kilos ?? 0),
-    0
+  const partidasByKey = useMemo(
+    () => new Map(partidasDisponibles.map((p) => [p.key, p])),
+    [partidasDisponibles]
   )
 
-  // Agrupación por lote: solo cuando hay filtro de artículo activo. La idea
-  // es priorizar lotes con poco stock disponible para liquidarlos antes y
-  // evitar quedar con rollos huérfanos repartidos en varios lotes.
-  const agruparPorLote = !!currentFilters.articulo
-  const lotesOrdenados = agruparPorLote
-    ? agruparRollosPorLote(rollosNoEnCarrito)
-    : null
+  const seleccionadas = Object.entries(cantidades)
+    .map(([key, cantidad]) => ({ partida: partidasByKey.get(key), cantidad }))
+    .filter(
+      (row): row is { partida: PartidaDisponible; cantidad: number } =>
+        !!row.partida && row.cantidad > 0
+    )
+
+  const totalRollos = seleccionadas.reduce((acc, row) => acc + row.cantidad, 0)
 
   function updateFilter(field: keyof Filters, value: string) {
     const params = new URLSearchParams(sp.toString())
@@ -100,13 +95,14 @@ export default function NuevoPedidoForm({
     })
   }
 
-  function agregar(r: RolloDisponible) {
-    if (carritoIds.has(r.id)) return
-    setCarrito((prev) => [...prev, r])
-  }
-
-  function quitar(id: string) {
-    setCarrito((prev) => prev.filter((r) => r.id !== id))
+  function setCantidad(partida: PartidaDisponible, value: number) {
+    const next = Math.max(0, Math.min(partida.rollosDisponibles, Math.trunc(value || 0)))
+    setCantidades((prev) => {
+      const clone = { ...prev }
+      if (next <= 0) delete clone[partida.key]
+      else clone[partida.key] = next
+      return clone
+    })
   }
 
   function handleCrearCliente() {
@@ -118,7 +114,9 @@ export default function NuevoPedidoForm({
         toast.error(res.error)
         return
       }
-      setClientes((prev) => [...prev, res.cliente].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+      setClientes((prev) =>
+        [...prev, res.cliente].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      )
       setClienteId(res.cliente.id)
       setNuevoCliente(false)
       setNuevoClienteNombre('')
@@ -129,25 +127,31 @@ export default function NuevoPedidoForm({
   function handleSubmit() {
     setError(null)
     if (!clienteId) {
-      setError('Elegí un cliente del catálogo (o creá uno nuevo).')
+      setError('Elegi un cliente del catalogo o crea uno nuevo.')
       return
     }
-    if (carrito.length === 0) {
-      setError('Agregá al menos un rollo al pedido.')
+    if (seleccionadas.length === 0) {
+      setError('Agrega al menos una partida al pedido.')
       return
     }
+
     startSubmitTransition(async () => {
-      const res = await crearPedido(
+      const res = await crearPedidoPorPartidas(
         clienteId,
         remito,
-        carrito.map((r) => r.id),
+        seleccionadas.map(({ partida, cantidad }) => ({
+          ingresoId: partida.ingresoId,
+          articuloId: partida.articuloId,
+          colorId: partida.colorId,
+          cantidad,
+        })),
         fechaEntrega
       )
       if (!res.ok) {
         toast.error(res.error)
         return
       }
-      toast.success(`Pedido creado con ${carrito.length} rollos reservados.`)
+      toast.success(`Pedido creado con ${totalRollos} rollos solicitados.`)
       router.push(`/pedidos/${res.pedidoId}?creado=1`)
     })
   }
@@ -161,7 +165,6 @@ export default function NuevoPedidoForm({
 
   return (
     <div className="space-y-4">
-      {/* Header del pedido */}
       <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
         <h2 className="font-semibold text-sm">Datos del pedido</h2>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -234,10 +237,8 @@ export default function NuevoPedidoForm({
               </div>
             )}
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              N° Remito externo (Softland u otro)
-            </label>
+
+          <Field label="Nro remito externo">
             <input
               type="text"
               value={remito}
@@ -245,62 +246,57 @@ export default function NuevoPedidoForm({
               placeholder="Opcional"
               className="w-full rounded-md border px-3 py-2 text-sm"
             />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Fecha de entrega comprometida
-            </label>
+          </Field>
+
+          <Field label="Fecha de entrega comprometida">
             <input
               type="date"
               value={fechaEntrega}
               onChange={(e) => setFechaEntrega(e.target.value)}
               className="w-full rounded-md border px-3 py-2 text-sm"
             />
-          </div>
+          </Field>
         </div>
       </section>
 
-      {/* Carrito */}
       <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="font-semibold text-sm">
-            Rollos seleccionados ({carrito.length})
+            Partidas seleccionadas ({seleccionadas.length})
           </h2>
-          {carrito.length > 0 && (
+          {totalRollos > 0 && (
             <span className="text-sm tabular-nums text-muted-foreground">
-              Total: <strong className="text-foreground">{totalKilos.toFixed(2)} kg</strong>
+              Total: <strong className="text-foreground">{totalRollos} rollos</strong>
             </span>
           )}
         </div>
 
-        {carrito.length === 0 ? (
+        {seleccionadas.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
-            Todavía no agregaste rollos. Buscalos abajo y tocá &ldquo;Agregar&rdquo;.
+            Todavia no agregaste partidas. Elegi cantidades abajo.
           </p>
         ) : (
           <ul className="divide-y border rounded-md">
-            {carrito.map((r) => (
+            {seleccionadas.map(({ partida, cantidad }) => (
               <li
-                key={r.id}
+                key={partida.key}
                 className="flex items-center justify-between gap-3 px-3 py-2"
               >
                 <div className="min-w-0 text-sm">
                   <p className="font-medium truncate">
-                    Pieza {r.numero_pieza}
+                    Partida {partida.numeroLote ?? 'sin numero'}
                     <span className="text-muted-foreground font-normal">
-                      {' · '}
-                      {r.articulos?.nombre ?? '—'}
-                      {r.colores?.nombre ? ` · ${r.colores.nombre}` : ''}
+                      {' - '}
+                      {partida.articuloNombre} - {partida.colorNombre}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
-                    {r.ubicacion ? ` · Ubic ${r.ubicacion}` : ''}
+                    {cantidad} {cantidad === 1 ? 'rollo solicitado' : 'rollos solicitados'}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => quitar(r.id)}
+                  onClick={() => setCantidad(partida, 0)}
                   className="text-xs rounded-md border px-2 py-1 hover:bg-zinc-50 text-destructive shrink-0"
                   disabled={submitPending}
                 >
@@ -321,29 +317,24 @@ export default function NuevoPedidoForm({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitPending || carrito.length === 0 || !clienteId}
+            disabled={submitPending || totalRollos === 0 || !clienteId}
             className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
-            {submitPending ? 'Creando pedido…' : 'Crear pedido'}
+            {submitPending ? 'Creando pedido...' : 'Crear pedido'}
           </button>
         </div>
       </section>
 
-      {/* Filtros + lista de disponibles */}
       <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
-        <h2 className="font-semibold text-sm">Buscar rollos disponibles</h2>
+        <h2 className="font-semibold text-sm">Partidas disponibles</h2>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              N° Pieza
-            </label>
+          <Field label="Partida, articulo o pieza">
             <input
               type="text"
               defaultValue={currentFilters.q}
               onBlur={(e) => {
-                if (e.target.value !== currentFilters.q)
-                  updateFilter('q', e.target.value)
+                if (e.target.value !== currentFilters.q) updateFilter('q', e.target.value)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -351,14 +342,12 @@ export default function NuevoPedidoForm({
                   updateFilter('q', (e.target as HTMLInputElement).value)
                 }
               }}
-              placeholder="Ej. 12345"
+              placeholder="Ej. Lote 123"
               className="w-full rounded-md border px-3 py-2 text-sm"
             />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Artículo
-            </label>
+          </Field>
+
+          <Field label="Articulo">
             <select
               value={currentFilters.articulo}
               onChange={(e) => updateFilter('articulo', e.target.value)}
@@ -371,11 +360,9 @@ export default function NuevoPedidoForm({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Color
-            </label>
+          </Field>
+
+          <Field label="Color">
             <select
               value={currentFilters.color}
               onChange={(e) => updateFilter('color', e.target.value)}
@@ -388,11 +375,9 @@ export default function NuevoPedidoForm({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Tintorería
-            </label>
+          </Field>
+
+          <Field label="Tintoreria">
             <select
               value={currentFilters.tintoreria}
               onChange={(e) => updateFilter('tintoreria', e.target.value)}
@@ -405,15 +390,11 @@ export default function NuevoPedidoForm({
                 </option>
               ))}
             </select>
-          </div>
+          </Field>
         </div>
 
-        {/* Filtro por días de inventario (FIFO Azcano) */}
         <div className="flex flex-wrap items-end gap-3 pt-1">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Mínimo en inventario
-            </label>
+          <Field label="Minimo en inventario">
             <div className="flex items-center gap-1">
               <input
                 type="number"
@@ -421,35 +402,29 @@ export default function NuevoPedidoForm({
                 inputMode="numeric"
                 defaultValue={currentFilters.diasMinimos}
                 onBlur={(e) => {
-                  if (e.target.value !== currentFilters.diasMinimos)
+                  if (e.target.value !== currentFilters.diasMinimos) {
                     updateFilter('diasMinimos', e.target.value)
+                  }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
-                    updateFilter(
-                      'diasMinimos',
-                      (e.target as HTMLInputElement).value
-                    )
+                    updateFilter('diasMinimos', (e.target as HTMLInputElement).value)
                   }
                 }}
                 placeholder="Ej. 30"
                 className="w-24 rounded-md border px-3 py-2 text-sm"
               />
-              <span className="text-xs text-muted-foreground">días</span>
+              <span className="text-xs text-muted-foreground">dias</span>
             </div>
-            <p className="text-[10px] text-muted-foreground">
-              Útil para sacar primero los rollos que llevan más tiempo enrollados
-              (ej. Azcano).
-            </p>
-          </div>
+          </Field>
         </div>
 
         <div className="flex items-center justify-between gap-3 text-xs">
           <p className="text-muted-foreground">
             {filtroPending
-              ? 'Aplicando filtros…'
-              : `${rollosNoEnCarrito.length} rollos disponibles`}
+              ? 'Aplicando filtros...'
+              : `${partidasDisponibles.length} partidas disponibles`}
           </p>
           {hasFilters && (
             <button
@@ -462,57 +437,44 @@ export default function NuevoPedidoForm({
           )}
         </div>
 
-        {rollosNoEnCarrito.length === 0 ? (
+        {partidasDisponibles.length === 0 ? (
           <div className="rounded-md border bg-zinc-50 p-6 text-center text-sm text-muted-foreground">
-            {rollosDisponibles.length === 0
-              ? 'No hay rollos en stock que coincidan con los filtros.'
-              : 'Todos los rollos del filtro ya están en el carrito.'}
-          </div>
-        ) : lotesOrdenados ? (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Agrupado por partida. Las partidas con menos stock disponible
-              aparecen primero para liquidarlas antes y no quedar con rollos
-              sueltos.
-            </p>
-            {lotesOrdenados.map((grupo, idx) => (
-              <LoteGroup
-                key={grupo.key}
-                grupo={grupo}
-                priorizar={idx === 0 && lotesOrdenados.length > 1}
-                onAgregar={agregar}
-              />
-            ))}
+            No hay partidas con rollos disponibles para los filtros elegidos.
           </div>
         ) : (
           <>
-            {/* Mobile: cards */}
             <ul className="sm:hidden divide-y border rounded-md">
-              {rollosNoEnCarrito.map((r) => (
-                <RolloCardMobile key={r.id} r={r} onAgregar={agregar} />
+              {partidasDisponibles.map((p) => (
+                <PartidaCard
+                  key={p.key}
+                  partida={p}
+                  cantidad={cantidades[p.key] ?? 0}
+                  onCantidad={setCantidad}
+                />
               ))}
             </ul>
 
-            {/* Desktop: tabla */}
             <div className="hidden sm:block overflow-x-auto rounded-md border">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[840px] text-sm">
                 <thead className="bg-zinc-50 border-b">
                   <tr className="text-left">
-                    <th className="px-3 py-2 font-medium">Pieza</th>
-                    <th className="px-3 py-2 font-medium">Artículo</th>
+                    <th className="px-3 py-2 font-medium">Partida</th>
+                    <th className="px-3 py-2 font-medium">Articulo</th>
                     <th className="px-3 py-2 font-medium">Color</th>
-                    <th className="px-3 py-2 font-medium">Kilos</th>
-                    <th className="px-3 py-2 font-medium">Ubicación</th>
-                    <th className="px-3 py-2 font-medium">Tintorería</th>
-                    <th className="px-3 py-2 font-medium" title="Días en inventario">
-                      Antig.
-                    </th>
-                    <th className="px-3 py-2 font-medium w-20"></th>
+                    <th className="px-3 py-2 font-medium">Tintoreria</th>
+                    <th className="px-3 py-2 font-medium text-right">Disponibles</th>
+                    <th className="px-3 py-2 font-medium text-right">Kg disp.</th>
+                    <th className="px-3 py-2 font-medium">Cantidad pedido</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rollosNoEnCarrito.map((r) => (
-                    <RolloRowDesktop key={r.id} r={r} onAgregar={agregar} />
+                  {partidasDisponibles.map((p) => (
+                    <PartidaRow
+                      key={p.key}
+                      partida={p}
+                      cantidad={cantidades[p.key] ?? 0}
+                      onCantidad={setCantidad}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -524,206 +486,114 @@ export default function NuevoPedidoForm({
   )
 }
 
-type LoteGrupo = {
-  key: string
-  numero_lote: string | null
-  rollos: RolloDisponible[]
-  totalKilos: number
-}
-
-function agruparRollosPorLote(rollos: RolloDisponible[]): LoteGrupo[] {
-  const mapa = new Map<string, LoteGrupo>()
-  for (const r of rollos) {
-    const numero_lote = r.ingresos?.numero_lote ?? null
-    // Si un rollo no tiene lote asignado, lo agrupamos aparte bajo "sin-lote"
-    // para que no rompa la UI; en la práctica todos deberían tener lote por
-    // la migración 027.
-    const key = numero_lote ?? '__sin_lote__'
-    const existing = mapa.get(key)
-    if (existing) {
-      existing.rollos.push(r)
-      existing.totalKilos += Number(r.kilos ?? 0)
-    } else {
-      mapa.set(key, {
-        key,
-        numero_lote,
-        rollos: [r],
-        totalKilos: Number(r.kilos ?? 0),
-      })
-    }
-  }
-  // Orden: stock disponible ASC (lotes casi vacíos primero), tiebreak por lote.
-  const grupos = Array.from(mapa.values())
-  for (const g of grupos) {
-    g.rollos.sort((a, b) =>
-      a.numero_pieza.localeCompare(b.numero_pieza, 'es', { numeric: true })
-    )
-  }
-  grupos.sort((a, b) => {
-    if (a.totalKilos !== b.totalKilos) return a.totalKilos - b.totalKilos
-    const an = a.numero_lote ?? ''
-    const bn = b.numero_lote ?? ''
-    return an.localeCompare(bn, 'es')
-  })
-  return grupos
-}
-
-function LoteGroup({
-  grupo,
-  priorizar,
-  onAgregar,
+function Field({
+  label,
+  children,
 }: {
-  grupo: LoteGrupo
-  priorizar: boolean
-  onAgregar: (r: RolloDisponible) => void
+  label: string
+  children: React.ReactNode
 }) {
-  const titulo = grupo.numero_lote ?? 'Sin partida asignada'
   return (
-    <div
-      className={`rounded-md border bg-white ${
-        priorizar ? 'border-amber-300 ring-1 ring-amber-200/60' : ''
-      }`}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-zinc-50 px-3 py-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base">📦</span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">Partida {titulo}</p>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {grupo.rollos.length}{' '}
-              {grupo.rollos.length === 1 ? 'rollo' : 'rollos'} ·{' '}
-              {grupo.totalKilos.toFixed(2)} kg disponibles
-            </p>
-          </div>
-        </div>
-        {priorizar && (
-          <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
-            Priorizar — menos stock
-          </span>
-        )}
-      </div>
-
-      {/* Mobile: cards */}
-      <ul className="sm:hidden divide-y">
-        {grupo.rollos.map((r) => (
-          <RolloCardMobile key={r.id} r={r} onAgregar={onAgregar} />
-        ))}
-      </ul>
-
-      {/* Desktop: tabla */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50/50 border-b">
-            <tr className="text-left">
-              <th className="px-3 py-2 font-medium">Pieza</th>
-              <th className="px-3 py-2 font-medium">Artículo</th>
-              <th className="px-3 py-2 font-medium">Color</th>
-              <th className="px-3 py-2 font-medium">Kilos</th>
-              <th className="px-3 py-2 font-medium">Ubicación</th>
-              <th className="px-3 py-2 font-medium">Tintorería</th>
-              <th className="px-3 py-2 font-medium w-20"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {grupo.rollos.map((r) => (
-              <RolloRowDesktop key={r.id} r={r} onAgregar={onAgregar} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
     </div>
   )
 }
 
-function AntiguedadBadge({ dias }: { dias: number }) {
-  // Umbral pedido por la clienta: 30 días enrollados es el límite donde
-  // las telas Azcano empiezan a perder propiedades.
-  const critico = dias >= 30
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${
-        critico
-          ? 'bg-amber-100 text-amber-800'
-          : 'bg-zinc-100 text-zinc-600'
-      }`}
-      title={
-        critico
-          ? 'Más de 30 días en depósito — sacar prioritariamente'
-          : 'Días en inventario'
-      }
-    >
-      {dias}d
-    </span>
-  )
-}
-
-function RolloCardMobile({
-  r,
-  onAgregar,
+function PartidaCard({
+  partida,
+  cantidad,
+  onCantidad,
 }: {
-  r: RolloDisponible
-  onAgregar: (r: RolloDisponible) => void
+  partida: PartidaDisponible
+  cantidad: number
+  onCantidad: (partida: PartidaDisponible, value: number) => void
 }) {
-  const dias = diasEnInventario(r.created_at)
   return (
-    <li className="flex items-center justify-between gap-3 px-3 py-2">
-      <div className="min-w-0 text-sm">
-        <p className="font-medium truncate flex items-center gap-1.5">
-          Pieza {r.numero_pieza}
-          <AntiguedadBadge dias={dias} />
-        </p>
-        <p className="text-xs text-muted-foreground truncate">
-          {r.articulos?.nombre ?? '—'}
-          {r.colores?.nombre ? ` · ${r.colores.nombre}` : ''}
-        </p>
-        <p className="text-xs text-muted-foreground tabular-nums">
-          {r.kilos != null ? `${Number(r.kilos).toFixed(2)} kg` : '—'}
-          {r.ubicacion ? ` · ${r.ubicacion}` : ''}
-        </p>
+    <li className="space-y-2 px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-medium">Partida {partida.numeroLote ?? 'sin numero'}</p>
+          <p className="text-xs text-muted-foreground">
+            {partida.articuloNombre} - {partida.colorNombre}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {partida.rollosDisponibles} rollos - {partida.kilosDisponibles.toFixed(2)} kg
+          </p>
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={() => onAgregar(r)}
-        className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90 shrink-0"
-      >
-        Agregar
-      </button>
+      <CantidadInput partida={partida} cantidad={cantidad} onCantidad={onCantidad} />
     </li>
   )
 }
 
-function RolloRowDesktop({
-  r,
-  onAgregar,
+function PartidaRow({
+  partida,
+  cantidad,
+  onCantidad,
 }: {
-  r: RolloDisponible
-  onAgregar: (r: RolloDisponible) => void
+  partida: PartidaDisponible
+  cantidad: number
+  onCantidad: (partida: PartidaDisponible, value: number) => void
 }) {
-  const dias = diasEnInventario(r.created_at)
   return (
     <tr className="border-b last:border-0">
-      <td className="px-3 py-2 font-medium">{r.numero_pieza}</td>
-      <td className="px-3 py-2">{r.articulos?.nombre ?? '—'}</td>
-      <td className="px-3 py-2">{r.colores?.nombre ?? '—'}</td>
-      <td className="px-3 py-2 tabular-nums">
-        {r.kilos != null ? Number(r.kilos).toFixed(2) : '—'}
-      </td>
-      <td className="px-3 py-2">{r.ubicacion ?? '—'}</td>
+      <td className="px-3 py-2 font-medium">{partida.numeroLote ?? '-'}</td>
+      <td className="px-3 py-2">{partida.articuloNombre}</td>
+      <td className="px-3 py-2">{partida.colorNombre}</td>
       <td className="px-3 py-2 text-muted-foreground">
-        {r.ingresos?.tintorerias?.nombre ?? '—'}
+        {partida.tintoreriaNombre ?? '-'}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        {partida.rollosDisponibles}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        {partida.kilosDisponibles.toFixed(2)}
       </td>
       <td className="px-3 py-2">
-        <AntiguedadBadge dias={dias} />
-      </td>
-      <td className="px-3 py-2 text-right">
-        <button
-          type="button"
-          onClick={() => onAgregar(r)}
-          className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-        >
-          Agregar
-        </button>
+        <CantidadInput partida={partida} cantidad={cantidad} onCantidad={onCantidad} />
       </td>
     </tr>
+  )
+}
+
+function CantidadInput({
+  partida,
+  cantidad,
+  onCantidad,
+}: {
+  partida: PartidaDisponible
+  cantidad: number
+  onCantidad: (partida: PartidaDisponible, value: number) => void
+}) {
+  return (
+    <div className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onCantidad(partida, cantidad - 1)}
+        disabled={cantidad <= 0}
+        className="size-8 rounded-md border bg-white text-sm disabled:opacity-40"
+      >
+        -
+      </button>
+      <input
+        type="number"
+        min="0"
+        max={partida.rollosDisponibles}
+        value={cantidad || ''}
+        onChange={(e) => onCantidad(partida, Number(e.target.value))}
+        placeholder="0"
+        className="h-8 w-16 rounded-md border px-2 text-center text-sm tabular-nums"
+      />
+      <button
+        type="button"
+        onClick={() => onCantidad(partida, cantidad + 1)}
+        disabled={cantidad >= partida.rollosDisponibles}
+        className="size-8 rounded-md border bg-white text-sm disabled:opacity-40"
+      >
+        +
+      </button>
+    </div>
   )
 }

@@ -5,9 +5,21 @@ import DashboardBackButton from '@/components/DashboardBackButton'
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
   en_preparacion: {
-    text: 'En preparación',
+    text: 'En preparacion',
     className: 'bg-primary/15 text-primary',
   },
+  lista: { text: 'Pedido listo', className: 'bg-success/15 text-success' },
+}
+
+type Row = {
+  id: string
+  numero_pedido: string | null
+  cliente: string
+  estado: string
+  created_at: string
+  pedido_partidas:
+    | { id: string; rollos_solicitados: number; pedido_rollos: { id: string; liberado_at: string | null }[] | null }[]
+    | null
 }
 
 export default async function PickingListPage() {
@@ -22,22 +34,16 @@ export default async function PickingListPage() {
         cliente,
         estado,
         created_at,
-        pedido_rollos ( id, pickeado_at )
+        pedido_partidas (
+          id,
+          rollos_solicitados,
+          pedido_rollos ( id, liberado_at )
+        )
       `
     )
-    .in('estado', ['pendiente', 'en_preparacion'])
+    .in('estado', ['pendiente', 'en_preparacion', 'lista'])
     .order('created_at', { ascending: true })
 
-  type Row = {
-    id: string
-    numero_pedido: string | null
-    cliente: string
-    estado: string
-    created_at: string
-    pedido_rollos:
-      | { id: string; pickeado_at: string | null }[]
-      | null
-  }
   const rows = (pedidos ?? []) as unknown as Row[]
 
   return (
@@ -46,29 +52,34 @@ export default async function PickingListPage() {
         <DashboardBackButton />
         <h1 className="text-xl sm:text-2xl font-bold mt-1">Picking</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Pedidos a preparar. Escaneá los rollos en el depósito.
+          Pedidos a preparar y pedidos listos para confirmar egreso.
         </p>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-lg border bg-white p-8 text-center space-y-2 shadow-sm">
-          <p className="text-2xl">✓</p>
-          <p className="font-medium">Todo al día</p>
+          <p className="font-medium">Todo al dia</p>
           <p className="text-sm text-muted-foreground">
-            No hay pedidos esperando picking.
+            No hay pedidos esperando deposito.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {rows.map((p) => {
-            const estado =
-              ESTADO_LABEL[p.estado] ?? ESTADO_LABEL.pendiente
-            const total = p.pedido_rollos?.length ?? 0
+            const estado = ESTADO_LABEL[p.estado] ?? ESTADO_LABEL.pendiente
+            const total =
+              p.pedido_partidas?.reduce(
+                (acc, pp) => acc + Number(pp.rollos_solicitados ?? 0),
+                0
+              ) ?? 0
             const pickeados =
-              p.pedido_rollos?.filter((pr) => pr.pickeado_at != null)
-                .length ?? 0
-            const pct =
-              total > 0 ? Math.round((pickeados / total) * 100) : 0
+              p.pedido_partidas?.reduce(
+                (acc, pp) =>
+                  acc +
+                  (pp.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0),
+                0
+              ) ?? 0
+            const pct = total > 0 ? Math.round((pickeados / total) * 100) : 0
             return (
               <Link
                 key={p.id}
@@ -79,7 +90,7 @@ export default async function PickingListPage() {
                   <div className="min-w-0">
                     <p className="font-medium truncate">{p.cliente}</p>
                     <p className="text-xs text-muted-foreground">
-                      Pedido {p.numero_pedido ?? '—'} ·{' '}
+                      Pedido {p.numero_pedido ?? '-'} -{' '}
                       {new Date(p.created_at).toLocaleDateString('es-AR')}
                     </p>
                   </div>

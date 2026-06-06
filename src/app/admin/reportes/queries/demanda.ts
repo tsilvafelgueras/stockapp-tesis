@@ -96,9 +96,8 @@ export type FunnelRow = {
 const FUNNEL_ESTADOS: { estado: string; label: string }[] = [
   { estado: 'pendiente', label: 'Pendiente' },
   { estado: 'en_preparacion', label: 'En preparación' },
-  { estado: 'lista', label: 'Lista' },
+  { estado: 'lista', label: 'Pedido listo' },
   { estado: 'confirmada_egreso', label: 'Egreso confirmado' },
-  { estado: 'entregada', label: 'Entregada' },
 ]
 
 export async function reporteFunnelPedidos(
@@ -135,9 +134,8 @@ export type TiempoEtapaRow = {
 // Transiciones del flujo que medimos.
 const TRANSICIONES: { from: string; to: string; label: string }[] = [
   { from: 'pendiente', to: 'en_preparacion', label: 'A preparación' },
-  { from: 'en_preparacion', to: 'lista', label: 'A lista' },
+  { from: 'en_preparacion', to: 'lista', label: 'A listo' },
   { from: 'lista', to: 'confirmada_egreso', label: 'A egreso' },
-  { from: 'confirmada_egreso', to: 'entregada', label: 'A entrega' },
 ]
 
 export async function reporteTiempoPorEtapa(
@@ -238,7 +236,7 @@ export async function reporteRankingClientes(
       `cliente, created_at, confirmada_egreso_at,
        pedido_rollos ( rollos ( kilos, articulo_id ) )`
     )
-    .eq('estado', 'entregada')
+    .eq('estado', 'confirmada_egreso')
     .limit(5000)
 
   type PedRaw = {

@@ -98,7 +98,7 @@ async function getResumenDiario(
   const [
     { data: rollosHoy },
     { count: pedidosCreados },
-    { count: pedidosEntregados },
+    { count: pedidosEgresados },
     { count: pedidosActivos },
   ] = await Promise.all([
     supabase
@@ -114,9 +114,8 @@ async function getResumenDiario(
     supabase
       .from('pedidos')
       .select('id', { count: 'exact', head: true })
-      .eq('estado', 'entregada')
-      .gte('created_at', desde)
-      .lt('created_at', hasta),
+      .gte('confirmada_egreso_at', desde)
+      .lt('confirmada_egreso_at', hasta),
     supabase
       .from('pedidos')
       .select('id', { count: 'exact', head: true })
@@ -128,7 +127,7 @@ async function getResumenDiario(
     ingresosKilos:
       rollosHoy?.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0) ?? 0,
     pedidosCreados: pedidosCreados ?? 0,
-    pedidosEntregados: pedidosEntregados ?? 0,
+    pedidosEntregados: pedidosEgresados ?? 0,
     pedidosActivos: pedidosActivos ?? 0,
   }
 }
@@ -295,14 +294,12 @@ export default async function AdminDashboard({
           <SummaryTile
             label="Pedidos creados"
             value={resumenDiario.pedidosCreados}
-            detail={`${resumenDiario.pedidosEntregados} entregados hoy`}
+            detail={`${resumenDiario.pedidosEntregados} egresados hoy`}
           />
           <SummaryTile
             label="Rollos pedidos"
             value={resumenDia.rollosPedidos}
-            detail={`${resumenDia.kilosPedidos.toLocaleString('es-AR', {
-              maximumFractionDigits: 2,
-            })} kg`}
+            detail="Kilos reales al pickear"
           />
           <SummaryTile
             label="Rollos enviados"

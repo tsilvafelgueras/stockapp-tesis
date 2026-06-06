@@ -69,7 +69,7 @@ export function SeccionTintorerias({
               <tr className="text-left">
                 <th className="px-4 py-3 font-medium">Tintorería</th>
                 <th className="px-4 py-3 font-medium text-right">Pedidos</th>
-                <th className="px-4 py-3 font-medium text-right">Entregados</th>
+                <th className="px-4 py-3 font-medium text-right">Egresados</th>
                 <th className="px-4 py-3 font-medium text-right">En curso</th>
                 <th className="px-4 py-3 font-medium text-right">Cancelados</th>
                 <th className="px-4 py-3 font-medium text-right">Rollos</th>
@@ -150,7 +150,7 @@ export function SeccionMovimientos({
     <section className="space-y-3">
       <SectionHeader
         title="Movimientos"
-        description={`Ingresos creados y pedidos entregados durante ${data.mes}`}
+        description={`Ingresos creados y pedidos egresados durante ${data.mes}`}
         csvHref={csvHref}
       />
       <div className="grid gap-4 sm:grid-cols-2">
@@ -185,16 +185,15 @@ export function SeccionMovimientos({
             {data.egresosKilos.toFixed(2)} kg
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            {data.pedidosEntregados} pedidos entregados en el período
+            {data.pedidosEntregados} pedidos egresados en el periodo
           </p>
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
         <strong>Aclaración:</strong> sin un campo de fecha de entrada al stock
         en cada rollo, los ingresos se calculan sobre la fecha de creación del
-        rollo en el sistema. Los egresos se calculan sobre pedidos en estado
-        &ldquo;Entregada&rdquo; creados en el período (aproximación consistente
-        con los datos disponibles).
+        rollo en el sistema. Los egresos se calculan sobre pedidos con egreso
+        confirmado en el periodo.
       </p>
     </section>
   )
