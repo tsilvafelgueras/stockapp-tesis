@@ -16,6 +16,7 @@ import {
   type IngresoExtraido,
   type Field,
 } from '@/lib/extraccion/extraerPlanilla'
+import type { UbicacionOption } from '@/lib/ubicaciones'
 
 type Catalog = { id: string; nombre: string }
 type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
@@ -178,11 +179,13 @@ export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
   colores: initialColores,
+  ubicaciones,
   role,
 }: {
   tintorerias: Catalog[]
   articulos: ArticuloCatalog[]
   colores: Catalog[]
+  ubicaciones: UbicacionOption[]
   role: Role
 }) {
   const router = useRouter()
@@ -1053,13 +1056,19 @@ export default function NuevoIngresoForm({
           <div className="space-y-1">
             <label className="text-sm font-medium">Ubicación</label>
             <div className="flex gap-2">
-              <input
-                type="text"
+              <select
                 value={bulkUbicacion}
                 onChange={(e) => setBulkUbicacion(e.target.value)}
-                placeholder="Ej. A1"
                 className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
+              >
+                <option value="">Seleccionar...</option>
+                {ubicaciones.map((u) => (
+                  <option key={u.codigo} value={u.codigo}>
+                    {u.codigo}
+                    {u.descripcion ? ` - ${u.descripcion}` : ''}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={applyBulkUbicacion}
@@ -1091,6 +1100,7 @@ export default function NuevoIngresoForm({
               rollo={r}
               index={i}
               articulos={articulos}
+              ubicaciones={ubicaciones}
               fotoFalla={fotosFalla[i]}
               confianzas={confianzas?.rollos[i]}
               isDuplicate={
@@ -1264,15 +1274,20 @@ export default function NuevoIngresoForm({
                         </label>
                       </td>
                       <td className="px-3 py-1">
-                        <input
-                          type="text"
+                        <select
                           value={r.ubicacion}
                           onChange={(e) =>
                             updateRollo(i, 'ubicacion', e.target.value)
                           }
-                          placeholder="opcional"
-                          className="w-full rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                        />
+                          className="w-full rounded border border-input bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        >
+                          <option value="">Opcional</option>
+                          {ubicaciones.map((u) => (
+                            <option key={u.codigo} value={u.codigo}>
+                              {u.codigo}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-1 text-center">
                         <button
@@ -1505,6 +1520,7 @@ function RolloCardMobile({
   rollo,
   index,
   articulos,
+  ubicaciones,
   fotoFalla,
   confianzas,
   isDuplicate,
@@ -1517,6 +1533,7 @@ function RolloCardMobile({
   rollo: RolloInput
   index: number
   articulos: ArticuloCatalog[]
+  ubicaciones: UbicacionOption[]
   fotoFalla: FotoPendiente | undefined
   confianzas:
     | {
@@ -1678,13 +1695,18 @@ function RolloCardMobile({
           <label className="text-xs font-medium text-muted-foreground">
             Ubicación
           </label>
-          <input
-            type="text"
+          <select
             value={rollo.ubicacion}
             onChange={(e) => onUpdate('ubicacion', e.target.value)}
-            placeholder="opcional"
-            className="w-full rounded border border-input px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+            className="w-full rounded border border-input bg-white px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">Opcional</option>
+            {ubicaciones.map((u) => (
+              <option key={u.codigo} value={u.codigo}>
+                {u.codigo}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1">
           <label className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground mt-1">

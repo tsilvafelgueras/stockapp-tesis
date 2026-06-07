@@ -9,9 +9,13 @@ export type PickearRolloResult =
       rolloId: string
       numeroPieza: string
       kilos: number | null
+      ubicacion: string | null
       articuloId: string | null
       colorId: string | null
       pedidoPartidaId: string
+      partidaRealLote: string | null
+      partidaSolicitadaLote: string | null
+      esSustitucionPartida: boolean
       pendientes: number
       total: number
       pedidoCompleto: boolean
@@ -41,9 +45,13 @@ export async function pickearRollo(
     rollo_id: string
     numero_pieza: string
     kilos: number | null
+    ubicacion: string | null
     articulo_id: string | null
     color_id: string | null
     pedido_partida_id: string
+    partida_real_lote: string | null
+    partida_solicitada_lote: string | null
+    es_sustitucion_partida: boolean
     pendientes: number
     total: number
     pedido_completo: boolean
@@ -59,9 +67,13 @@ export async function pickearRollo(
     rolloId: json.rollo_id,
     numeroPieza: json.numero_pieza,
     kilos: json.kilos,
+    ubicacion: json.ubicacion,
     articuloId: json.articulo_id,
     colorId: json.color_id,
     pedidoPartidaId: json.pedido_partida_id,
+    partidaRealLote: json.partida_real_lote,
+    partidaSolicitadaLote: json.partida_solicitada_lote,
+    esSustitucionPartida: Boolean(json.es_sustitucion_partida),
     pendientes: json.pendientes,
     total: json.total,
     pedidoCompleto: json.pedido_completo,

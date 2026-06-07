@@ -150,17 +150,14 @@ export default async function NuevoPedidoPage({
         'pendiente',
         'en_preparacion',
         'lista',
-        'confirmada_egreso',
       ]),
   ])
 
   const pendientesPorPartida = new Map<string, number>()
   for (const p of (pendientesRaw ?? []) as unknown as PedidoPartidaRaw[]) {
     const key = keyPartida(p.ingreso_id, p.articulo_id, p.color_id)
-    const asignados =
-      p.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0
-    const pendientes = Math.max(0, Number(p.rollos_solicitados) - asignados)
-    pendientesPorPartida.set(key, (pendientesPorPartida.get(key) ?? 0) + pendientes)
+    const reservados = Number(p.rollos_solicitados ?? 0)
+    pendientesPorPartida.set(key, (pendientesPorPartida.get(key) ?? 0) + reservados)
   }
 
   const grupos = new Map<string, GrupoPartida>()

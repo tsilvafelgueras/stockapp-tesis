@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import DashboardBackButton from '@/components/DashboardBackButton'
+import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import RollosBulkView, { type RolloBulk } from './RollosBulkView'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
@@ -262,7 +263,12 @@ async function IngresosListView() {
 async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
   const supabase = await createClient()
 
-  const [{ data: rollosRaw }, { data: articulos }, { data: colores }] = await Promise.all([
+  const [
+    { data: rollosRaw },
+    { data: articulos },
+    { data: colores },
+    ubicaciones,
+  ] = await Promise.all([
     supabase
       .from('rollos')
       .select(
@@ -301,6 +307,7 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
       .select('id, nombre')
       .eq('activo', true)
       .order('nombre'),
+    getUbicacionesActivas(supabase),
   ])
 
   type Row = {
@@ -355,6 +362,7 @@ async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {
       rollos={rollos}
       articulos={articulos ?? []}
       colores={colores ?? []}
+      ubicaciones={ubicaciones}
       role={role}
     />
   )

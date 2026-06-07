@@ -4,7 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
 import { RotateCcw, Search } from 'lucide-react'
 import SearchableCombobox from '@/components/SearchableCombobox'
-import { UBICACIONES } from '@/lib/ubicaciones'
+import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
 
 type Catalogo = { id: string; nombre: string }
 
@@ -28,19 +31,19 @@ export const ORDEN_OPCIONES: { value: string; label: string }[] = [
   { value: 'articulo_desc', label: 'Artículo (Z-A)' },
 ]
 
-const UBICACION_OPTIONS = UBICACIONES.map((u) => ({ value: u, label: u }))
-
 export default function StockFilters({
   articulos,
   tintorerias,
   colores,
   lotes,
+  ubicaciones,
   current,
 }: {
   articulos: Catalogo[]
   tintorerias: Catalogo[]
   colores: Catalogo[]
   lotes: string[]
+  ubicaciones: UbicacionOption[]
   current: StockFiltersState
 }) {
   const router = useRouter()
@@ -166,7 +169,10 @@ export default function StockFilters({
           <SearchableCombobox
             value={current.ubicacion}
             onChange={(value) => update('ubicacion', value)}
-            options={withCurrentUbicacion(current.ubicacion)}
+            options={withCurrentUbicacion(
+              current.ubicacion,
+              ubicacionesToOptions(ubicaciones)
+            )}
             placeholder="Todas"
             searchPlaceholder="Buscar ubicacion..."
             emptyLabel="No hay ubicaciones"
@@ -225,11 +231,14 @@ export default function StockFilters({
   )
 }
 
-function withCurrentUbicacion(current: string) {
-  if (!current || UBICACION_OPTIONS.some((o) => o.value === current)) {
-    return UBICACION_OPTIONS
+function withCurrentUbicacion(
+  current: string,
+  options: { value: string; label: string; description?: string }[]
+) {
+  if (!current || options.some((o) => o.value === current)) {
+    return options
   }
-  return [{ value: current, label: current }, ...UBICACION_OPTIONS]
+  return [{ value: current, label: current }, ...options]
 }
 
 function Field({

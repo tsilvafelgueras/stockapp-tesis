@@ -1,8 +1,14 @@
 import { Boxes, Search } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import StockFilters from './StockFilters'
-import StockList, { type StockRollo, type StockRole } from './StockList'
+import StockList, {
+  type StockReservaBanner,
+  type StockRollo,
+  type StockRole,
+  type StockSummaryGroup,
+} from './StockList'
 
 const ESTADO_LABEL: Record<string, string> = {
   en_stock: 'En stock',
@@ -23,6 +29,34 @@ type SearchParams = {
   ubicacion?: string
   estado?: string
   orden?: string
+}
+
+type StockResumenRow = {
+  id: string
+  kilos: number | null
+  estado: string
+  articulo_id: string | null
+  color_id: string | null
+  ubicacion: string | null
+  articulos: { id: string; nombre: string } | null
+  ingresos: {
+    id: string
+    numero_lote: string | null
+    tintoreria_id: string | null
+  } | null
+}
+
+type ReservaResumenRow = {
+  ingreso_id: string
+  articulo_id: string
+  color_id: string
+  rollos_solicitados: number
+  articulos: { id: string; nombre: string } | null
+  ingresos: {
+    id: string
+    numero_lote: string | null
+    tintoreria_id: string | null
+  } | null
 }
 
 export default async function StockPage({
@@ -52,6 +86,7 @@ export default async function StockPage({
     { data: empresaTints },
     { data: coloresRaw },
     { data: lotesRaw },
+    ubicaciones,
   ] = await Promise.all([
     supabase
       .from('articulos')
@@ -71,6 +106,7 @@ export default async function StockPage({
       .from('ingresos')
       .select('numero_lote')
       .not('numero_lote', 'is', null),
+    getUbicacionesActivas(supabase),
   ])
 
   type EmpresaTintRow = { tintorerias: { id: string; nombre: string } | null }
@@ -154,17 +190,60 @@ export default async function StockPage({
   // del usuario sin volver a pegarle a la base.
   rollos.sort(comparadorPorOrden(orden))
 
-  const { data: resumenRaw } = await supabase
+  let stockResumenQuery = supabase
     .from('rollos')
-    .select('kilos, color_id, articulos!inner ( nombre )')
-    .eq('estado', 'en_stock')
+    .select(
+      `
+        id,
+        kilos,
+        estado,
+        articulo_id,
+        color_id,
+        ubicacion,
+        articulos!inner ( id, nombre ),
+        ingresos!inner ( id, numero_lote, tintoreria_id )
+      `
+    )
+    .in('estado', ['en_stock', 'reservado'])
 
-  type ResumenRow = {
-    kilos: number | null
-    color_id: string | null
-    articulos: { nombre: string } | null
+  if (sp.articulo) stockResumenQuery = stockResumenQuery.eq('articulo_id', sp.articulo)
+  if (sp.tintoreria) {
+    stockResumenQuery = stockResumenQuery.eq('ingresos.tintoreria_id', sp.tintoreria)
   }
-  const resumenRows = (resumenRaw ?? []) as unknown as ResumenRow[]
+  if (sp.q) stockResumenQuery = stockResumenQuery.ilike('numero_pieza', `%${sp.q.trim()}%`)
+  if (sp.ubicacion) stockResumenQuery = stockResumenQuery.eq('ubicacion', sp.ubicacion.trim())
+  if (sp.color) stockResumenQuery = stockResumenQuery.eq('color_id', sp.color)
+  if (sp.lote) stockResumenQuery = stockResumenQuery.eq('ingresos.numero_lote', sp.lote)
+
+  let reservasQuery = supabase
+    .from('pedido_partidas')
+    .select(
+      `
+        ingreso_id,
+        articulo_id,
+        color_id,
+        rollos_solicitados,
+        pedidos!inner ( estado ),
+        articulos!inner ( id, nombre ),
+        ingresos!inner ( id, numero_lote, tintoreria_id )
+      `
+    )
+    .in('pedidos.estado', ['pendiente', 'en_preparacion', 'lista'])
+
+  if (sp.articulo) reservasQuery = reservasQuery.eq('articulo_id', sp.articulo)
+  if (sp.color) reservasQuery = reservasQuery.eq('color_id', sp.color)
+  if (sp.tintoreria) {
+    reservasQuery = reservasQuery.eq('ingresos.tintoreria_id', sp.tintoreria)
+  }
+  if (sp.lote) reservasQuery = reservasQuery.eq('ingresos.numero_lote', sp.lote)
+
+  const [{ data: resumenRaw }, { data: reservasRaw }] = await Promise.all([
+    stockResumenQuery,
+    sp.q || sp.ubicacion ? Promise.resolve({ data: [] }) : reservasQuery,
+  ])
+
+  const resumenRows = (resumenRaw ?? []) as unknown as StockResumenRow[]
+  const reservaRows = (reservasRaw ?? []) as unknown as ReservaResumenRow[]
 
   const totalKilos = resumenRows.reduce(
     (acc, r) => acc + Number(r.kilos ?? 0),
@@ -186,6 +265,8 @@ export default async function StockPage({
   const top5 = [...aggMap.values()]
     .sort((a, b) => b.kilos - a.kilos)
     .slice(0, 5)
+  const stockSummary = buildStockSummary(resumenRows, reservaRows, colorById)
+  const reservaBanner = buildReservaBanner(stockSummary, sp.lote)
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 md:py-8">
@@ -261,6 +342,7 @@ export default async function StockPage({
         tintorerias={tintorerias ?? []}
         colores={colores}
         lotes={lotes}
+        ubicaciones={ubicaciones}
         current={{
           q: sp.q ?? '',
           articulo: sp.articulo ?? '',
@@ -286,7 +368,13 @@ export default async function StockPage({
               searchParams={sp}
             />
           )}
-          <StockList rollos={rollos} role={role} />
+          <StockList
+            rollos={rollos}
+            role={role}
+            summary={stockSummary}
+            reservaBanner={reservaBanner}
+            ubicaciones={ubicaciones}
+          />
         </>
       )}
     </div>
@@ -322,6 +410,150 @@ function comparadorPorOrden(
     default:
       return (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  }
+}
+
+function buildStockSummary(
+  stockRows: StockResumenRow[],
+  reservaRows: ReservaResumenRow[],
+  colorById: Map<string, { id: string; nombre: string }>
+): StockSummaryGroup[] {
+  type MutableGroup = StockSummaryGroup
+  const groups = new Map<string, MutableGroup>()
+
+  function ensureGroup(params: {
+    articuloId: string
+    colorId: string
+    articulo: string
+    color: string
+  }) {
+    const key = `${params.articuloId}|||${params.colorId}`
+    const existing = groups.get(key)
+    if (existing) return existing
+    const group: MutableGroup = {
+      key,
+      articulo: params.articulo,
+      color: params.color,
+      rollos: 0,
+      kilos: 0,
+      reservado: 0,
+      libre: 0,
+      partidas: [],
+    }
+    groups.set(key, group)
+    return group
+  }
+
+  const partidas = new Map<
+    string,
+    {
+      groupKey: string
+      key: string
+      lote: string
+      rollos: number
+      reservado: number
+      pickeados: number
+      libre: number
+    }
+  >()
+
+  function ensurePartida(group: StockSummaryGroup, ingresoId: string, lote: string) {
+    const key = `${group.key}|||${ingresoId}`
+    const existing = partidas.get(key)
+    if (existing) return existing
+    const partida = {
+      groupKey: group.key,
+      key,
+      lote,
+      rollos: 0,
+      reservado: 0,
+      pickeados: 0,
+      libre: 0,
+    }
+    partidas.set(key, partida)
+    return partida
+  }
+
+  for (const r of stockRows) {
+    const articuloId = r.articulo_id ?? r.articulos?.id ?? 'sin-articulo'
+    const colorId = r.color_id ?? 'sin-color'
+    const group = ensureGroup({
+      articuloId,
+      colorId,
+      articulo: r.articulos?.nombre ?? '-',
+      color: r.color_id ? colorById.get(r.color_id)?.nombre ?? '-' : '-',
+    })
+    const kilos = Number(r.kilos ?? 0)
+    group.rollos += 1
+    group.kilos += kilos
+
+    const partida = ensurePartida(
+      group,
+      r.ingresos?.id ?? 'sin-partida',
+      r.ingresos?.numero_lote ?? 'Sin partida'
+    )
+    partida.rollos += 1
+    if (r.estado === 'reservado') partida.pickeados += 1
+  }
+
+  for (const r of reservaRows) {
+    const group = ensureGroup({
+      articuloId: r.articulo_id,
+      colorId: r.color_id,
+      articulo: r.articulos?.nombre ?? '-',
+      color: colorById.get(r.color_id)?.nombre ?? '-',
+    })
+    const cantidad = Number(r.rollos_solicitados ?? 0)
+    group.reservado += cantidad
+
+    const partida = ensurePartida(
+      group,
+      r.ingresos?.id ?? r.ingreso_id,
+      r.ingresos?.numero_lote ?? 'Sin partida'
+    )
+    partida.reservado += cantidad
+  }
+
+  for (const group of groups.values()) {
+    const propias = [...partidas.values()]
+      .filter((p) => p.groupKey === group.key)
+      .map((p) => ({
+        key: p.key,
+        lote: p.lote,
+        rollos: p.rollos,
+        reservado: p.reservado,
+        libre: Math.max(0, p.rollos - Math.max(p.reservado, p.pickeados)),
+      }))
+      .sort((a, b) => a.lote.localeCompare(b.lote, 'es', { numeric: true }))
+
+    group.partidas = propias
+    group.libre = propias.reduce((acc, p) => acc + p.libre, 0)
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    if (b.rollos !== a.rollos) return b.rollos - a.rollos
+    return a.articulo.localeCompare(b.articulo, 'es')
+  })
+}
+
+function buildReservaBanner(
+  summary: StockSummaryGroup[],
+  lote?: string
+): StockReservaBanner | null {
+  if (!lote) return null
+
+  const matches = summary.flatMap((g) =>
+    g.partidas.filter((p) => p.lote === lote)
+  )
+  if (matches.length === 0) return null
+
+  const rollos = matches.reduce((acc, p) => acc + p.rollos, 0)
+  const reservado = matches.reduce((acc, p) => acc + p.reservado, 0)
+  return {
+    lote,
+    rollos,
+    reservado,
+    libre: Math.max(0, rollos - reservado),
   }
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import type { StockRollo, StockRole } from './StockList'
+import SearchableCombobox from '@/components/SearchableCombobox'
 import {
   darDeBajaRollo,
   moverUbicacion,
@@ -20,7 +21,10 @@ import {
   type FallaCategoria,
   type EstadoEditable,
 } from './constants'
-import { UBICACIONES } from '@/lib/ubicaciones'
+import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
 
 const ESTADO_TEXT: Record<string, string> = {
   pendiente: 'Pendiente',
@@ -39,11 +43,13 @@ export default function RolloDetailDialog({
   role,
   onClose,
   initialMode,
+  ubicaciones,
 }: {
   rollo: StockRollo
   role: StockRole
   onClose: () => void
   initialMode?: 'view' | 'editar'
+  ubicaciones: UbicacionOption[]
 }) {
   const [mode, setMode] = useState<
     'view' | 'mover' | 'baja' | 'segunda' | 'confirmar' | 'editar'
@@ -51,6 +57,7 @@ export default function RolloDetailDialog({
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
   const [pending, startTransition] = useTransition()
+  const ubicacionOptions = ubicacionesToOptions(ubicaciones)
 
   // Formulario de "segunda"
   const [fallaCategoria, setFallaCategoria] = useState<FallaCategoria | ''>('')
@@ -608,14 +615,24 @@ export default function RolloDetailDialog({
                     />
                   )}
                 </div>
-                <EditField
-                  label="Ubicación"
-                  value={editForm.ubicacion}
-                  onChange={(v) =>
-                    setEditForm((prev) => ({ ...prev, ubicacion: v }))
-                  }
-                  list="ubicaciones-dialog-list"
-                />
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Ubicación
+                  </label>
+                  <SearchableCombobox
+                    value={editForm.ubicacion}
+                    onChange={(v) =>
+                      setEditForm((prev) => ({ ...prev, ubicacion: v }))
+                    }
+                    options={withCurrentUbicacion(
+                      editForm.ubicacion,
+                      ubicacionOptions
+                    )}
+                    placeholder="Seleccionar ubicacion..."
+                    searchPlaceholder="Buscar ubicacion..."
+                    emptyLabel="No hay ubicaciones"
+                  />
+                </div>
                 <EditField
                   label="Pantone"
                   value={editForm.pantone}
@@ -681,12 +698,6 @@ export default function RolloDetailDialog({
                 />
               </div>
 
-              <datalist id="ubicaciones-dialog-list">
-                {UBICACIONES.map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
-
               <p className="text-xs text-muted-foreground">
                 Si pasás un rollo a &ldquo;Segunda&rdquo; desde acá no quedan
                 categoría ni fotos cargadas. Para sumar ese detalle usá
@@ -724,20 +735,15 @@ export default function RolloDetailDialog({
               <label className="text-sm font-medium block">
                 Ubicación asignada *
               </label>
-              <input
-                type="text"
-                list="ubicaciones-dialog-list"
+              <SearchableCombobox
                 value={confirmUbicacion}
-                onChange={(e) => setConfirmUbicacion(e.target.value)}
-                placeholder="Ej. A1"
-                className="w-full rounded-md border px-3 py-2 text-sm"
-                autoFocus
+                onChange={setConfirmUbicacion}
+                options={ubicacionOptions}
+                placeholder="Seleccionar ubicacion..."
+                searchPlaceholder="Buscar ubicacion..."
+                emptyLabel="No hay ubicaciones"
+                allowClear={false}
               />
-              <datalist id="ubicaciones-dialog-list">
-                {UBICACIONES.map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
               <p className="text-xs text-muted-foreground">
                 Si el rollo ya está en el depósito sin haber sido escaneado por
                 cámara, este atajo permite cerrarlo a mano.
@@ -766,20 +772,15 @@ export default function RolloDetailDialog({
           {mode === 'mover' && (
             <div className="space-y-2 pt-2 border-t">
               <label className="text-sm font-medium">Nueva ubicación</label>
-              <input
-                type="text"
-                list="ubicaciones-dialog-list"
+              <SearchableCombobox
                 value={ubicacion}
-                onChange={(e) => setUbicacion(e.target.value)}
-                placeholder="Ej. A1"
-                className="w-full rounded-md border px-3 py-2 text-sm"
-                autoFocus
+                onChange={setUbicacion}
+                options={withCurrentUbicacion(ubicacion, ubicacionOptions)}
+                placeholder="Seleccionar ubicacion..."
+                searchPlaceholder="Buscar ubicacion..."
+                emptyLabel="No hay ubicaciones"
+                allowClear={false}
               />
-              <datalist id="ubicaciones-dialog-list">
-                {UBICACIONES.map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
               <div className="flex gap-2 justify-end pt-1">
                 <button
                   type="button"
@@ -1031,6 +1032,14 @@ function EditField({
   )
 }
 
+function withCurrentUbicacion(
+  current: string,
+  options: { value: string; label: string; description?: string }[]
+) {
+  if (!current || options.some((o) => o.value === current)) return options
+  return [{ value: current, label: current }, ...options]
+}
+
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
@@ -1063,4 +1072,3 @@ function fmtN(v: number | null, suffix?: string): string | null {
     maximumFractionDigits: 2,
   })}${suffix ? ' ' + suffix : ''}`
 }
-

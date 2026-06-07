@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import { createClient } from '@/lib/supabase/server'
+import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import PedidoActions from './PedidoActions'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
@@ -49,8 +50,10 @@ type PedidoRolloRaw = {
     kilos: number | null
     metros: number | null
     estado: string
+    ingreso_id: string | null
     color_id: string | null
     articulos: { nombre: string } | null
+    ingresos: { numero_lote: string | null } | null
   } | null
 }
 
@@ -99,7 +102,12 @@ export default async function PedidoDetailPage({
 
   if (!pedido) notFound()
 
-  const [{ data: partidasRaw }, { data: prRaw }, { data: coloresRaw }] =
+  const [
+    { data: partidasRaw },
+    { data: prRaw },
+    { data: coloresRaw },
+    ubicaciones,
+  ] =
     await Promise.all([
       supabase
         .from('pedido_partidas')
@@ -133,14 +141,17 @@ export default async function PedidoDetailPage({
               kilos,
               metros,
               estado,
+              ingreso_id,
               color_id,
-              articulos ( nombre )
+              articulos ( nombre ),
+              ingresos ( numero_lote )
             )
           `
         )
         .eq('pedido_id', id)
         .is('liberado_at', null),
       supabase.from('colores').select('id, nombre'),
+      getUbicacionesActivas(supabase),
     ])
 
   const colorById = new Map(
@@ -155,16 +166,31 @@ export default async function PedidoDetailPage({
     colorNombre: colorById.get(p.color_id) ?? '-',
     asignados: p.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0,
   }))
+  const partidaById = new Map(partidas.map((p) => [p.id, p]))
 
   const rollos = ((prRaw ?? []) as unknown as PedidoRolloRaw[])
     .filter((r) => r.rollos != null)
-    .map((r) => ({
-      ...r,
-      rollos: {
-        ...r.rollos!,
-        colorNombre: r.rollos!.color_id ? colorById.get(r.rollos!.color_id) ?? '-' : '-',
-      },
-    }))
+    .map((r) => {
+      const partidaSolicitada = r.pedido_partida_id
+        ? partidaById.get(r.pedido_partida_id)
+        : null
+      const partidaRealLote = r.rollos!.ingresos?.numero_lote ?? null
+      const partidaSolicitadaLote =
+        partidaSolicitada?.ingresos?.numero_lote ?? null
+      const esSustitucionPartida =
+        Boolean(partidaSolicitada?.ingreso_id && r.rollos!.ingreso_id) &&
+        partidaSolicitada?.ingreso_id !== r.rollos!.ingreso_id
+      return {
+        ...r,
+        partidaRealLote,
+        partidaSolicitadaLote,
+        esSustitucionPartida,
+        rollos: {
+          ...r.rollos!,
+          colorNombre: r.rollos!.color_id ? colorById.get(r.rollos!.color_id) ?? '-' : '-',
+        },
+      }
+    })
 
   const totalSolicitado = partidas.reduce(
     (acc, p) => acc + Number(p.rollos_solicitados ?? 0),
@@ -266,7 +292,19 @@ export default async function PedidoDetailPage({
       )}
 
       {role && (
-        <PedidoActions pedidoId={pedido.id} estado={pedido.estado} role={role} />
+        <PedidoActions
+          pedidoId={pedido.id}
+          estado={pedido.estado}
+          role={role}
+          ubicaciones={ubicaciones}
+        />
+      )}
+
+      {rollos.some((r) => r.esSustitucionPartida) && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
+          Se pickeó al menos un rollo de una partida distinta a la solicitada,
+          manteniendo el mismo artículo y color.
+        </div>
       )}
 
       <section className="rounded-lg border bg-white shadow-sm overflow-hidden">
@@ -333,6 +371,7 @@ export default async function PedidoDetailPage({
                 <th className="px-4 py-2 font-medium">Articulo</th>
                 <th className="px-4 py-2 font-medium">Color</th>
                 <th className="px-4 py-2 font-medium">Kilos</th>
+                <th className="px-4 py-2 font-medium">Partida real</th>
                 <th className="px-4 py-2 font-medium">Ubicacion</th>
                 <th className="px-4 py-2 font-medium">Picking</th>
               </tr>
@@ -351,6 +390,16 @@ export default async function PedidoDetailPage({
                     <td className="px-4 py-2 tabular-nums">
                       {r.rollos.kilos != null ? Number(r.rollos.kilos).toFixed(2) : '-'}
                     </td>
+                    <td className="px-4 py-2 text-xs">
+                      <span className={r.esSustitucionPartida ? 'text-warning' : ''}>
+                        {r.partidaRealLote ?? '-'}
+                      </span>
+                      {r.esSustitucionPartida && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          Solicitada: {r.partidaSolicitadaLote ?? '-'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-muted-foreground">
                       {r.rollos.ubicacion ?? '-'}
                     </td>
@@ -365,7 +414,7 @@ export default async function PedidoDetailPage({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     Deposito todavia no pickeo rollos para este pedido.
                   </td>
                 </tr>

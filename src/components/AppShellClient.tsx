@@ -13,6 +13,7 @@ import {
   Factory,
   History,
   Home,
+  MapPinned,
   Menu,
   PackagePlus,
   Palette,
@@ -122,6 +123,7 @@ function navForRole(role: Role): NavSection[] {
       items: [
         { href: '/admin/articulos', label: 'Articulos', icon: Boxes },
         { href: '/admin/colores', label: 'Colores', icon: Palette },
+        { href: '/admin/ubicaciones', label: 'Ubicaciones', icon: MapPinned },
         { href: '/admin/tintorerias', label: 'Tintorerias', icon: Factory },
         { href: '/admin/equipo', label: 'Equipo', icon: Users },
         { href: '/admin/reportes', label: 'Reportes', icon: BarChart3 },

@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   Factory,
+  MapPinned,
   PackagePlus,
   Search,
   ShoppingCart,
@@ -172,6 +173,13 @@ const cards: {
     title: 'Tintorerías',
     description: 'Proveedores externos de teñido y acabado.',
     icon: Factory,
+    section: 'Administración',
+  },
+  {
+    href: '/admin/ubicaciones',
+    title: 'Ubicaciones',
+    description: 'Catálogo de posiciones, capacidad y uso del depósito.',
+    icon: MapPinned,
     section: 'Administración',
   },
   {

@@ -3,7 +3,11 @@
 import { useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import ExcelFilter, { type ExcelFilterOption } from '@/components/ExcelFilter'
-import { UBICACIONES } from '@/lib/ubicaciones'
+import SearchableCombobox from '@/components/SearchableCombobox'
+import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
 import { bulkEditRollos, type BulkEditChanges } from './bulkActions'
 
 export type RolloBulk = {
@@ -72,11 +76,13 @@ export default function RollosBulkView({
   rollos,
   articulos,
   colores,
+  ubicaciones,
   role,
 }: {
   rollos: RolloBulk[]
   articulos: Catalogo[]
   colores: Catalogo[]
+  ubicaciones: UbicacionOption[]
   role: 'operario' | 'admin'
 }) {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
@@ -93,6 +99,7 @@ export default function RollosBulkView({
   >('en_stock')
   const [bulkArticulo, setBulkArticulo] = useState('')
   const [bulkColor, setBulkColor] = useState('')
+  const ubicacionOptions = ubicacionesToOptions(ubicaciones)
 
   // Opciones para cada filtro derivadas de los rollos cargados.
   const filterOptions = useMemo(() => {
@@ -453,20 +460,15 @@ export default function RollosBulkView({
                   <label className="text-sm font-medium block mb-1">
                     Nueva ubicación
                   </label>
-                  <input
-                    list="bulk-ubic-list"
-                    type="text"
+                  <SearchableCombobox
                     value={bulkUbicacion}
-                    onChange={(e) => setBulkUbicacion(e.target.value)}
-                    placeholder="Ej. A1"
-                    autoFocus
-                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    onChange={setBulkUbicacion}
+                    options={ubicacionOptions}
+                    placeholder="Seleccionar ubicacion..."
+                    searchPlaceholder="Buscar ubicacion..."
+                    emptyLabel="No hay ubicaciones"
+                    allowClear={false}
                   />
-                  <datalist id="bulk-ubic-list">
-                    {UBICACIONES.map((u) => (
-                      <option key={u} value={u} />
-                    ))}
-                  </datalist>
                 </div>
               )}
 

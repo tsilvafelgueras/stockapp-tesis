@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import RolloDetailDialog from './RolloDetailDialog'
+import type { UbicacionOption } from '@/lib/ubicaciones'
 
 export type StockRollo = {
   id: string
@@ -38,33 +39,53 @@ export type StockRollo = {
 
 export type StockRole = 'operario' | 'ventas' | 'admin'
 
-const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
+const ESTADO_LABEL: Record<string, { text: string; className: string } | null> = {
   pendiente: { text: 'Pendiente', className: 'bg-amber-50 text-warning' },
-  en_stock: { text: 'Libre', className: 'bg-green-50 text-success' },
+  en_stock: null,
   reservado: { text: 'Reservado', className: 'bg-blue-50 text-action' },
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
   baja: { text: 'Baja', className: 'bg-red-50 text-destructive' },
   segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
 }
 
-type SummaryGroup = {
+export type StockSummaryPartida = {
+  key: string
+  lote: string
+  rollos: number
+  reservado: number
+  libre: number
+}
+
+export type StockSummaryGroup = {
   key: string
   articulo: string
   color: string
   rollos: number
   kilos: number
-  libres: number
-  kilosLibres: number
-  reservados: number
-  kilosReservados: number
+  reservado: number
+  libre: number
+  partidas: StockSummaryPartida[]
+}
+
+export type StockReservaBanner = {
+  lote: string
+  rollos: number
+  reservado: number
+  libre: number
 }
 
 export default function StockList({
   rollos,
   role,
+  summary,
+  reservaBanner,
+  ubicaciones,
 }: {
   rollos: StockRollo[]
   role: StockRole
+  summary: StockSummaryGroup[]
+  reservaBanner: StockReservaBanner | null
+  ubicaciones: UbicacionOption[]
 }) {
   const [selected, setSelected] = useState<StockRollo | null>(null)
   const [selectedIntent, setSelectedIntent] = useState<'view' | 'editar'>(
@@ -72,19 +93,10 @@ export default function StockList({
   )
   const [viewMode, setViewMode] = useState<'detalle' | 'resumen'>('detalle')
   const puedeEditarRollos = role === 'operario' || role === 'admin'
-  const summary = useMemo(() => agruparResumen(rollos), [rollos])
 
   function abrir(r: StockRollo, intent: 'view' | 'editar' = 'view') {
     setSelectedIntent(intent)
     setSelected(r)
-  }
-
-  if (rollos.length === 0) {
-    return (
-      <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground shadow-sm">
-        No hay rollos que coincidan con los filtros.
-      </div>
-    )
   }
 
   return (
@@ -121,13 +133,28 @@ export default function StockList({
         </div>
       </div>
 
+      {reservaBanner && reservaBanner.reservado > 0 && (
+        <div className="rounded-lg border border-action/30 bg-action/5 px-4 py-3 text-sm text-foreground">
+          De la partida{' '}
+          <span className="font-mono font-medium">{reservaBanner.lote}</span>{' '}
+          hay <strong>{reservaBanner.reservado}</strong>{' '}
+          {reservaBanner.reservado === 1 ? 'rollo reservado' : 'rollos reservados'} por pedidos.
+          Disponibles para vender:{' '}
+          <strong>{reservaBanner.libre}</strong> de {reservaBanner.rollos}.
+        </div>
+      )}
+
       {viewMode === 'resumen' ? (
         <ResumenStock grupos={summary} />
+      ) : rollos.length === 0 ? (
+        <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground shadow-sm">
+          No hay rollos que coincidan con los filtros.
+        </div>
       ) : (
         <>
           <div className="space-y-3 sm:hidden">
             {rollos.map((r) => {
-              const estado = ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
+              const estado = estadoMeta(r.estado)
               const dias = diasEnInventario(r.created_at)
               return (
                 <div
@@ -161,11 +188,13 @@ export default function StockList({
                         )}
                       </div>
                     </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
-                    >
-                      {estado.text}
-                    </span>
+                    {estado && (
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
+                      >
+                        {estado.text}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     {r.kilos != null && (
@@ -217,7 +246,7 @@ export default function StockList({
                   <tr className="text-left">
                     <th className="w-12 px-3 py-3 font-medium"></th>
                     <th className="px-3 py-3 font-medium">Pieza</th>
-                    <th className="px-3 py-3 font-medium">Disponibilidad</th>
+                    <th className="px-3 py-3 font-medium">Estado</th>
                     <th className="px-3 py-3 font-medium">Partida</th>
                     <th className="px-3 py-3 font-medium">Artículo</th>
                     <th className="px-3 py-3 font-medium">Color</th>
@@ -234,8 +263,7 @@ export default function StockList({
                 </thead>
                 <tbody>
                   {rollos.map((r) => {
-                    const estado =
-                      ESTADO_LABEL[r.estado] ?? ESTADO_LABEL.en_stock
+                    const estado = estadoMeta(r.estado)
                     const dias = diasEnInventario(r.created_at)
                     const esSegunda = r.estado === 'segunda'
                     return (
@@ -251,11 +279,17 @@ export default function StockList({
                           {r.numero_pieza}
                         </td>
                         <td className="px-3 py-3">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
-                          >
-                            {estado.text}
-                          </span>
+                          {estado ? (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado.className}`}
+                            >
+                              {estado.text}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              -
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
                           {r.ingresos?.numero_lote ?? '-'}
@@ -326,6 +360,7 @@ export default function StockList({
           rollo={selected}
           role={role}
           initialMode={selectedIntent}
+          ubicaciones={ubicaciones}
           onClose={() => setSelected(null)}
         />
       )}
@@ -333,7 +368,15 @@ export default function StockList({
   )
 }
 
-function ResumenStock({ grupos }: { grupos: SummaryGroup[] }) {
+function ResumenStock({ grupos }: { grupos: StockSummaryGroup[] }) {
+  if (grupos.length === 0) {
+    return (
+      <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground shadow-sm">
+        No hay resumen para los filtros actuales.
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="space-y-3 sm:hidden">
@@ -344,9 +387,19 @@ function ResumenStock({ grupos }: { grupos: SummaryGroup[] }) {
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>{g.rollos} rollos</span>
               <span>{g.kilos.toFixed(2)} kg total</span>
-              <span>{g.kilosLibres.toFixed(2)} kg libres</span>
-              <span>{g.kilosReservados.toFixed(2)} kg reservados</span>
+              <span>{g.reservado} reservados</span>
+              <span>{g.libre} libres</span>
             </div>
+            {g.partidas.length > 0 && (
+              <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                {g.partidas.map((p) => (
+                  <p key={p.key}>
+                    <span className="font-mono">{p.lote}</span>: {p.rollos}{' '}
+                    rollos, {p.reservado} reservados, {p.libre} libres
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -360,8 +413,9 @@ function ResumenStock({ grupos }: { grupos: SummaryGroup[] }) {
                 <th className="px-3 py-3 font-medium">Color</th>
                 <th className="px-3 py-3 font-medium">Rollos</th>
                 <th className="px-3 py-3 font-medium">Kg total</th>
-                <th className="px-3 py-3 font-medium">Libre</th>
                 <th className="px-3 py-3 font-medium">Reservado</th>
+                <th className="px-3 py-3 font-medium">Libre</th>
+                <th className="px-3 py-3 font-medium">Partidas</th>
               </tr>
             </thead>
             <tbody>
@@ -373,11 +427,24 @@ function ResumenStock({ grupos }: { grupos: SummaryGroup[] }) {
                   <td className="px-3 py-3 tabular-nums">
                     {g.kilos.toFixed(2)} kg
                   </td>
-                  <td className="px-3 py-3 tabular-nums text-success">
-                    {g.libres} rollos - {g.kilosLibres.toFixed(2)} kg
-                  </td>
                   <td className="px-3 py-3 tabular-nums text-action">
-                    {g.reservados} rollos - {g.kilosReservados.toFixed(2)} kg
+                    {g.reservado} rollos
+                  </td>
+                  <td className="px-3 py-3 tabular-nums text-success">
+                    {g.libre} rollos
+                  </td>
+                  <td className="px-3 py-3 text-xs text-muted-foreground">
+                    <div className="space-y-1">
+                      {g.partidas.slice(0, 4).map((p) => (
+                        <p key={p.key}>
+                          <span className="font-mono">{p.lote}</span>: {p.rollos}{' '}
+                          rollos, {p.reservado} reservados, {p.libre} libres
+                        </p>
+                      ))}
+                      {g.partidas.length > 4 && (
+                        <p>+{g.partidas.length - 4} partidas mas</p>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -389,43 +456,6 @@ function ResumenStock({ grupos }: { grupos: SummaryGroup[] }) {
   )
 }
 
-function agruparResumen(rollos: StockRollo[]): SummaryGroup[] {
-  const map = new Map<string, SummaryGroup>()
-  for (const r of rollos) {
-    const articulo = r.articulos?.nombre ?? '-'
-    const color = r.colores?.nombre ?? '-'
-    const key = `${articulo}|||${color}`
-    const kilos = Number(r.kilos ?? 0)
-    const group =
-      map.get(key) ??
-      {
-        key,
-        articulo,
-        color,
-        rollos: 0,
-        kilos: 0,
-        libres: 0,
-        kilosLibres: 0,
-        reservados: 0,
-        kilosReservados: 0,
-      }
-    group.rollos += 1
-    group.kilos += kilos
-    if (r.estado === 'reservado') {
-      group.reservados += 1
-      group.kilosReservados += kilos
-    } else if (r.estado === 'en_stock') {
-      group.libres += 1
-      group.kilosLibres += kilos
-    }
-    map.set(key, group)
-  }
-  return Array.from(map.values()).sort((a, b) => {
-    if (b.kilos !== a.kilos) return b.kilos - a.kilos
-    return a.articulo.localeCompare(b.articulo, 'es')
-  })
-}
-
 function formatFechaCorta(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '-'
@@ -434,6 +464,16 @@ function formatFechaCorta(iso: string): string {
     month: '2-digit',
     year: '2-digit',
   })
+}
+
+function estadoMeta(estado: string) {
+  if (Object.prototype.hasOwnProperty.call(ESTADO_LABEL, estado)) {
+    return ESTADO_LABEL[estado]
+  }
+  return {
+    text: estado,
+    className: 'bg-zinc-100 text-zinc-700',
+  }
 }
 
 function diasEnInventario(iso: string): number {

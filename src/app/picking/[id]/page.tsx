@@ -48,10 +48,20 @@ type PedidoRolloRaw = {
     numero_pieza: string
     ubicacion: string | null
     kilos: number | null
+    ingreso_id: string | null
     articulo_id: string | null
     color_id: string | null
     articulos: { nombre: string } | null
+    ingresos: { numero_lote: string | null } | null
   } | null
+}
+
+type StockOrientacionRaw = {
+  ingreso_id: string | null
+  articulo_id: string | null
+  color_id: string | null
+  ubicacion: string | null
+  ingresos: { numero_lote: string | null } | null
 }
 
 export default async function PickingDetailPage({
@@ -70,7 +80,12 @@ export default async function PickingDetailPage({
 
   if (!pedido) notFound()
 
-  const [{ data: partidasRaw }, { data: prRaw }, { data: coloresRaw }] =
+  const [
+    { data: partidasRaw },
+    { data: prRaw },
+    { data: coloresRaw },
+    { data: orientacionRaw },
+  ] =
     await Promise.all([
       supabase
         .from('pedido_partidas')
@@ -103,15 +118,30 @@ export default async function PickingDetailPage({
               numero_pieza,
               ubicacion,
               kilos,
+              ingreso_id,
               articulo_id,
               color_id,
-              articulos ( nombre )
+              articulos ( nombre ),
+              ingresos ( numero_lote )
             )
           `
         )
         .eq('pedido_id', id)
         .is('liberado_at', null),
       supabase.from('colores').select('id, nombre'),
+      supabase
+        .from('rollos')
+        .select(
+          `
+            ingreso_id,
+            articulo_id,
+            color_id,
+            ubicacion,
+            ingresos ( numero_lote )
+          `
+        )
+        .eq('estado', 'en_stock')
+        .limit(1500),
     ])
 
   const colorById = new Map(
@@ -120,6 +150,8 @@ export default async function PickingDetailPage({
       c.nombre,
     ])
   )
+
+  const orientacionRows = (orientacionRaw ?? []) as unknown as StockOrientacionRaw[]
 
   const partidas: PickPartida[] = ((partidasRaw ?? []) as unknown as PedidoPartidaRaw[])
     .map((p) => ({
@@ -133,6 +165,7 @@ export default async function PickingDetailPage({
       rollosSolicitados: Number(p.rollos_solicitados ?? 0),
       rollosAsignados:
         p.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0,
+      ubicacionesSugeridas: buildUbicacionesSugeridas(p, orientacionRows),
     }))
     .sort((a, b) => {
       const byLote = (a.numeroLote ?? '').localeCompare(b.numeroLote ?? '', 'es', {
@@ -142,21 +175,37 @@ export default async function PickingDetailPage({
       return a.articulo.localeCompare(b.articulo, 'es')
     })
 
+  const partidaById = new Map(
+    ((partidasRaw ?? []) as unknown as PedidoPartidaRaw[]).map((p) => [p.id, p])
+  )
+
   const items: PickRollo[] = ((prRaw ?? []) as unknown as PedidoRolloRaw[])
     .filter((r) => r.rollos != null)
-    .map((r) => ({
-      pedido_rollo_id: r.id,
-      pedido_partida_id: r.pedido_partida_id,
-      pickeado_at: r.pickeado_at,
-      rollo_id: r.rollos!.id,
-      numero_pieza: r.rollos!.numero_pieza,
-      ubicacion: r.rollos!.ubicacion,
-      kilos: r.rollos!.kilos,
-      articulo_id: r.rollos!.articulo_id,
-      color_id: r.rollos!.color_id,
-      articulo: r.rollos!.articulos?.nombre ?? null,
-      color: r.rollos!.color_id ? colorById.get(r.rollos!.color_id) ?? null : null,
-    }))
+    .map((r) => {
+      const partida = r.pedido_partida_id
+        ? partidaById.get(r.pedido_partida_id)
+        : null
+      const partidaRealLote = r.rollos!.ingresos?.numero_lote ?? null
+      const partidaSolicitadaLote = partida?.ingresos?.numero_lote ?? null
+      return {
+        pedido_rollo_id: r.id,
+        pedido_partida_id: r.pedido_partida_id,
+        pickeado_at: r.pickeado_at,
+        rollo_id: r.rollos!.id,
+        numero_pieza: r.rollos!.numero_pieza,
+        ubicacion: r.rollos!.ubicacion,
+        kilos: r.rollos!.kilos,
+        articulo_id: r.rollos!.articulo_id,
+        color_id: r.rollos!.color_id,
+        articulo: r.rollos!.articulos?.nombre ?? null,
+        color: r.rollos!.color_id ? colorById.get(r.rollos!.color_id) ?? null : null,
+        partidaRealLote,
+        partidaSolicitadaLote,
+        esSustitucionPartida:
+          Boolean(partida?.ingreso_id && r.rollos!.ingreso_id) &&
+          partida?.ingreso_id !== r.rollos!.ingreso_id,
+      }
+    })
 
   const tintoreriaIds = Array.from(
     new Set(
@@ -232,17 +281,148 @@ export default async function PickingDetailPage({
           readerType={readerType}
         />
       ) : listo ? (
-        <ConfirmarEgresoCard pedidoId={id} />
+        <>
+          <ResumenPedidoPicking partidas={partidas} items={items} />
+          <ConfirmarEgresoCard pedidoId={id} />
+        </>
       ) : (
-        <div className="rounded-lg border bg-success/10 border-success/30 p-5 text-center space-y-2">
-          <p className="font-semibold text-success">
-            {ESTADO_LABEL[pedido.estado]?.text ?? pedido.estado}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Este pedido ya no esta en etapa de picking.
-          </p>
-        </div>
+        <>
+          <ResumenPedidoPicking partidas={partidas} items={items} />
+          <div className="rounded-lg border bg-success/10 border-success/30 p-5 text-center space-y-2">
+            <p className="font-semibold text-success">
+              {ESTADO_LABEL[pedido.estado]?.text ?? pedido.estado}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Este pedido ya no esta en etapa de picking.
+            </p>
+          </div>
+        </>
       )}
+    </div>
+  )
+}
+
+function buildUbicacionesSugeridas(
+  partida: PedidoPartidaRaw,
+  stockRows: StockOrientacionRaw[]
+): string[] {
+  const seen = new Set<string>()
+  return stockRows
+    .filter(
+      (r) =>
+        r.articulo_id === partida.articulo_id &&
+        r.color_id === partida.color_id &&
+        r.ubicacion
+    )
+    .sort((a, b) => {
+      const aSame = a.ingreso_id === partida.ingreso_id ? 0 : 1
+      const bSame = b.ingreso_id === partida.ingreso_id ? 0 : 1
+      if (aSame !== bSame) return aSame - bSame
+      return (a.ubicacion ?? '').localeCompare(b.ubicacion ?? '', 'es', {
+        numeric: true,
+      })
+    })
+    .map((r) => {
+      const lote = r.ingresos?.numero_lote
+      return lote && r.ingreso_id !== partida.ingreso_id
+        ? `${r.ubicacion} (${lote})`
+        : r.ubicacion!
+    })
+    .filter((label) => {
+      if (seen.has(label)) return false
+      seen.add(label)
+      return true
+    })
+    .slice(0, 4)
+}
+
+function ResumenPedidoPicking({
+  partidas,
+  items,
+}: {
+  partidas: PickPartida[]
+  items: PickRollo[]
+}) {
+  return (
+    <div className="space-y-3">
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold">Resumen del pedido</h2>
+        <ul className="mt-3 space-y-2 text-sm">
+          {partidas.map((p) => {
+            const faltan = Math.max(0, p.rollosSolicitados - p.rollosAsignados)
+            return (
+              <li key={p.id} className="rounded-md border bg-zinc-50 px-3 py-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {p.articulo} - {p.color}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Partida {p.numeroLote ?? 'sin numero'}
+                      {p.tintoreria ? ` - ${p.tintoreria}` : ''}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs">
+                    {p.rollosAsignados}/{p.rollosSolicitados}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {faltan === 0 ? 'Completa' : `Faltan ${faltan} rollos`}
+                </p>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold">Rollos seleccionados</h2>
+        {items.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Todavia no hay rollos pickeados.
+          </p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-left text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3 font-medium">Pieza</th>
+                  <th className="py-2 pr-3 font-medium">Articulo</th>
+                  <th className="py-2 pr-3 font-medium">Partida</th>
+                  <th className="py-2 pr-3 font-medium">Ubic.</th>
+                  <th className="py-2 text-right font-medium">Kg</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((r) => (
+                  <tr key={r.pedido_rollo_id} className="border-b last:border-0">
+                    <td className="py-2 pr-3 font-mono font-medium">
+                      {r.numero_pieza}
+                    </td>
+                    <td className="py-2 pr-3">
+                      {r.articulo ?? '-'} - {r.color ?? '-'}
+                    </td>
+                    <td className="py-2 pr-3 text-xs">
+                      <span className={r.esSustitucionPartida ? 'text-warning' : ''}>
+                        {r.partidaRealLote ?? '-'}
+                      </span>
+                      {r.esSustitucionPartida && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          Solicitada: {r.partidaSolicitadaLote ?? '-'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">{r.ubicacion ?? '-'}</td>
+                    <td className="py-2 text-right tabular-nums">
+                      {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

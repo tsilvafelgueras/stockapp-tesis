@@ -1,8 +1,15 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { type CodeScannerResult } from '@/components/CodeScanner'
+import ScannerByReaderType from '@/components/ScannerByReaderType'
+import SearchableCombobox from '@/components/SearchableCombobox'
+import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
 import { registrarMuestra } from '../actions'
 
 export type RolloOpcion = {
@@ -10,16 +17,48 @@ export type RolloOpcion = {
   numero_pieza: string
   kilos: number | null
   estado: string
+  articuloId: string | null
+  colorId: string | null
+  ubicacion: string | null
+  lote: string | null
+  tintoreriaId: string | null
+  tintoreria: string | null
   articulo: string | null
   color: string | null
 }
 
+type Catalogo = { id: string; nombre: string }
+
+export type MuestraFiltersState = {
+  q: string
+  articulo: string
+  color: string
+  lote: string
+  tintoreria: string
+  ubicacion: string
+  estado: string
+  orden: string
+}
+
 export default function NuevaMuestraForm({
   rollos,
+  articulos,
+  colores,
+  tintorerias,
+  lotes,
+  ubicaciones,
+  current,
 }: {
   rollos: RolloOpcion[]
+  articulos: Catalogo[]
+  colores: Catalogo[]
+  tintorerias: Catalogo[]
+  lotes: string[]
+  ubicaciones: UbicacionOption[]
+  current: MuestraFiltersState
 }) {
   const router = useRouter()
+  const sp = useSearchParams()
   const [busqueda, setBusqueda] = useState('')
   const [rolloId, setRolloId] = useState('')
   const [kilos, setKilos] = useState('')
@@ -27,6 +66,7 @@ export default function NuevaMuestraForm({
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const ubicacionOptions = ubicacionesToOptions(ubicaciones)
 
   const rolloElegido = useMemo(
     () => rollos.find((r) => r.id === rolloId) ?? null,
@@ -91,11 +131,152 @@ export default function NuevaMuestraForm({
     })
   }
 
+  function updateFilter(field: string, value: string) {
+    const params = new URLSearchParams(sp.toString())
+    if (value) params.set(field, value)
+    else params.delete(field)
+    const qs = params.toString()
+    router.replace(qs ? `/muestras/nuevo?${qs}` : '/muestras/nuevo')
+  }
+
+  function handleLectura(result: CodeScannerResult) {
+    const texto = result.texto.trim().toLowerCase()
+    if (!texto) return
+    const match = rollos.find((r) => {
+      const codigo = r.numero_pieza.toLowerCase()
+      return codigo === texto || texto.includes(codigo)
+    })
+    if (!match) {
+      toast.error('No encontramos ese rollo en los filtros actuales.')
+      return
+    }
+    setRolloId(match.id)
+    setBusqueda(match.numero_pieza)
+    toast.success(`Rollo ${match.numero_pieza} seleccionado.`)
+  }
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4"
-    >
+    <>
+      <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+        <h2 className="font-semibold text-sm">Filtros</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Pieza">
+            <input
+              defaultValue={current.q}
+              onBlur={(e) => updateFilter('q', e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  updateFilter('q', (e.target as HTMLInputElement).value)
+                }
+              }}
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              placeholder="Ej. 12345"
+            />
+          </Field>
+          <Field label="Artículo">
+            <select
+              value={current.articulo}
+              onChange={(e) => updateFilter('articulo', e.target.value)}
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todos</option>
+              {articulos.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Color">
+            <select
+              value={current.color}
+              onChange={(e) => updateFilter('color', e.target.value)}
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todos</option>
+              {colores.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Partida">
+            <select
+              value={current.lote}
+              onChange={(e) => updateFilter('lote', e.target.value)}
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todas</option>
+              {lotes.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Tintorería">
+            <select
+              value={current.tintoreria}
+              onChange={(e) => updateFilter('tintoreria', e.target.value)}
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todas</option>
+              {tintorerias.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Ubicación">
+            <SearchableCombobox
+              value={current.ubicacion}
+              onChange={(value) => updateFilter('ubicacion', value)}
+              options={withCurrentUbicacion(current.ubicacion, ubicacionOptions)}
+              placeholder="Todas"
+              searchPlaceholder="Buscar ubicacion..."
+              emptyLabel="No hay ubicaciones"
+            />
+          </Field>
+          <Field label="Estado">
+            <select
+              value={current.estado}
+              onChange={(e) => updateFilter('estado', e.target.value)}
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            >
+              <option value="en_stock">En stock</option>
+              <option value="reservado">Reservado</option>
+              <option value="todos">Todos</option>
+            </select>
+          </Field>
+          <Field label="Orden">
+            <select
+              value={current.orden}
+              onChange={(e) => updateFilter('orden', e.target.value)}
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            >
+              <option value="pieza_asc">Pieza A-Z</option>
+              <option value="pieza_desc">Pieza Z-A</option>
+              <option value="kilos_desc">Kilos mayor a menor</option>
+              <option value="kilos_asc">Kilos menor a mayor</option>
+            </select>
+          </Field>
+        </div>
+      </section>
+
+      <ScannerByReaderType
+        readerType={null}
+        onRead={handleLectura}
+        paused={pending}
+        title="Escanear rollo"
+        manualLabel="Ingresar pieza manualmente"
+        manualPlaceholder="Ej. 204021911"
+      />
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+
       {/* Selector de rollo */}
       <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
         <h2 className="font-semibold text-sm">1. Elegí el rollo</h2>
@@ -140,6 +321,8 @@ export default function NuevaMuestraForm({
                     <p className="text-xs text-muted-foreground truncate">
                       {r.articulo ?? '—'}
                       {r.color ? ` · ${r.color}` : ''}
+                      {r.lote ? ` · ${r.lote}` : ''}
+                      {r.ubicacion ? ` · ${r.ubicacion}` : ''}
                       {r.estado === 'reservado' ? ' · reservado' : ''}
                     </p>
                   </div>
@@ -232,6 +415,30 @@ export default function NuevaMuestraForm({
           {pending ? 'Registrando…' : 'Registrar muestra'}
         </button>
       </div>
-    </form>
+      </form>
+    </>
   )
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function withCurrentUbicacion(
+  current: string,
+  options: { value: string; label: string; description?: string }[]
+) {
+  if (!current || options.some((o) => o.value === current)) return options
+  return [{ value: current, label: current }, ...options]
 }

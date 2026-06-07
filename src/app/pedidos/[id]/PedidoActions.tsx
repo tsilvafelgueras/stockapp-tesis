@@ -4,7 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import SearchableCombobox from '@/components/SearchableCombobox'
-import { UBICACIONES } from '@/lib/ubicaciones'
+import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
 import {
   cancelarPedido,
   confirmarEgresoPedido,
@@ -24,16 +27,16 @@ const MOTIVOS_CAIDA = [
   { value: 'otro', label: 'Otro' },
 ]
 
-const UBICACION_OPTIONS = UBICACIONES.map((u) => ({ value: u, label: u }))
-
 export default function PedidoActions({
   pedidoId,
   estado,
   role,
+  ubicaciones,
 }: {
   pedidoId: string
   estado: string
   role: 'ventas' | 'admin' | 'operario'
+  ubicaciones: UbicacionOption[]
 }) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('view')
@@ -45,6 +48,7 @@ export default function PedidoActions({
   const [comentarioCaida, setComentarioCaida] = useState('')
   const [ubicacionReasignacion, setUbicacionReasignacion] =
     useState('A ordenar')
+  const ubicacionOptions = ubicacionesToOptions(ubicaciones)
 
   const esVentasOAdmin = role === 'ventas' || role === 'admin'
   const puedeConfirmarSalida =
@@ -210,7 +214,10 @@ export default function PedidoActions({
               <SearchableCombobox
                 value={ubicacionReasignacion}
                 onChange={setUbicacionReasignacion}
-                options={UBICACION_OPTIONS}
+                options={withCurrentUbicacion(
+                  ubicacionReasignacion,
+                  ubicacionOptions
+                )}
                 placeholder="Seleccionar ubicacion..."
                 allowClear={false}
               />
@@ -240,6 +247,14 @@ export default function PedidoActions({
 
     </div>
   )
+}
+
+function withCurrentUbicacion(
+  current: string,
+  options: { value: string; label: string; description?: string }[]
+) {
+  if (!current || options.some((o) => o.value === current)) return options
+  return [{ value: current, label: current }, ...options]
 }
 
 function Field({

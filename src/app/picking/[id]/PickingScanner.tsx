@@ -20,6 +20,7 @@ export type PickPartida = {
   tintoreria: string | null
   rollosSolicitados: number
   rollosAsignados: number
+  ubicacionesSugeridas: string[]
 }
 
 export type PickRollo = {
@@ -34,6 +35,9 @@ export type PickRollo = {
   color_id: string | null
   articulo: string | null
   color: string | null
+  partidaRealLote: string | null
+  partidaSolicitadaLote: string | null
+  esSustitucionPartida: boolean
 }
 
 export type AlternativaRollo = {
@@ -106,12 +110,15 @@ export default function PickingScanner({
           pickeado_at: now,
           rollo_id: res.rolloId,
           numero_pieza: res.numeroPieza,
-          ubicacion: null,
+          ubicacion: res.ubicacion,
           kilos: res.kilos,
           articulo_id: res.articuloId,
           color_id: res.colorId,
           articulo: partida?.articulo ?? null,
           color: partida?.color ?? null,
+          partidaRealLote: res.partidaRealLote,
+          partidaSolicitadaLote: res.partidaSolicitadaLote,
+          esSustitucionPartida: res.esSustitucionPartida,
         },
       ])
       setPartidasLocales((prev) =>
@@ -129,9 +136,15 @@ export default function PickingScanner({
         return
       }
 
-      toast.success(
-        `Pieza ${res.numeroPieza} pickeada (${res.total - res.pendientes}/${res.total}).`
-      )
+      if (res.esSustitucionPartida) {
+        toast.warning(
+          `Pieza ${res.numeroPieza} pickeada de ${res.partidaRealLote ?? 'otra partida'} en lugar de ${res.partidaSolicitadaLote ?? 'la solicitada'}.`
+        )
+      } else {
+        toast.success(
+          `Pieza ${res.numeroPieza} pickeada (${res.total - res.pendientes}/${res.total}).`
+        )
+      }
     },
     [articuloColorByPartida, pedidoId, router]
   )
@@ -209,6 +222,14 @@ export default function PickingScanner({
                   <p className="mt-1 text-xs text-muted-foreground">
                     {faltan === 0 ? 'Completa' : `Faltan ${faltan} rollos`}
                   </p>
+                  {p.ubicacionesSugeridas.length > 0 && faltan > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Buscar en:{' '}
+                      <span className="font-medium text-foreground">
+                        {p.ubicacionesSugeridas.join(', ')}
+                      </span>
+                    </p>
+                  )}
                 </li>
               )
             })}
@@ -264,6 +285,8 @@ export default function PickingScanner({
                     <th className="py-2 pr-3 font-medium">Pieza</th>
                     <th className="py-2 pr-3 font-medium">Articulo</th>
                     <th className="py-2 pr-3 font-medium">Color</th>
+                    <th className="py-2 pr-3 font-medium">Partida</th>
+                    <th className="py-2 pr-3 font-medium">Ubic.</th>
                     <th className="py-2 text-right font-medium">Kg</th>
                   </tr>
                 </thead>
@@ -275,6 +298,17 @@ export default function PickingScanner({
                       </td>
                       <td className="py-2 pr-3">{r.articulo ?? '-'}</td>
                       <td className="py-2 pr-3">{r.color ?? '-'}</td>
+                      <td className="py-2 pr-3 text-xs">
+                        <span className={r.esSustitucionPartida ? 'text-warning' : ''}>
+                          {r.partidaRealLote ?? '-'}
+                        </span>
+                        {r.esSustitucionPartida && (
+                          <span className="block text-[11px] text-muted-foreground">
+                            Solicitada: {r.partidaSolicitadaLote ?? '-'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">{r.ubicacion ?? '-'}</td>
                       <td className="py-2 text-right tabular-nums">
                         {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
                       </td>
