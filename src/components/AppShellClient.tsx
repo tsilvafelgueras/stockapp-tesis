@@ -21,6 +21,7 @@ import {
   Scissors,
   Search,
   ShoppingCart,
+  Tag,
   Users,
   X,
   type LucideIcon,
@@ -80,6 +81,7 @@ function navForRole(role: Role): NavSection[] {
           { href: '/stock', label: 'Stock', icon: Search },
           { href: '/picking', label: 'Picking', icon: ClipboardCheck },
           { href: '/muestras', label: 'Muestras', icon: Scissors },
+          { href: '/rollos-sin-etiqueta', label: 'Sin etiqueta', icon: Tag },
         ],
       },
     ]
@@ -107,6 +109,7 @@ function navForRole(role: Role): NavSection[] {
       title: 'Operacion',
       items: [
         { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
+        { href: '/rollos-sin-etiqueta', label: 'Sin etiqueta', icon: Tag },
       ],
     },
     {
@@ -203,7 +206,7 @@ export default function AppShellClient({
     >
       {/* TOPBAR — visible en desktop y mobile */}
       <header
-        className="fixed inset-x-0 top-0 z-40 flex items-center gap-3 border-b border-white/10 bg-sidebar px-3 text-sidebar-foreground shadow-sm sm:px-4"
+        className="print:hidden fixed inset-x-0 top-0 z-40 flex items-center gap-3 border-b border-white/10 bg-sidebar px-3 text-sidebar-foreground shadow-sm sm:px-4"
         style={{ height: TOPBAR_HEIGHT }}
       >
         <button
@@ -233,7 +236,7 @@ export default function AppShellClient({
 
       {/* SIDEBAR DESKTOP — colapsable */}
       <aside
-        className="fixed bottom-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out md:flex"
+        className="print:hidden fixed bottom-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out md:flex"
         style={{
           top: TOPBAR_HEIGHT,
           width: sidebarWidth,
@@ -302,7 +305,7 @@ export default function AppShellClient({
 
       {/* CONTENIDO */}
       <main
-        className="min-w-0 overflow-y-auto bg-background"
+        className="print:mt-0 print:h-auto min-w-0 overflow-y-auto bg-background"
         style={{
           marginTop: TOPBAR_HEIGHT,
           height: `calc(100dvh - ${TOPBAR_HEIGHT})`,

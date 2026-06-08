@@ -120,7 +120,8 @@ export async function updateSession(request: NextRequest) {
       pathname.startsWith('/ingresos') ||
       pathname.startsWith('/confirmar') ||
       pathname.startsWith('/picking') ||
-      pathname.startsWith('/muestras')
+      pathname.startsWith('/muestras') ||
+      pathname.startsWith('/rollos-sin-etiqueta')
     const isComercial =
       pathname.startsWith('/pedidos') ||
       pathname.startsWith('/pedidos-pendientes') ||
