@@ -122,7 +122,6 @@ export async function createRollosSinEtiqueta(
         numero_lote: input.numero_lote.trim(),
         estado: 'confirmado',
         origen: 'manual',
-        created_by: user.id,
       })
       .select('id')
       .single()
@@ -164,7 +163,6 @@ export async function createRollosSinEtiqueta(
     kilos: r.kilos,
     ubicacion: r.ubicacion?.trim() || null,
     estado: 'en_stock' as const,
-    created_by: user.id,
   }))
 
   const { data: inserted, error: rError } = await supabase

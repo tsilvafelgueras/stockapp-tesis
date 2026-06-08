@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
+import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import RollosSinEtiquetaForm from './RollosSinEtiquetaForm'
 
 type ArticuloRow = {
@@ -17,6 +18,7 @@ export default async function NuevosRollosSinEtiquetaPage() {
     { data: ingresosRaw },
     { data: empresaTints },
     { data: articulosRaw },
+    ubicaciones,
   ] = await Promise.all([
     supabase
       .from('ingresos')
@@ -32,6 +34,7 @@ export default async function NuevosRollosSinEtiquetaPage() {
       .select('id, nombre, articulo_colores(colores(id, nombre))')
       .eq('activo', true)
       .order('nombre'),
+    getUbicacionesActivas(supabase),
   ])
 
   type IngresoRow = {
@@ -80,6 +83,7 @@ export default async function NuevosRollosSinEtiquetaPage() {
         ingresos={ingresos}
         tintorerias={tintorerias}
         articulos={articulos}
+        ubicaciones={ubicaciones}
       />
     </div>
   )

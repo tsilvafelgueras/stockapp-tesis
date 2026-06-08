@@ -4,6 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { obtenerDatosPartida, createRollosSinEtiqueta } from './actions'
+import type { UbicacionOption } from '@/lib/ubicaciones'
 
 type Catalog = { id: string; nombre: string }
 type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
@@ -24,10 +25,12 @@ export default function RollosSinEtiquetaForm({
   ingresos,
   tintorerias,
   articulos,
+  ubicaciones,
 }: {
   ingresos: IngresoOption[]
   tintorerias: Catalog[]
   articulos: ArticuloCatalog[]
+  ubicaciones: UbicacionOption[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -361,7 +364,7 @@ export default function RollosSinEtiquetaForm({
         <div className="space-y-2">
           {/* Header */}
           <div className="hidden sm:grid grid-cols-[1fr_1.5fr_2fr_auto] gap-3 px-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nº auto</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">N° pieza</p>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Kilos *</p>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ubicación</p>
             <p className="w-8" />
@@ -373,7 +376,7 @@ export default function RollosSinEtiquetaForm({
               className="grid grid-cols-[1fr_1.5fr_2fr_auto] sm:grid-cols-[1fr_1.5fr_2fr_auto] gap-3 items-center"
             >
               <div className="flex items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
-                <span className="text-xs">#{idx + 1}</span>
+                <span className="text-xs">Auto</span>
               </div>
               <input
                 type="number"
@@ -384,13 +387,18 @@ export default function RollosSinEtiquetaForm({
                 placeholder="0.0"
                 className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <input
-                type="text"
+              <select
                 value={rollo.ubicacion}
                 onChange={(e) => updateRow(rollo.id, 'ubicacion', e.target.value)}
-                placeholder="ej: A-12 (opcional)"
                 className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+              >
+                <option value="">— Ubicación —</option>
+                {ubicaciones.map((u) => (
+                  <option key={u.codigo} value={u.codigo}>
+                    {u.codigo}{u.descripcion ? ` - ${u.descripcion}` : ''}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={() => removeRow(rollo.id)}

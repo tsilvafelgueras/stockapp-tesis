@@ -81,7 +81,7 @@ function navForRole(role: Role): NavSection[] {
           { href: '/stock', label: 'Stock', icon: Search },
           { href: '/picking', label: 'Picking', icon: ClipboardCheck },
           { href: '/muestras', label: 'Muestras', icon: Scissors },
-          { href: '/rollos-sin-etiqueta', label: 'Sin etiqueta', icon: Tag },
+          { href: '/rollos-sin-etiqueta', label: 'Etiquetado manual', icon: Tag },
         ],
       },
     ]
@@ -109,7 +109,7 @@ function navForRole(role: Role): NavSection[] {
       title: 'Operacion',
       items: [
         { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
-        { href: '/rollos-sin-etiqueta', label: 'Sin etiqueta', icon: Tag },
+        { href: '/rollos-sin-etiqueta', label: 'Etiquetado manual', icon: Tag },
       ],
     },
     {

@@ -5,6 +5,7 @@ import {
   PackagePlus,
   Scissors,
   Search,
+  Tag,
   Truck,
   type LucideIcon,
 } from 'lucide-react'
@@ -50,6 +51,12 @@ const actions: {
     title: 'Muestras',
     description: 'Registrar entregas chicas que descuentan kilos del rollo.',
     icon: Scissors,
+  },
+  {
+    href: '/rollos-sin-etiqueta',
+    title: 'Etiquetado manual',
+    description: 'Registrá rollos sin etiqueta y generá su QR para rotularlos.',
+    icon: Tag,
   },
 ]
 
