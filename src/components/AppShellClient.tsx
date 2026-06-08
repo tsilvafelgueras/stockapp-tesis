@@ -106,7 +106,7 @@ function navForRole(role: Role): NavSection[] {
       items: [{ href: '/admin/dashboard', label: 'Inicio', icon: Home }],
     },
     {
-      title: 'Operacion',
+      title: 'Operación',
       items: [
         { href: '/ingresos', label: 'Ingresos', icon: PackagePlus },
         { href: '/rollos-sin-etiqueta', label: 'Etiquetado manual', icon: Tag },
@@ -122,12 +122,12 @@ function navForRole(role: Role): NavSection[] {
       ],
     },
     {
-      title: 'Administracion',
+      title: 'Administración',
       items: [
-        { href: '/admin/articulos', label: 'Articulos', icon: Boxes },
+        { href: '/admin/articulos', label: 'Artículos', icon: Boxes },
         { href: '/admin/colores', label: 'Colores', icon: Palette },
         { href: '/admin/ubicaciones', label: 'Ubicaciones', icon: MapPinned },
-        { href: '/admin/tintorerias', label: 'Tintorerias', icon: Factory },
+        { href: '/admin/tintorerias', label: 'Tintorerías', icon: Factory },
         { href: '/admin/equipo', label: 'Equipo', icon: Users },
         { href: '/admin/reportes', label: 'Reportes', icon: BarChart3 },
         { href: '/admin/historial', label: 'Historial', icon: History },
@@ -329,7 +329,7 @@ function BrandLockup({ empresaNombre }: { empresaNombre: string | null }) {
       <div className="min-w-0 leading-tight">
         <p className="font-heading text-lg font-bold tracking-normal">NUDO</p>
         <p className="hidden truncate text-[11px] text-white/65 sm:block">
-          {empresaNombre ?? 'Gestion textil'}
+          {empresaNombre ?? 'Gestión de inventario textil'}
         </p>
       </div>
     </div>

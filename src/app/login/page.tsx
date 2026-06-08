@@ -71,7 +71,7 @@ function LoginForm() {
     <main className="flex min-h-[100svh] items-center justify-center bg-white px-4 py-4 sm:px-6">
       <section className="w-full max-w-[23.5rem] space-y-3">
         <div className="mx-auto h-10 w-44 overflow-hidden sm:h-12 sm:w-48">
-          <Image
+          <a href = "/landing"><Image
             src="/nudo-palabra.svg"
             alt="NUDO"
             width={192}
@@ -79,6 +79,7 @@ function LoginForm() {
             priority
             className="h-full w-full object-cover object-center"
           />
+          </a>
         </div>
 
         <div className="w-full rounded-xl border border-[#d9dee8] bg-white px-4 py-5 shadow-[0_8px_24px_rgba(26,43,74,0.07)] sm:px-6">

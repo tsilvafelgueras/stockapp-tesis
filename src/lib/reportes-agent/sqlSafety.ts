@@ -99,7 +99,7 @@ export function validateReportSql(sql: unknown): SqlValidationResult {
   if (forbidden) {
     return {
       ok: false,
-      error: `La consulta usa una operacion no permitida para reportes: ${forbidden.label}.`,
+      error: `La consulta usa una operación no permitida para reportes: ${forbidden.label}.`,
     }
   }
 
