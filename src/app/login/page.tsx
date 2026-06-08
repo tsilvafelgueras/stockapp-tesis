@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+const BRAND_BLUE = '#1a2b4a'
+
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
@@ -66,41 +68,48 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-start justify-center bg-white px-4 py-10 sm:px-6 sm:py-12">
-      <section className="w-full max-w-[36.5rem] space-y-8">
-        <div className="mx-auto h-20 w-64 overflow-hidden sm:w-72">
+    <main className="flex min-h-screen items-start justify-center bg-white px-4 py-8 sm:px-6 sm:py-10">
+      <section className="w-full max-w-[26rem] space-y-5">
+        <div className="mx-auto h-14 w-52 overflow-hidden sm:h-16 sm:w-56">
           <Image
             src="/nudo-palabra.svg"
             alt="NUDO"
-            width={288}
-            height={80}
+            width={224}
+            height={64}
             priority
             className="h-full w-full object-cover object-center"
           />
         </div>
 
-        <div className="w-full rounded-[1.75rem] border border-zinc-200 bg-white px-6 py-8 shadow-sm sm:px-10 sm:py-10">
+        <div className="w-full rounded-2xl border border-[#d9dee8] bg-white px-5 py-6 shadow-[0_8px_24px_rgba(26,43,74,0.07)] sm:px-7 sm:py-7">
           <div className="text-center">
-            <h1 className="text-3xl font-bold tracking-normal text-zinc-950 sm:text-4xl">
+            <h1
+              className="text-2xl font-bold tracking-normal sm:text-[1.75rem]"
+              style={{ color: BRAND_BLUE }}
+            >
               Iniciar sesión
             </h1>
-            <p className="mt-3 text-base text-zinc-500 sm:text-lg">
+            <p className="mt-2 text-sm text-[#5c6980]">
               Ingresá tus datos para iniciar sesión
             </p>
           </div>
 
           {empresaPausada && (
-            <div className="mt-7 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-zinc-700">
+            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
               <p className="font-semibold text-amber-700">Tu empresa está pausada</p>
-              <p className="mt-1 text-zinc-600">
+              <p className="mt-1 text-[#5c6980]">
                 Contacta al administrador de la plataforma para reactivarla.
               </p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-base font-semibold text-zinc-950">
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="email"
+                className="text-sm font-semibold"
+                style={{ color: BRAND_BLUE }}
+              >
                 Email
               </label>
               <input
@@ -111,14 +120,15 @@ function LoginForm() {
                 required
                 autoComplete="email"
                 placeholder="ejemplo@gmail.com"
-                className="h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100"
+                className="h-11 w-full rounded-xl border border-[#d9dee8] bg-white px-4 text-[15px] text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label
                 htmlFor="password"
-                className="text-base font-semibold text-zinc-950"
+                className="text-sm font-semibold"
+                style={{ color: BRAND_BLUE }}
               >
                 Contraseña
               </label>
@@ -130,7 +140,7 @@ function LoginForm() {
                 required
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className="h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100"
+                className="h-11 w-full rounded-xl border border-[#d9dee8] bg-white px-4 text-[15px] text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
               />
             </div>
 
@@ -139,16 +149,16 @@ function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="flex h-12 w-full items-center justify-center rounded-2xl bg-zinc-950 px-4 text-base font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-11 w-full items-center justify-center rounded-xl bg-[#1a2b4a] px-4 text-sm font-semibold text-white transition hover:bg-[#24395d] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? 'Ingresando...' : 'Continuar'}
             </button>
           </form>
 
-          <div className="pt-7 text-center">
+          <div className="pt-5 text-center">
             <Link
               href="/auth/recover"
-              className="text-sm text-zinc-950 underline underline-offset-2 hover:text-zinc-700"
+              className="text-sm text-[#1a2b4a] underline underline-offset-2 hover:text-[#24395d]"
             >
               ¿Olvidaste tu contraseña?
             </Link>
