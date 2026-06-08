@@ -271,19 +271,17 @@ export default async function PickingDetailPage({
         </p>
       </div>
 
-      {pickeable ? (
-        <PickingScanner
-          pedidoId={id}
-          partidas={partidas}
-          items={items}
-          alternativas={[]}
-          patrones={patronesData ?? []}
-          readerType={readerType}
-        />
-      ) : listo ? (
+      {pickeable || listo ? (
         <>
-          <ResumenPedidoPicking partidas={partidas} items={items} />
-          <ConfirmarEgresoCard pedidoId={id} />
+          <PickingScanner
+            pedidoId={id}
+            partidas={partidas}
+            items={items}
+            alternativas={[]}
+            patrones={patronesData ?? []}
+            readerType={readerType}
+          />
+          {listo && <ConfirmarEgresoCard pedidoId={id} />}
         </>
       ) : (
         <>

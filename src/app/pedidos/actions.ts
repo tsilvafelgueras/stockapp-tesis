@@ -69,6 +69,65 @@ export async function crearPedidoPorPartidas(
 
 export type SimpleResult = { ok: true } | { ok: false; error: string }
 
+function buildPedidoItems(partidas: PedidoPartidaInput[]) {
+  return partidas
+    .map((p) => ({
+      ingreso_id: p.ingresoId,
+      articulo_id: p.articuloId,
+      color_id: p.colorId,
+      cantidad: Math.trunc(Number(p.cantidad)),
+    }))
+    .filter(
+      (p) =>
+        p.ingreso_id &&
+        p.articulo_id &&
+        p.color_id &&
+        Number.isFinite(p.cantidad) &&
+        p.cantidad > 0
+    )
+}
+
+export async function actualizarPedidoRemito(
+  pedidoId: string,
+  numeroRemitoExterno: string
+): Promise<SimpleResult> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('actualizar_pedido_remito', {
+    p_pedido_id: pedidoId,
+    p_numero_remito_externo: numeroRemitoExterno.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath(`/clientes`)
+  return { ok: true }
+}
+
+export async function agregarPartidasAPedido(
+  pedidoId: string,
+  partidas: PedidoPartidaInput[]
+): Promise<SimpleResult> {
+  const supabase = await createClient()
+  const items = buildPedidoItems(partidas)
+  if (items.length === 0) {
+    return { ok: false, error: 'Tenes que seleccionar al menos una partida.' }
+  }
+
+  const { error } = await supabase.rpc('agregar_partidas_a_pedido', {
+    p_pedido_id: pedidoId,
+    p_items: items,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/picking')
+  revalidatePath(`/picking/${pedidoId}`)
+  revalidatePath('/stock')
+  return { ok: true }
+}
+
 export async function cancelarPedido(
   pedidoId: string,
   motivoCaida = '',

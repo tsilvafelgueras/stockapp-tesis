@@ -9,6 +9,7 @@ import {
   type UbicacionOption,
 } from '@/lib/ubicaciones'
 import {
+  actualizarPedidoRemito,
   cancelarPedido,
   confirmarEgresoPedido,
 } from '../actions'
@@ -16,6 +17,7 @@ import {
 type Mode =
   | 'view'
   | 'confirmar-salida'
+  | 'editar-remito'
   | 'caer-pedido'
   | 'confirmar-cancelar'
 
@@ -32,11 +34,13 @@ export default function PedidoActions({
   estado,
   role,
   ubicaciones,
+  numeroRemitoExterno,
 }: {
   pedidoId: string
   estado: string
   role: 'ventas' | 'admin' | 'operario'
   ubicaciones: UbicacionOption[]
+  numeroRemitoExterno: string | null
 }) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('view')
@@ -44,6 +48,7 @@ export default function PedidoActions({
 
   const [salidaComentario, setSalidaComentario] = useState('')
   const [remitoSalida, setRemitoSalida] = useState('')
+  const [remitoExterno, setRemitoExterno] = useState(numeroRemitoExterno ?? '')
   const [motivoCaida, setMotivoCaida] = useState('')
   const [comentarioCaida, setComentarioCaida] = useState('')
   const [ubicacionReasignacion, setUbicacionReasignacion] =
@@ -53,6 +58,11 @@ export default function PedidoActions({
   const esVentasOAdmin = role === 'ventas' || role === 'admin'
   const puedeConfirmarSalida =
     (role === 'operario' || role === 'admin') && estado === 'lista'
+  const puedeEditarRemito =
+    esVentasOAdmin &&
+    estado !== 'cancelada' &&
+    estado !== 'confirmada_egreso' &&
+    estado !== 'entregada'
   const puedeCaerPedido = false
   const puedeCancelar =
     esVentasOAdmin &&
@@ -64,6 +74,7 @@ export default function PedidoActions({
   if (
     !puedeCancelar &&
     !puedeConfirmarSalida &&
+    !puedeEditarRemito &&
     !puedeCaerPedido
   ) {
     return null
@@ -73,6 +84,7 @@ export default function PedidoActions({
     setMode('view')
     setSalidaComentario('')
     setRemitoSalida('')
+    setRemitoExterno(numeroRemitoExterno ?? '')
     setMotivoCaida('')
     setComentarioCaida('')
     setUbicacionReasignacion('A ordenar')
@@ -91,6 +103,19 @@ export default function PedidoActions({
       }
       toast.success('Egreso confirmado.')
       resetForms()
+      router.refresh()
+    })
+  }
+
+  function handleEditarRemito() {
+    startTransition(async () => {
+      const res = await actualizarPedidoRemito(pedidoId, remitoExterno)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Remito actualizado.')
+      setMode('view')
       router.refresh()
     })
   }
@@ -131,6 +156,15 @@ export default function PedidoActions({
             className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
           >
             Confirmar egreso
+          </button>
+        )}
+        {puedeEditarRemito && mode === 'view' && (
+          <button
+            type="button"
+            onClick={() => setMode('editar-remito')}
+            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-zinc-50 transition-colors"
+          >
+            Editar remito
           </button>
         )}
         {puedeCaerPedido && mode === 'view' && (
@@ -184,6 +218,31 @@ export default function PedidoActions({
             onCancel={resetForms}
             confirmLabel={pending ? 'Confirmando...' : 'Si, confirmar egreso'}
             onConfirm={handleConfirmarSalida}
+            tone="success"
+          />
+        </div>
+      )}
+
+      {mode === 'editar-remito' && (
+        <div className="rounded-md bg-zinc-50 border p-3 space-y-3">
+          <p className="text-sm">
+            Podés cargar o corregir el número de remito externo mientras el
+            pedido no tenga egreso confirmado.
+          </p>
+          <Field label="Nro remito externo">
+            <input
+              type="text"
+              value={remitoExterno}
+              onChange={(e) => setRemitoExterno(e.target.value)}
+              placeholder="Opcional"
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            />
+          </Field>
+          <ActionsFooter
+            pending={pending}
+            onCancel={resetForms}
+            confirmLabel={pending ? 'Guardando...' : 'Guardar remito'}
+            onConfirm={handleEditarRemito}
             tone="success"
           />
         </div>

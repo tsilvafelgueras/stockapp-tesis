@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   actualizarUbicacion,
@@ -45,6 +46,7 @@ export default function UbicacionesManager({
 }: {
   ubicaciones: UbicacionAdminRow[]
 }) {
+  const router = useRouter()
   const [form, setForm] = useState(EMPTY_FORM)
   const [editId, setEditId] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -87,6 +89,7 @@ export default function UbicacionesManager({
       }
       toast.success(editId ? 'Ubicacion actualizada.' : 'Ubicacion creada.')
       reset()
+      router.refresh()
     })
   }
 
@@ -98,6 +101,7 @@ export default function UbicacionesManager({
         return
       }
       toast.success(row.activa ? 'Ubicacion desactivada.' : 'Ubicacion activada.')
+      router.refresh()
     })
   }
 
@@ -222,12 +226,19 @@ export default function UbicacionesManager({
                   </td>
                   <td className="px-4 py-2">{tipoLabel(u.tipo)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {u.rollos}
-                    {u.capacidad_rollos != null ? ` / ${u.capacidad_rollos}` : ''}
+                    <OcupacionValue
+                      current={u.rollos}
+                      capacity={u.capacidad_rollos}
+                      unit="rollos"
+                    />
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {u.kilos.toFixed(2)}
-                    {u.capacidad_kg != null ? ` / ${Number(u.capacidad_kg).toFixed(2)}` : ''}
+                    <OcupacionValue
+                      current={u.kilos}
+                      capacity={u.capacidad_kg}
+                      unit="kg"
+                      decimals={2}
+                    />
                   </td>
                   <td className="px-4 py-2">
                     <span
@@ -280,6 +291,49 @@ function Field({
     <div className="space-y-1">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       {children}
+    </div>
+  )
+}
+
+function OcupacionValue({
+  current,
+  capacity,
+  unit,
+  decimals = 0,
+}: {
+  current: number
+  capacity: number | null
+  unit: string
+  decimals?: number
+}) {
+  const value = decimals > 0 ? current.toFixed(decimals) : current.toString()
+  const cap =
+    capacity == null
+      ? null
+      : decimals > 0
+        ? Number(capacity).toFixed(decimals)
+        : capacity.toString()
+  const pct =
+    capacity && capacity > 0
+      ? Math.min(100, Math.round((Number(current) / Number(capacity)) * 100))
+      : null
+
+  return (
+    <div className="space-y-1">
+      <div>
+        {value}
+        {cap ? ` / ${cap}` : ''} <span className="text-xs text-muted-foreground">{unit}</span>
+      </div>
+      {pct != null && (
+        <div className="ml-auto h-1.5 w-24 rounded-full bg-zinc-100">
+          <div
+            className={`h-1.5 rounded-full ${
+              pct >= 90 ? 'bg-destructive' : pct >= 70 ? 'bg-warning' : 'bg-success'
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
     </div>
   )
 }

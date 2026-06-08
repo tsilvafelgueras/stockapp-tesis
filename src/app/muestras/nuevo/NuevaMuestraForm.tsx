@@ -45,6 +45,7 @@ export default function NuevaMuestraForm({
   articulos,
   colores,
   tintorerias,
+  clientes,
   lotes,
   ubicaciones,
   current,
@@ -53,6 +54,7 @@ export default function NuevaMuestraForm({
   articulos: Catalogo[]
   colores: Catalogo[]
   tintorerias: Catalogo[]
+  clientes: Catalogo[]
   lotes: string[]
   ubicaciones: UbicacionOption[]
   current: MuestraFiltersState
@@ -62,7 +64,9 @@ export default function NuevaMuestraForm({
   const [busqueda, setBusqueda] = useState('')
   const [rolloId, setRolloId] = useState('')
   const [kilos, setKilos] = useState('')
-  const [cliente, setCliente] = useState('')
+  const [clienteId, setClienteId] = useState('')
+  const [clienteManual, setClienteManual] = useState('')
+  const [clienteModoManual, setClienteModoManual] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -86,6 +90,18 @@ export default function NuevaMuestraForm({
       .slice(0, 50)
   }, [busqueda, rollos])
 
+  const clienteSeleccionado = useMemo(
+    () => clientes.find((c) => c.id === clienteId) ?? null,
+    [clienteId, clientes]
+  )
+  const clienteFinal = clienteModoManual
+    ? clienteManual.trim()
+    : clienteSeleccionado?.nombre.trim() ?? ''
+  const clienteOptions = useMemo(
+    () => clientes.map((c) => ({ value: c.id, label: c.nombre })),
+    [clientes]
+  )
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -107,7 +123,7 @@ export default function NuevaMuestraForm({
       )
       return
     }
-    if (!cliente.trim()) {
+    if (!clienteFinal) {
       setError('El cliente es obligatorio.')
       return
     }
@@ -116,7 +132,7 @@ export default function NuevaMuestraForm({
       const res = await registrarMuestra({
         rolloId: rolloElegido.id,
         kilos: kilosNum,
-        cliente,
+        cliente: clienteFinal,
         motivo,
         pedidoId: null,
       })
@@ -125,7 +141,7 @@ export default function NuevaMuestraForm({
         return
       }
       toast.success(
-        `Muestra de ${kilosNum.toFixed(2)} kg registrada para ${cliente.trim()}.`
+        `Muestra de ${kilosNum.toFixed(2)} kg registrada para ${clienteFinal}.`
       )
       router.push('/muestras')
     })
@@ -374,17 +390,41 @@ export default function NuevaMuestraForm({
             )}
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Cliente <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              placeholder="Nombre del cliente"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              required
-            />
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Cliente <span className="text-destructive">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setClienteModoManual((v) => !v)
+                  setClienteId('')
+                  setClienteManual('')
+                }}
+                className="text-xs text-primary hover:underline"
+              >
+                {clienteModoManual ? 'Elegir del catálogo' : 'Escribir manual'}
+              </button>
+            </div>
+            {clienteModoManual ? (
+              <input
+                type="text"
+                value={clienteManual}
+                onChange={(e) => setClienteManual(e.target.value)}
+                placeholder="Nombre del cliente"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                required
+              />
+            ) : (
+              <SearchableCombobox
+                value={clienteId}
+                onChange={setClienteId}
+                options={clienteOptions}
+                placeholder="Seleccionar cliente..."
+                searchPlaceholder="Buscar cliente..."
+                emptyLabel="No hay clientes. Usá escritura manual."
+              />
+            )}
           </div>
         </div>
         <div className="space-y-1">
@@ -409,7 +449,7 @@ export default function NuevaMuestraForm({
       <div className="flex justify-end">
         <button
           type="submit"
-          disabled={pending || !rolloId || !kilos.trim() || !cliente.trim()}
+          disabled={pending || !rolloId || !kilos.trim() || !clienteFinal}
           className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           {pending ? 'Registrando…' : 'Registrar muestra'}

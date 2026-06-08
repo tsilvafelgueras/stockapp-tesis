@@ -370,7 +370,7 @@ export default function RollosSinEtiquetaForm({
             <p className="w-8" />
           </div>
 
-          {rollos.map((rollo, idx) => (
+          {rollos.map((rollo) => (
             <div
               key={rollo.id}
               className="grid grid-cols-[1fr_1.5fr_2fr_auto] sm:grid-cols-[1fr_1.5fr_2fr_auto] gap-3 items-center"

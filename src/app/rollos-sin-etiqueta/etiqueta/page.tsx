@@ -51,22 +51,28 @@ export default function EtiquetaPage() {
         return
       }
       const supabase = createClient()
-      const { data, error: dbError } = await supabase
-        .from('rollos')
-        .select(`
-          id,
-          numero_pieza,
-          kilos,
-          ubicacion,
-          articulos!inner(nombre),
-          colores!inner(nombre),
-          ingresos!inner(
-            numero_lote,
-            fecha_despacho,
-            tintorerias!inner(nombre)
-          )
-        `)
-        .in('id', ids)
+
+      // colores no se puede joinear directamente desde rollos en PostgREST
+      // (la relación no resuelve y falla la query). Se consulta aparte y se mapea.
+      const [{ data, error: dbError }, { data: coloresRaw }] = await Promise.all([
+        supabase
+          .from('rollos')
+          .select(`
+            id,
+            numero_pieza,
+            kilos,
+            ubicacion,
+            color_id,
+            articulos!inner(nombre),
+            ingresos!inner(
+              numero_lote,
+              fecha_despacho,
+              tintorerias(nombre)
+            )
+          `)
+          .in('id', ids),
+        supabase.from('colores').select('id, nombre'),
+      ])
 
       if (dbError) {
         setError('No se pudieron cargar los datos.')
@@ -74,30 +80,36 @@ export default function EtiquetaPage() {
         return
       }
 
-      const mapped = (data ?? []).map((r: unknown) => {
-        const row = r as {
-          id: string
-          numero_pieza: string
-          kilos: number
-          ubicacion: string | null
-          articulos: { nombre: string }
-          colores: { nombre: string }
-          ingresos: {
-            numero_lote: string
-            fecha_despacho: string
-            tintorerias: { nombre: string }
-          }
+      const colorById = new Map(
+        ((coloresRaw ?? []) as { id: string; nombre: string }[]).map((c) => [c.id, c.nombre])
+      )
+
+      type RolloRaw = {
+        id: string
+        numero_pieza: string
+        kilos: number
+        ubicacion: string | null
+        color_id: string | null
+        articulos: { nombre: string }
+        ingresos: {
+          numero_lote: string
+          fecha_despacho: string
+          tintorerias: { nombre: string } | null
         }
+      }
+
+      const mapped = (data ?? []).map((r: unknown) => {
+        const row = r as RolloRaw
         return {
           id: row.id,
           numero_pieza: row.numero_pieza,
           kilos: row.kilos,
           ubicacion: row.ubicacion,
           articulo: row.articulos.nombre,
-          color: row.colores.nombre,
+          color: row.color_id ? (colorById.get(row.color_id) ?? '—') : '—',
           numero_lote: row.ingresos.numero_lote,
           fecha_despacho: row.ingresos.fecha_despacho,
-          tintoreria: row.ingresos.tintorerias.nombre,
+          tintoreria: row.ingresos.tintorerias?.nombre ?? '—',
         }
       })
 

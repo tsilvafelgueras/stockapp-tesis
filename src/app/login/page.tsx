@@ -68,34 +68,34 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-start justify-center bg-white px-4 py-8 sm:px-6 sm:py-10">
-      <section className="w-full max-w-[26rem] space-y-5">
-        <div className="mx-auto h-14 w-52 overflow-hidden sm:h-16 sm:w-56">
+    <main className="flex min-h-[100svh] items-center justify-center bg-white px-4 py-4 sm:px-6">
+      <section className="w-full max-w-[23.5rem] space-y-3">
+        <div className="mx-auto h-10 w-44 overflow-hidden sm:h-12 sm:w-48">
           <Image
             src="/nudo-palabra.svg"
             alt="NUDO"
-            width={224}
-            height={64}
+            width={192}
+            height={48}
             priority
             className="h-full w-full object-cover object-center"
           />
         </div>
 
-        <div className="w-full rounded-2xl border border-[#d9dee8] bg-white px-5 py-6 shadow-[0_8px_24px_rgba(26,43,74,0.07)] sm:px-7 sm:py-7">
+        <div className="w-full rounded-xl border border-[#d9dee8] bg-white px-4 py-5 shadow-[0_8px_24px_rgba(26,43,74,0.07)] sm:px-6">
           <div className="text-center">
             <h1
-              className="text-2xl font-bold tracking-normal sm:text-[1.75rem]"
+              className="text-xl font-bold tracking-normal sm:text-2xl"
               style={{ color: BRAND_BLUE }}
             >
               Iniciar sesión
             </h1>
-            <p className="mt-2 text-sm text-[#5c6980]">
+            <p className="mt-1 text-sm text-[#5c6980]">
               Ingresá tus datos para iniciar sesión
             </p>
           </div>
 
           {empresaPausada && (
-            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
               <p className="font-semibold text-amber-700">Tu empresa está pausada</p>
               <p className="mt-1 text-[#5c6980]">
                 Contacta al administrador de la plataforma para reactivarla.
@@ -103,7 +103,7 @@ function LoginForm() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-3">
             <div className="space-y-1.5">
               <label
                 htmlFor="email"
@@ -120,7 +120,7 @@ function LoginForm() {
                 required
                 autoComplete="email"
                 placeholder="ejemplo@gmail.com"
-                className="h-11 w-full rounded-xl border border-[#d9dee8] bg-white px-4 text-[15px] text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
+                className="h-10 w-full rounded-lg border border-[#d9dee8] bg-white px-3 text-sm text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
               />
             </div>
 
@@ -140,7 +140,7 @@ function LoginForm() {
                 required
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className="h-11 w-full rounded-xl border border-[#d9dee8] bg-white px-4 text-[15px] text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
+                className="h-10 w-full rounded-lg border border-[#d9dee8] bg-white px-3 text-sm text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
               />
             </div>
 
@@ -149,13 +149,13 @@ function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="flex h-11 w-full items-center justify-center rounded-xl bg-[#1a2b4a] px-4 text-sm font-semibold text-white transition hover:bg-[#24395d] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-10 w-full items-center justify-center rounded-lg bg-[#1a2b4a] px-4 text-sm font-semibold text-white transition hover:bg-[#24395d] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? 'Ingresando...' : 'Continuar'}
             </button>
           </form>
 
-          <div className="pt-5 text-center">
+          <div className="pt-4 text-center">
             <Link
               href="/auth/recover"
               className="text-sm text-[#1a2b4a] underline underline-offset-2 hover:text-[#24395d]"

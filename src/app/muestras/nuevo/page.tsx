@@ -64,6 +64,7 @@ export default async function NuevaMuestraPage({
     { data: articulos },
     { data: empresaTints },
     { data: lotesRaw },
+    { data: clientesRaw },
     ubicaciones,
   ] = await Promise.all([
     rollosQuery,
@@ -81,6 +82,11 @@ export default async function NuevaMuestraPage({
       .from('ingresos')
       .select('numero_lote')
       .not('numero_lote', 'is', null),
+    supabase
+      .from('clientes')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre'),
     getUbicacionesActivas(supabase),
   ])
 
@@ -153,6 +159,7 @@ export default async function NuevaMuestraPage({
         articulos={articulos ?? []}
         colores={(coloresRaw ?? []) as { id: string; nombre: string }[]}
         tintorerias={tintorerias}
+        clientes={(clientesRaw ?? []) as { id: string; nombre: string }[]}
         lotes={lotes}
         ubicaciones={ubicaciones}
         current={{

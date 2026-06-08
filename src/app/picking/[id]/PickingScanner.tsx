@@ -8,7 +8,7 @@ import ScannerByReaderType, {
   type ReaderType,
 } from '@/components/ScannerByReaderType'
 import { extraerCodigoCandidato, type PatronCodigo } from '@/lib/scanner'
-import { pickearRollo } from './actions'
+import { pickearRollo, reemplazarRolloEnPicking } from './actions'
 
 export type PickPartida = {
   id: string
@@ -70,6 +70,10 @@ export default function PickingScanner({
   const [itemsLocales, setItemsLocales] = useState<PickRollo[]>(items)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState(false)
+  const [reemplazando, setReemplazando] = useState(false)
+  const [reemplazoTarget, setReemplazoTarget] = useState<PickRollo | null>(null)
+  const [numeroReemplazo, setNumeroReemplazo] = useState('')
+  const [motivoReemplazo, setMotivoReemplazo] = useState('')
   const [mostrarPartidas, setMostrarPartidas] = useState(true)
   const [mostrarPickeados, setMostrarPickeados] = useState(true)
 
@@ -160,6 +164,62 @@ export default function PickingScanner({
     },
     [patrones]
   )
+
+  async function ejecutarReemplazo() {
+    if (!reemplazoTarget) return
+    const numero = numeroReemplazo.trim()
+    if (!numero) {
+      toast.error('Ingresá el número de pieza nuevo.')
+      return
+    }
+
+    setReemplazando(true)
+    const res = await reemplazarRolloEnPicking({
+      pedidoId,
+      rolloViejoId: reemplazoTarget.rollo_id,
+      numeroPiezaNuevo: numero,
+      motivo: motivoReemplazo,
+    })
+    setReemplazando(false)
+
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+
+    const partida = articuloColorByPartida.get(res.pedidoPartidaId)
+    setItemsLocales((prev) =>
+      prev.map((item) =>
+        item.rollo_id === reemplazoTarget.rollo_id
+          ? {
+              ...item,
+              pedido_rollo_id: res.pedidoRolloId,
+              pedido_partida_id: res.pedidoPartidaId,
+              pickeado_at: new Date().toISOString(),
+              rollo_id: res.rolloId,
+              numero_pieza: res.numeroPieza,
+              ubicacion: res.ubicacion,
+              kilos: res.kilos,
+              articulo_id: res.articuloId,
+              color_id: res.colorId,
+              articulo: partida?.articulo ?? item.articulo,
+              color: partida?.color ?? item.color,
+              partidaRealLote: res.partidaRealLote,
+              partidaSolicitadaLote: res.partidaSolicitadaLote,
+              esSustitucionPartida: res.esSustitucionPartida,
+            }
+          : item
+      )
+    )
+
+    toast.success(
+      `Rollo ${reemplazoTarget.numero_pieza} reemplazado por ${res.numeroPieza}.`
+    )
+    setReemplazoTarget(null)
+    setNumeroReemplazo('')
+    setMotivoReemplazo('')
+    router.refresh()
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -288,6 +348,7 @@ export default function PickingScanner({
                     <th className="py-2 pr-3 font-medium">Partida</th>
                     <th className="py-2 pr-3 font-medium">Ubic.</th>
                     <th className="py-2 text-right font-medium">Kg</th>
+                    <th className="py-2 pl-3 text-right font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -311,6 +372,19 @@ export default function PickingScanner({
                       <td className="py-2 pr-3">{r.ubicacion ?? '-'}</td>
                       <td className="py-2 text-right tabular-nums">
                         {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
+                      </td>
+                      <td className="py-2 pl-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReemplazoTarget(r)
+                            setNumeroReemplazo('')
+                            setMotivoReemplazo('')
+                          }}
+                          className="rounded-md border px-2 py-1 text-xs hover:bg-zinc-50"
+                        >
+                          Reemplazar
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -357,6 +431,80 @@ export default function PickingScanner({
           </div>
         </div>
       )}
+
+      {reemplazoTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
+          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Reemplazar rollo pickeado
+              </p>
+              <p className="mt-1 text-sm">
+                Sale{' '}
+                <strong className="font-mono">
+                  {reemplazoTarget.numero_pieza}
+                </strong>
+                . Ingresá la pieza que queda en su lugar.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <Field label="Nueva pieza">
+                <input
+                  type="text"
+                  value={numeroReemplazo}
+                  onChange={(e) => setNumeroReemplazo(e.target.value)}
+                  placeholder="Ej. 204021911"
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </Field>
+              <Field label="Motivo">
+                <textarea
+                  value={motivoReemplazo}
+                  onChange={(e) => setMotivoReemplazo(e.target.value)}
+                  rows={2}
+                  placeholder="Ej. error de selección, rollo dañado, cambio solicitado"
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </Field>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setReemplazoTarget(null)}
+                disabled={reemplazando}
+                className="flex-1 rounded-md border px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={ejecutarReemplazo}
+                disabled={reemplazando || !numeroReemplazo.trim()}
+                className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                {reemplazando ? 'Reemplazando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
     </div>
   )
 }

@@ -3,6 +3,9 @@ import BackButton from '@/components/BackButton'
 import { createClient } from '@/lib/supabase/server'
 import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import PedidoActions from './PedidoActions'
+import AgregarRollosPedido, {
+  type PartidaParaAgregar,
+} from './AgregarRollosPedido'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
   pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
@@ -55,6 +58,45 @@ type PedidoRolloRaw = {
     articulos: { nombre: string } | null
     ingresos: { numero_lote: string | null } | null
   } | null
+}
+
+type RolloDisponibleRaw = {
+  id: string
+  numero_pieza: string
+  ubicacion: string | null
+  kilos: number | null
+  created_at: string
+  articulo_id: string
+  color_id: string
+  articulos: { id: string; nombre: string } | null
+  ingresos: {
+    id: string
+    numero_lote: string | null
+    tintoreria_id: string | null
+    tintorerias: { id: string; nombre: string } | null
+  } | null
+}
+
+type PedidoPartidaPendienteRaw = {
+  ingreso_id: string
+  articulo_id: string
+  color_id: string
+  rollos_solicitados: number
+}
+
+type GrupoPartidaDisponible = {
+  ingresoId: string
+  numeroLote: string | null
+  articuloId: string
+  articuloNombre: string
+  colorId: string
+  colorNombre: string
+  tintoreriaNombre: string | null
+  rollos: Array<{
+    numeroPieza: string
+    kilos: number
+    createdAt: string
+  }>
 }
 
 export default async function PedidoDetailPage({
@@ -160,6 +202,13 @@ export default async function PedidoDetailPage({
       c.nombre,
     ])
   )
+
+  const puedeAgregarRollos =
+    (role === 'ventas' || role === 'admin') &&
+    ['pendiente', 'en_preparacion', 'lista'].includes(pedido.estado)
+  const partidasParaAgregar = puedeAgregarRollos
+    ? await cargarPartidasParaAgregar(supabase, colorById)
+    : []
 
   const partidas = ((partidasRaw ?? []) as unknown as PedidoPartidaRaw[]).map((p) => ({
     ...p,
@@ -297,6 +346,15 @@ export default async function PedidoDetailPage({
           estado={pedido.estado}
           role={role}
           ubicaciones={ubicaciones}
+          numeroRemitoExterno={pedido.numero_remito_externo}
+        />
+      )}
+
+      {puedeAgregarRollos && (
+        <AgregarRollosPedido
+          pedidoId={pedido.id}
+          estado={pedido.estado}
+          partidas={partidasParaAgregar}
         />
       )}
 
@@ -463,4 +521,118 @@ function motivoCaidaLabel(value: string): string {
     default:
       return value
   }
+}
+
+async function cargarPartidasParaAgregar(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  colorById: Map<string, string>
+): Promise<PartidaParaAgregar[]> {
+  const [{ data: rollosRaw }, { data: pendientesRaw }] = await Promise.all([
+    supabase
+      .from('rollos')
+      .select(
+        `
+          id,
+          numero_pieza,
+          ubicacion,
+          kilos,
+          created_at,
+          articulo_id,
+          color_id,
+          articulos ( id, nombre ),
+          ingresos!inner (
+            id,
+            numero_lote,
+            tintoreria_id,
+            tintorerias ( id, nombre )
+          )
+        `
+      )
+      .eq('estado', 'en_stock')
+      .order('created_at', { ascending: true })
+      .order('numero_pieza', { ascending: true })
+      .limit(1500),
+    supabase
+      .from('pedido_partidas')
+      .select(
+        `
+          ingreso_id,
+          articulo_id,
+          color_id,
+          rollos_solicitados,
+          pedidos!inner ( estado )
+        `
+      )
+      .in('pedidos.estado', ['pendiente', 'en_preparacion', 'lista']),
+  ])
+
+  const reservadosPorPartida = new Map<string, number>()
+  for (const p of (pendientesRaw ?? []) as unknown as PedidoPartidaPendienteRaw[]) {
+    const key = keyPartida(p.ingreso_id, p.articulo_id, p.color_id)
+    reservadosPorPartida.set(
+      key,
+      (reservadosPorPartida.get(key) ?? 0) + Number(p.rollos_solicitados ?? 0)
+    )
+  }
+
+  const grupos = new Map<string, GrupoPartidaDisponible>()
+  for (const r of (rollosRaw ?? []) as unknown as RolloDisponibleRaw[]) {
+    if (!r.ingresos || !r.articulo_id || !r.color_id) continue
+    const key = keyPartida(r.ingresos.id, r.articulo_id, r.color_id)
+    const grupo =
+      grupos.get(key) ??
+      ({
+        ingresoId: r.ingresos.id,
+        numeroLote: r.ingresos.numero_lote,
+        articuloId: r.articulo_id,
+        articuloNombre: r.articulos?.nombre ?? 'Articulo',
+        colorId: r.color_id,
+        colorNombre: colorById.get(r.color_id) ?? 'Color',
+        tintoreriaNombre: r.ingresos.tintorerias?.nombre ?? null,
+        rollos: [],
+      } satisfies GrupoPartidaDisponible)
+
+    grupo.rollos.push({
+      numeroPieza: r.numero_pieza,
+      kilos: Number(r.kilos ?? 0),
+      createdAt: r.created_at,
+    })
+    grupos.set(key, grupo)
+  }
+
+  return Array.from(grupos.values())
+    .map((g) => {
+      g.rollos.sort((a, b) => {
+        const byDate = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        if (byDate !== 0) return byDate
+        return a.numeroPieza.localeCompare(b.numeroPieza, 'es', { numeric: true })
+      })
+      const key = keyPartida(g.ingresoId, g.articuloId, g.colorId)
+      const reservados = reservadosPorPartida.get(key) ?? 0
+      const rollosLibres = g.rollos.slice(reservados)
+      return {
+        key,
+        ingresoId: g.ingresoId,
+        numeroLote: g.numeroLote,
+        articuloId: g.articuloId,
+        articuloNombre: g.articuloNombre,
+        colorId: g.colorId,
+        colorNombre: g.colorNombre,
+        tintoreriaNombre: g.tintoreriaNombre,
+        rollosDisponibles: rollosLibres.length,
+        kilosDisponibles: rollosLibres.reduce((acc, r) => acc + r.kilos, 0),
+      }
+    })
+    .filter((p) => p.rollosDisponibles > 0)
+    .sort((a, b) => {
+      const byLote = (a.numeroLote ?? '').localeCompare(b.numeroLote ?? '', 'es', {
+        numeric: true,
+      })
+      if (byLote !== 0) return byLote
+      return a.articuloNombre.localeCompare(b.articuloNombre, 'es')
+    })
+}
+
+function keyPartida(ingresoId: string, articuloId: string, colorId: string) {
+  return `${ingresoId}|${articuloId}|${colorId}`
 }

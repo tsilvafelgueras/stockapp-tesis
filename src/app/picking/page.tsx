@@ -67,7 +67,15 @@ export default async function PickingListPage() {
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
       <div>
         <DashboardBackButton />
-        <h1 className="text-xl sm:text-2xl font-bold mt-1">Picking</h1>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold">Picking</h1>
+          <Link
+            href="/picking/historial"
+            className="rounded-md border bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50"
+          >
+            Historial
+          </Link>
+        </div>
         <p className="text-sm text-muted-foreground mt-1">
           Pedidos a preparar y pedidos listos para confirmar egreso.
         </p>
