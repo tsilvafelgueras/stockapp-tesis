@@ -71,7 +71,7 @@ function LoginForm() {
     <main className="flex min-h-[100svh] items-center justify-center bg-white px-4 py-4 sm:px-6">
       <section className="w-full max-w-[23.5rem] space-y-3">
         <div className="mx-auto h-10 w-44 overflow-hidden sm:h-12 sm:w-48">
-          <a href = "/landing"><Image
+          <a href = "https://www.nudostock.com/"><Image
             src="/nudo-palabra.svg"
             alt="NUDO"
             width={192}
