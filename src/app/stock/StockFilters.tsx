@@ -20,6 +20,7 @@ export type StockFiltersState = {
   ubicacion: string
   estado: string
   orden: string
+  ot: string
 }
 
 export const ORDEN_OPCIONES: { value: string; label: string }[] = [
@@ -36,6 +37,7 @@ export default function StockFilters({
   tintorerias,
   colores,
   lotes,
+  ots,
   ubicaciones,
   current,
 }: {
@@ -43,6 +45,7 @@ export default function StockFilters({
   tintorerias: Catalogo[]
   colores: Catalogo[]
   lotes: string[]
+  ots: string[]
   ubicaciones: UbicacionOption[]
   current: StockFiltersState
 }) {
@@ -71,6 +74,7 @@ export default function StockFilters({
     !!current.articulo ||
     !!current.color ||
     !!current.lote ||
+    !!current.ot ||
     !!current.tintoreria ||
     !!current.ubicacion ||
     current.estado !== 'en_stock' ||
@@ -145,6 +149,21 @@ export default function StockFilters({
             {lotes.map((l) => (
               <option key={l} value={l}>
                 {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="OT">
+          <select
+            value={current.ot}
+            onChange={(e) => update('ot', e.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Todas</option>
+            {ots.map((o) => (
+              <option key={o} value={o}>
+                {o}
               </option>
             ))}
           </select>

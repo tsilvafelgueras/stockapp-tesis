@@ -24,6 +24,7 @@ export default async function NuevoIngresoPage() {
     { data: colores },
     { data: profile },
     ubicaciones,
+    { data: patronesRaw },
   ] = await Promise.all([
     supabase
       .from('empresa_tintorerias')
@@ -48,6 +49,11 @@ export default async function NuevoIngresoPage() {
       .eq('id', user!.id)
       .single(),
     getUbicacionesActivas(supabase),
+    supabase
+      .from('tintoreria_codigo_patrones')
+      .select('tintoreria_id, pattern, capture_group, prioridad')
+      .eq('activo', true)
+      .order('prioridad'),
   ])
 
   type EmpresaTintRow = {
@@ -113,6 +119,7 @@ export default async function NuevoIngresoPage() {
           colores={colores ?? []}
           ubicaciones={ubicaciones}
           role={role}
+          patrones={(patronesRaw ?? []) as { tintoreria_id: string | null; pattern: string; capture_group: number; prioridad: number }[]}
         />
       )}
     </div>

@@ -25,6 +25,7 @@ type SearchParams = {
   articulo?: string
   color?: string
   lote?: string
+  ot?: string
   tintoreria?: string
   ubicacion?: string
   estado?: string
@@ -86,6 +87,7 @@ export default async function StockPage({
     { data: empresaTints },
     { data: coloresRaw },
     { data: lotesRaw },
+    { data: otsRaw },
     ubicaciones,
   ] = await Promise.all([
     supabase
@@ -106,6 +108,10 @@ export default async function StockPage({
       .from('ingresos')
       .select('numero_lote')
       .not('numero_lote', 'is', null),
+    supabase
+      .from('ingresos')
+      .select('ot')
+      .not('ot', 'is', null),
     getUbicacionesActivas(supabase),
   ])
 
@@ -125,6 +131,14 @@ export default async function StockPage({
         .filter((c): c is string => Boolean(c))
     )
   ).sort((a, b) => b.localeCompare(a, 'es'))
+
+  const ots = Array.from(
+    new Set(
+      ((otsRaw ?? []) as { ot: string | null }[])
+        .map((r) => r.ot?.trim())
+        .filter((c): c is string => Boolean(c))
+    )
+  ).sort((a, b) => a.localeCompare(b, 'es'))
 
   let query = supabase
     .from('rollos')
@@ -173,6 +187,7 @@ export default async function StockPage({
   if (sp.ubicacion) query = query.eq('ubicacion', sp.ubicacion.trim())
   if (sp.color) query = query.eq('color_id', sp.color)
   if (sp.lote) query = query.eq('ingresos.numero_lote', sp.lote)
+  if (sp.ot) query = query.eq('ingresos.ot', sp.ot)
 
   const { data: rollosRaw, error } = await query
   const rollos = ((rollosRaw ?? []) as unknown as (Omit<
@@ -214,6 +229,7 @@ export default async function StockPage({
   if (sp.ubicacion) stockResumenQuery = stockResumenQuery.eq('ubicacion', sp.ubicacion.trim())
   if (sp.color) stockResumenQuery = stockResumenQuery.eq('color_id', sp.color)
   if (sp.lote) stockResumenQuery = stockResumenQuery.eq('ingresos.numero_lote', sp.lote)
+  if (sp.ot) stockResumenQuery = stockResumenQuery.eq('ingresos.ot', sp.ot)
 
   let reservasQuery = supabase
     .from('pedido_partidas')
@@ -342,12 +358,14 @@ export default async function StockPage({
         tintorerias={tintorerias ?? []}
         colores={colores}
         lotes={lotes}
+        ots={ots}
         ubicaciones={ubicaciones}
         current={{
           q: sp.q ?? '',
           articulo: sp.articulo ?? '',
           color: sp.color ?? '',
           lote: sp.lote ?? '',
+          ot: sp.ot ?? '',
           tintoreria: sp.tintoreria ?? '',
           ubicacion: sp.ubicacion ?? '',
           estado,

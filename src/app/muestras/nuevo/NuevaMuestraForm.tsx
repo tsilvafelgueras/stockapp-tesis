@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { QrCode, Barcode } from 'lucide-react'
 import { type CodeScannerResult } from '@/components/CodeScanner'
 import ScannerByReaderType from '@/components/ScannerByReaderType'
 import SearchableCombobox from '@/components/SearchableCombobox'
@@ -61,6 +62,7 @@ export default function NuevaMuestraForm({
 }) {
   const router = useRouter()
   const sp = useSearchParams()
+  const [scannerTipo, setScannerTipo] = useState<'qr' | 'barcode' | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [rolloId, setRolloId] = useState('')
   const [kilos, setKilos] = useState('')
@@ -282,14 +284,52 @@ export default function NuevaMuestraForm({
         </div>
       </section>
 
-      <ScannerByReaderType
-        readerType={null}
-        onRead={handleLectura}
-        paused={pending}
-        title="Escanear rollo"
-        manualLabel="Ingresar pieza manualmente"
-        manualPlaceholder="Ej. 204021911"
-      />
+      <section className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Escanear etiqueta
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setScannerTipo(scannerTipo === 'qr' ? null : 'qr')}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
+              scannerTipo === 'qr'
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-white border-input hover:bg-zinc-50'
+            }`}
+          >
+            <QrCode className="size-3.5" />
+            Código QR
+          </button>
+          <button
+            type="button"
+            onClick={() => setScannerTipo(scannerTipo === 'barcode' ? null : 'barcode')}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
+              scannerTipo === 'barcode'
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-white border-input hover:bg-zinc-50'
+            }`}
+          >
+            <Barcode className="size-3.5" />
+            Código de barras
+          </button>
+        </div>
+        {!scannerTipo && (
+          <p className="text-xs text-muted-foreground">
+            Seleccioná el tipo de etiqueta para activar la cámara, o buscá el rollo en la lista.
+          </p>
+        )}
+        {scannerTipo && (
+          <ScannerByReaderType
+            readerType={scannerTipo}
+            onRead={handleLectura}
+            paused={pending}
+            title={scannerTipo === 'qr' ? 'Escanear código QR' : 'Escanear código de barras'}
+            manualLabel="Ingresar pieza manualmente"
+            manualPlaceholder="Ej. 204021911"
+          />
+        )}
+      </section>
 
       <form onSubmit={handleSubmit} className="space-y-4">
 
