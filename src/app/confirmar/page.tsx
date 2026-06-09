@@ -15,7 +15,10 @@ export default async function ConfirmarPage() {
     ...new Set((rollosPendientes ?? []).map((r) => r.ingreso_id as string)),
   ]
 
-  const ingresos =
+  // Nota: `colores ( nombre )` anidado dentro de `rollos` no resuelve
+  // la relación en PostgREST y rompe toda la query. Se obtiene color_id
+  // de los rollos y se resuelven los nombres con una query aparte.
+  const ingresosRaw =
     ingresoIds.length > 0
       ? await supabase
           .from('ingresos')
@@ -23,12 +26,35 @@ export default async function ConfirmarPage() {
             id, fecha_despacho, numero_remito, total_rollos_declarado, ot,
             tintorerias ( nombre ),
             articulos ( nombre ),
-            rollos ( id, estado, colores ( nombre ) )
+            rollos ( id, estado, color_id )
           `)
           .in('id', ingresoIds)
           .order('fecha_despacho', { ascending: false })
           .then((r) => r.data)
       : []
+
+  // Resolver nombres de colores en batch
+  const allColorIds = [
+    ...new Set(
+      (ingresosRaw ?? []).flatMap((ing) =>
+        ((ing.rollos as unknown as { color_id: string | null }[] | null) ?? [])
+          .map((r) => r.color_id)
+          .filter((cid): cid is string => Boolean(cid))
+      )
+    ),
+  ]
+  const colorById = new Map<string, string>()
+  if (allColorIds.length > 0) {
+    const { data: coloresData } = await supabase
+      .from('colores')
+      .select('id, nombre')
+      .in('id', allColorIds)
+    ;(coloresData ?? []).forEach((c) =>
+      colorById.set(c.id as string, c.nombre as string)
+    )
+  }
+
+  const ingresos = ingresosRaw
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
@@ -61,14 +87,14 @@ export default async function ConfirmarPage() {
               (ingreso.rollos as unknown as {
                 id: string
                 estado: string
-                colores: { nombre: string } | null
+                color_id: string | null
               }[] | null) ?? []
             const pendientes = rollosArr.filter((r) => r.estado === 'pendiente').length
             const total = rollosArr.length
 
             // Obtener color del primer rollo que lo tenga
             const colorNombre = rollosArr
-              .map((r) => r.colores?.nombre)
+              .map((r) => (r.color_id ? colorById.get(r.color_id) : undefined))
               .find((c): c is string => Boolean(c))
 
             return (
