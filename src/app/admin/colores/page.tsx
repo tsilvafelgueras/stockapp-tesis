@@ -56,7 +56,7 @@ export default async function ColoresPage() {
 
       <SolicitudesColorPanel solicitudes={solicitudes} />
 
-      <ColorForm />
+      <ColorForm colores={colores ?? []} />
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">

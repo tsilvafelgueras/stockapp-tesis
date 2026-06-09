@@ -451,6 +451,7 @@ function buildStockSummary(
       key: string
       lote: string
       rollos: number
+      en_stock: number
       reservado: number
       pickeados: number
       libre: number
@@ -466,6 +467,7 @@ function buildStockSummary(
       key,
       lote,
       rollos: 0,
+      en_stock: 0,
       reservado: 0,
       pickeados: 0,
       libre: 0,
@@ -493,6 +495,7 @@ function buildStockSummary(
       r.ingresos?.numero_lote ?? 'Sin partida'
     )
     partida.rollos += 1
+    if (r.estado === 'en_stock') partida.en_stock += 1
     if (r.estado === 'reservado') partida.pickeados += 1
   }
 
@@ -522,7 +525,7 @@ function buildStockSummary(
         lote: p.lote,
         rollos: p.rollos,
         reservado: p.reservado,
-        libre: Math.max(0, p.rollos - Math.max(p.reservado, p.pickeados)),
+        libre: Math.max(0, p.en_stock - p.reservado),
       }))
       .sort((a, b) => a.lote.localeCompare(b.lote, 'es', { numeric: true }))
 
@@ -553,7 +556,7 @@ function buildReservaBanner(
     lote,
     rollos,
     reservado,
-    libre: Math.max(0, rollos - reservado),
+    libre: matches.reduce((acc, p) => acc + p.libre, 0),
   }
 }
 

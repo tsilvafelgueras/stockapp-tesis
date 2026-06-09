@@ -55,12 +55,13 @@ export async function createColor(formData: { nombre: string }) {
         .eq('nombre', nombre)
         .maybeSingle()
       if (existente) return { success: true, color: existente, alreadyExists: true }
-      return { error: `El color "${nombre}" ya existe.` }
+      return { error: `El color "${nombre}" ya existe en el catálogo.` }
     }
     return { error: error.message }
   }
 
   revalidatePath('/admin/colores')
+  revalidatePath('/admin/articulos')
   return { success: true, color: data }
 }
 

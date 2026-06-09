@@ -82,7 +82,7 @@ export default async function ArticulosPage() {
         </div>
       </div>
 
-      <NuevoArticuloForm colores={colores ?? []} role={role} />
+      <NuevoArticuloForm />
 
       <ArticulosTabla
         articulos={articulos}

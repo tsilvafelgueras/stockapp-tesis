@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react'
 import { ChevronDown, ChevronRight, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { createColor, solicitarColor } from '@/app/admin/colores/actions'
 import { createArticulo, deleteArticulo, updateArticulo } from './actions'
 
 type Catalog = { id: string; nombre: string; stock_minimo_kg?: number | null }
@@ -18,224 +17,22 @@ type Articulo = {
 
 type Role = 'admin' | 'ventas' | 'operario' | 'super'
 
-function ColorMultiPicker({
-  selectedIds,
-  onChange,
-  colores,
-  onColorCreated,
-  role,
-  className,
-}: {
-  selectedIds: string[]
-  onChange: (ids: string[]) => void
-  colores: Catalog[]
-  onColorCreated: (c: Catalog) => void
-  role: Role
-  className?: string
-}) {
-  const [creating, setCreating] = useState(false)
-  const [nuevoNombre, setNuevoNombre] = useState('')
-  const [pending, startTransition] = useTransition()
-
-  const disponibles = useMemo(
-    () => colores.filter((c) => !selectedIds.includes(c.id)),
-    [colores, selectedIds]
-  )
-  const seleccionados = useMemo(
-    () =>
-      selectedIds
-        .map((id) => colores.find((c) => c.id === id))
-        .filter((c): c is Catalog => Boolean(c)),
-    [colores, selectedIds]
-  )
-
-  function agregar(id: string) {
-    if (!id || selectedIds.includes(id)) return
-    onChange([...selectedIds, id])
-  }
-
-  function quitar(id: string) {
-    onChange(selectedIds.filter((x) => x !== id))
-  }
-
-  function crearOSolicitar() {
-    const limpio = nuevoNombre.trim()
-    if (!limpio) return
-    startTransition(async () => {
-      if (role === 'admin' || role === 'super') {
-        const res = await createColor({ nombre: limpio })
-        if (res.error) {
-          toast.error(res.error)
-          return
-        }
-        toast.success(`Color "${limpio}" creado.`)
-        setNuevoNombre('')
-        setCreating(false)
-        return
-      }
-
-      const res = await solicitarColor({ nombre: limpio })
-      if ('error' in res) {
-        toast.error(res.error ?? 'No se pudo enviar la solicitud.')
-        return
-      }
-      if ('alreadyExists' in res && res.alreadyExists) {
-        toast.success(`"${limpio}" ya existe en el catalogo.`)
-        onColorCreated(res.color as Catalog)
-        agregar((res.color as Catalog).id)
-      } else if ('alreadyPending' in res) {
-        toast.info(`Ya hay una solicitud pendiente para "${limpio}".`)
-      } else {
-        toast.success(`Solicitud enviada al admin para "${limpio}".`)
-      }
-      setNuevoNombre('')
-      setCreating(false)
-    })
-  }
-
-  return (
-    <div className="space-y-1.5">
-      {seleccionados.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {seleccionados.map((c) => (
-            <span
-              key={c.id}
-              className="inline-flex items-center gap-1 rounded-full bg-action/10 px-2 py-0.5 text-xs font-medium text-action"
-            >
-              {c.nombre}
-              <button
-                type="button"
-                onClick={() => quitar(c.id)}
-                className="rounded-full p-0.5 hover:bg-action/20"
-                aria-label={`Quitar color ${c.nombre}`}
-                title="Quitar"
-              >
-                <X className="size-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {creating ? (
-        <div className="flex gap-2">
-          <input
-            autoFocus
-            value={nuevoNombre}
-            onChange={(e) => setNuevoNombre(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                crearOSolicitar()
-              }
-              if (e.key === 'Escape') {
-                setCreating(false)
-                setNuevoNombre('')
-              }
-            }}
-            placeholder={
-              role === 'admin' || role === 'super'
-                ? 'Crear color nuevo...'
-                : 'Solicitar color nuevo al admin...'
-            }
-            className={className}
-          />
-          <button
-            type="button"
-            onClick={crearOSolicitar}
-            disabled={pending || !nuevoNombre.trim()}
-            className="shrink-0 self-stretch rounded-md bg-action px-3 text-xs font-medium text-action-foreground hover:bg-action/90 disabled:opacity-50"
-          >
-            {pending ? '...' : role === 'admin' || role === 'super' ? 'Crear' : 'Solicitar'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setCreating(false)
-              setNuevoNombre('')
-            }}
-            className="flex shrink-0 self-stretch items-center justify-center rounded-md border border-input px-2.5 text-muted-foreground hover:bg-zinc-100"
-            aria-label="Cancelar"
-            title="Cancelar"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <select
-            value=""
-            onChange={(e) => agregar(e.target.value)}
-            className={className}
-          >
-            <option value="" disabled>
-              {disponibles.length
-                ? 'Agregar color...'
-                : 'No quedan colores para agregar'}
-            </option>
-            {disponibles.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="flex shrink-0 self-stretch items-center justify-center rounded-md border border-input px-3 text-muted-foreground hover:bg-zinc-100 hover:text-foreground"
-            aria-label={
-              role === 'admin' || role === 'super'
-                ? 'Crear color nuevo'
-                : 'Solicitar color nuevo al admin'
-            }
-            title={
-              role === 'admin' || role === 'super'
-                ? 'Crear color nuevo'
-                : 'Solicitar color nuevo al admin'
-            }
-          >
-            <Plus className="size-4" />
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-export function NuevoArticuloForm({
-  colores: coloresIniciales = [],
-  role,
-}: {
-  colores?: Catalog[]
-  role: Role
-}) {
-  const [colores, setColores] = useState(coloresIniciales)
+export function NuevoArticuloForm() {
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
-  const [coloresIds, setColoresIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!coloresIds.length) {
-      setError('Asocia al menos un color al articulo.')
-      return
-    }
     setLoading(true)
     setError(null)
-    const result = await createArticulo({
-      nombre,
-      descripcion,
-      colores_ids: coloresIds,
-      stock_minimos_por_color: {},
-    })
+    const result = await createArticulo({ nombre, descripcion })
     if (result.error) {
       setError(result.error)
     } else {
       setNombre('')
       setDescripcion('')
-      setColoresIds([])
     }
     setLoading(false)
   }
@@ -268,27 +65,12 @@ export function NuevoArticuloForm({
         </Field>
       </div>
 
-      <Field label="Colores *">
-        <ColorMultiPicker
-          selectedIds={coloresIds}
-          onChange={setColoresIds}
-          colores={colores}
-          onColorCreated={(c) =>
-            setColores((prev) =>
-              prev.find((p) => p.id === c.id) ? prev : [...prev, c]
-            )
-          }
-          role={role}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-      </Field>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="!mt-6 flex justify-end border-t pt-4">
         <button
           type="submit"
-          disabled={loading || !coloresIds.length}
+          disabled={loading}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
           {loading ? 'Guardando...' : 'Agregar artículo'}
