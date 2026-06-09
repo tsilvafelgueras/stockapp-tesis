@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { validarUbicacionActiva } from '@/lib/ubicacionesServer'
 
 export type ConfirmarRolloResult =
   | {
@@ -55,9 +56,17 @@ export async function confirmarRollo(
     }
   }
 
+  const ubicacionClean = ubicacion.trim()
+  if (ubicacionClean) {
+    const valida = await validarUbicacionActiva(supabase, ubicacionClean)
+    if (!valida.ok) {
+      return { ok: false, error: valida.error, codigo: 'DB_ERROR' }
+    }
+  }
+
   const { error: updateError } = await supabase
     .from('rollos')
-    .update({ estado: 'en_stock', ubicacion: ubicacion.trim() || null })
+    .update({ estado: 'en_stock', ubicacion: ubicacionClean || null })
     .eq('id', rollo.id)
 
   if (updateError) {
@@ -200,14 +209,24 @@ export async function confirmarPartida(
   }
 
   const ubicacionGeneral = input.ubicacionGeneral?.trim() || null
+  if (ubicacionGeneral) {
+    const valida = await validarUbicacionActiva(supabase, ubicacionGeneral)
+    if (!valida.ok) return { ok: false, error: valida.error, codigo: 'DB_ERROR' }
+  }
   const overridesPorId = new Map(input.overrides.map((o) => [o.id, o]))
 
   // Actualizamos cada rollo pendiente: pasa a en_stock, toma la
   // ubicación de la partida (salvo override) y el comentario puntual.
   for (const rollo of pendientes) {
     const override = overridesPorId.get(rollo.id)
-    const ubicacion =
-      override?.ubicacion?.trim() || ubicacionGeneral
+    const overrideUbicacion = override?.ubicacion?.trim() || null
+    if (overrideUbicacion) {
+      const valida = await validarUbicacionActiva(supabase, overrideUbicacion)
+      if (!valida.ok) {
+        return { ok: false, error: valida.error, codigo: 'DB_ERROR' }
+      }
+    }
+    const ubicacion = overrideUbicacion || ubicacionGeneral
     const comentario = override?.comentario?.trim() || null
 
     const { error: updError } = await supabase

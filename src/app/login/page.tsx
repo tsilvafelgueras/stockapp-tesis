@@ -1,11 +1,12 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowRight, Boxes, ShieldCheck } from 'lucide-react'
-import BrandMark from '@/components/BrandMark'
 import { createClient } from '@/lib/supabase/client'
+
+const BRAND_BLUE = '#1a2b4a'
 
 export default function LoginPage() {
   return (
@@ -54,7 +55,9 @@ function LoginForm() {
       .eq('id', data.user.id)
       .single()
 
-    if (profile?.role === 'operario') {
+    if (profile?.role === 'super') {
+      router.push('/super')
+    } else if (profile?.role === 'operario') {
       router.push('/operario/dashboard')
     } else if (profile?.role === 'ventas') {
       router.push('/ventas/dashboard')
@@ -65,77 +68,49 @@ function LoginForm() {
   }
 
   return (
-    <main className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,1fr)]">
-      <section className="hidden bg-sidebar text-sidebar-foreground lg:flex lg:flex-col lg:justify-between lg:p-10">
-        <div className="flex items-center gap-3">
-          <BrandMark className="size-11" />
-          <div>
-            <p className="font-heading text-2xl font-bold leading-none">NUDO</p>
-            <p className="mt-1 text-xs text-white/60">WMS textil</p>
-          </div>
+    <main className="flex min-h-[100svh] items-center justify-center bg-white px-4 py-4 sm:px-6">
+      <section className="w-full max-w-[23.5rem] space-y-3">
+        <div className="mx-auto h-10 w-44 overflow-hidden sm:h-12 sm:w-48">
+          <a href = "https://www.nudostock.com/"><Image
+            src="/nudo-palabra.svg"
+            alt="NUDO"
+            width={192}
+            height={48}
+            priority
+            className="h-full w-full object-cover object-center"
+          />
+          </a>
         </div>
 
-        <div className="max-w-md space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/72">
-            <Boxes className="size-3.5" />
-            Stock real, sin vueltas
-          </div>
-          <h1 className="text-4xl font-bold leading-tight text-white">
-            Rollos, pedidos y tintorerías en un solo lugar.
-          </h1>
-          <p className="text-base leading-7 text-white/68">
-            Diseñado para depósito y ventas: rápido en celular, claro en
-            escritorio y preparado para el ritmo de una PyME textil argentina.
-          </p>
-
-          <div className="rounded-lg border border-white/15 bg-white/5 p-4 space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-white">
-              <ShieldCheck className="size-4 text-white/80" />
-              Tus datos son tuyos
-            </div>
-            <ul className="space-y-1.5 text-xs leading-relaxed text-white/65">
-              <li>· Cada empresa ve sólo sus rollos, pedidos y clientes.</li>
-              <li>· No cruzamos información entre empresas. Nunca.</li>
-              <li>
-                · No usamos tus datos para entrenar modelos ni para ningún otro
-                fin.
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <p className="text-xs text-white/45">Nudo para equipos textiles</p>
-      </section>
-
-      <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-        <div className="w-full max-w-md space-y-6 rounded-xl border bg-white p-6 shadow-sm sm:p-8">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 lg:hidden">
-              <BrandMark className="size-10" />
-              <p className="font-heading text-2xl font-bold">NUDO</p>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-normal">
-                Entrar a la plataforma
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Ingresá con tu cuenta de trabajo.
-              </p>
-            </div>
+        <div className="w-full rounded-xl border border-[#d9dee8] bg-white px-4 py-5 shadow-[0_8px_24px_rgba(26,43,74,0.07)] sm:px-6">
+          <div className="text-center">
+            <h1
+              className="text-xl font-bold tracking-normal sm:text-2xl"
+              style={{ color: BRAND_BLUE }}
+            >
+              Iniciar sesión
+            </h1>
+            <p className="mt-1 text-sm text-[#5c6980]">
+              Ingresá tus datos para iniciar sesión
+            </p>
           </div>
 
           {empresaPausada && (
-            <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-foreground">
-              <p className="font-medium text-warning">Tu empresa está pausada</p>
-              <p className="mt-0.5 text-muted-foreground">
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+              <p className="font-semibold text-amber-700">Tu empresa está pausada</p>
+              <p className="mt-1 text-[#5c6980]">
                 Contacta al administrador de la plataforma para reactivarla.
               </p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-3">
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
+              <label
+                htmlFor="email"
+                className="text-sm font-semibold"
+                style={{ color: BRAND_BLUE }}
+              >
                 Email
               </label>
               <input
@@ -145,13 +120,17 @@ function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                placeholder="usuario@mail.com"
-                className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm placeholder:text-muted-foreground"
+                placeholder="ejemplo@gmail.com"
+                className="h-10 w-full rounded-lg border border-[#d9dee8] bg-white px-3 text-sm text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium">
+              <label
+                htmlFor="password"
+                className="text-sm font-semibold"
+                style={{ color: BRAND_BLUE }}
+              >
                 Contraseña
               </label>
               <input
@@ -162,37 +141,28 @@ function LoginForm() {
                 required
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm placeholder:text-muted-foreground"
+                className="h-10 w-full rounded-lg border border-[#d9dee8] bg-white px-3 text-sm text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
               />
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-sm text-red-600">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-action px-4 py-2 text-sm font-semibold text-action-foreground transition-colors hover:bg-action/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full items-center justify-center rounded-lg bg-[#1a2b4a] px-4 text-sm font-semibold text-white transition hover:bg-[#24395d] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? 'Ingresando...' : 'Ingresar'}
-              {!loading && <ArrowRight className="size-4" />}
+              {loading ? 'Ingresando...' : 'Continuar'}
             </button>
           </form>
 
-          <div className="text-center pt-1">
+          <div className="pt-4 text-center">
             <Link
               href="/auth/recover"
-              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="text-sm text-[#1a2b4a] underline underline-offset-2 hover:text-[#24395d]"
             >
               ¿Olvidaste tu contraseña?
             </Link>
-          </div>
-
-          <div className="lg:hidden flex items-start gap-2 rounded-md border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
-            <ShieldCheck className="size-4 shrink-0 mt-0.5 text-action" />
-            <p>
-              Tus datos están aislados por empresa. Nunca se cruzan con los de
-              otros clientes ni se usan con otros fines.
-            </p>
           </div>
         </div>
       </section>

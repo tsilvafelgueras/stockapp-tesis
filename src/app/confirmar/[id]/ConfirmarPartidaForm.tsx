@@ -3,7 +3,11 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { UBICACIONES } from '@/lib/ubicaciones'
+import SearchableCombobox from '@/components/SearchableCombobox'
+import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
 import { confirmarPartida } from './actions'
 
 export type RolloPartida = {
@@ -17,6 +21,7 @@ type Props = {
   ingresoId: string
   rollos: RolloPartida[]
   totalDeclarado: number | null
+  ubicaciones: UbicacionOption[]
 }
 
 type Override = { ubicacion: string; comentario: string }
@@ -25,6 +30,7 @@ export default function ConfirmarPartidaForm({
   ingresoId,
   rollos,
   totalDeclarado,
+  ubicaciones,
 }: Props) {
   const router = useRouter()
   const filas = rollos.length
@@ -36,6 +42,7 @@ export default function ConfirmarPartidaForm({
   const [nota, setNota] = useState('')
   const [overrides, setOverrides] = useState<Record<string, Override>>({})
   const [confirmando, setConfirmando] = useState(false)
+  const ubicacionOptions = ubicacionesToOptions(ubicaciones)
 
   // ¿El conteo coincide con lo que falta confirmar? Comparamos contra los
   // rollos PENDIENTES (`filas`), no contra el total declarado: una partida
@@ -213,18 +220,14 @@ export default function ConfirmarPartidaForm({
         <p className="text-xs text-muted-foreground">
           Se asigna a todos los rollos. Podés sobrescribirla por rollo abajo.
         </p>
-        <select
+        <SearchableCombobox
           value={ubicacionGeneral}
-          onChange={(e) => setUbicacionGeneral(e.target.value)}
-          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="">Sin ubicación</option>
-          {UBICACIONES.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
+          onChange={setUbicacionGeneral}
+          options={ubicacionOptions}
+          placeholder="Sin ubicacion"
+          searchPlaceholder="Buscar ubicacion..."
+          emptyLabel="No hay ubicaciones"
+        />
       </div>
 
       <div className="rounded-lg border bg-white shadow-sm">
@@ -250,23 +253,18 @@ export default function ConfirmarPartidaForm({
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <select
+                  <SearchableCombobox
                     value={o?.ubicacion ?? ''}
-                    onChange={(e) =>
-                      setOverride(r.id, 'ubicacion', e.target.value)
+                    onChange={(value) => setOverride(r.id, 'ubicacion', value)}
+                    options={ubicacionOptions}
+                    placeholder={
+                      ubicacionGeneral
+                        ? `Ubicacion de la partida (${ubicacionGeneral})`
+                        : 'Ubicacion de la partida'
                     }
-                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="">
-                      Ubicación de la partida
-                      {ubicacionGeneral ? ` (${ubicacionGeneral})` : ''}
-                    </option>
-                    {UBICACIONES.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                    searchPlaceholder="Buscar ubicacion..."
+                    emptyLabel="No hay ubicaciones"
+                  />
                   <input
                     value={o?.comentario ?? ''}
                     onChange={(e) =>

@@ -125,7 +125,7 @@ export async function GET(request: Request) {
       [
         ['Ingresos', m.mes, m.ingresosRollos, m.ingresosKilos.toFixed(2)],
         ['Egresos', m.mes, m.egresosRollos, m.egresosKilos.toFixed(2)],
-        ['Pedidos entregados', m.mes, m.pedidosEntregados, ''],
+        ['Pedidos egresados', m.mes, m.pedidosEntregados, ''],
       ]
     )
     filename = 'reporte-movimientos.csv'
@@ -156,7 +156,7 @@ export async function GET(request: Request) {
       [
         'Tintorería',
         'Pedidos',
-        'Entregados',
+        'Egresados',
         'En curso',
         'Cancelados',
         'Rollos',

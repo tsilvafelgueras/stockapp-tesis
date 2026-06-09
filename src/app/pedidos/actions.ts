@@ -7,30 +7,53 @@ export type CrearPedidoResult =
   | { ok: true; pedidoId: string }
   | { ok: false; error: string }
 
-export async function crearPedido(
+export type PedidoPartidaInput = {
+  ingresoId: string
+  articuloId: string
+  colorId: string
+  cantidad: number
+}
+
+export async function crearPedidoPorPartidas(
   clienteId: string,
   numeroRemitoExterno: string,
-  rolloIds: string[],
+  partidas: PedidoPartidaInput[],
   fechaEntregaComprometida: string
 ): Promise<CrearPedidoResult> {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+  if (!user) return { ok: false, error: 'Tu sesion expiro. Volve a entrar.' }
 
   if (!clienteId) {
-    return { ok: false, error: 'Elegí un cliente del catálogo.' }
-  }
-  if (rolloIds.length === 0) {
-    return { ok: false, error: 'Tenés que seleccionar al menos un rollo.' }
+    return { ok: false, error: 'Elegi un cliente del catalogo.' }
   }
 
-  // La RPC valida rol, empresa, estado de los rollos y atomicidad.
-  const { data, error } = await supabase.rpc('crear_pedido', {
+  const items = partidas
+    .map((p) => ({
+      ingreso_id: p.ingresoId,
+      articulo_id: p.articuloId,
+      color_id: p.colorId,
+      cantidad: Math.trunc(Number(p.cantidad)),
+    }))
+    .filter(
+      (p) =>
+        p.ingreso_id &&
+        p.articulo_id &&
+        p.color_id &&
+        Number.isFinite(p.cantidad) &&
+        p.cantidad > 0
+    )
+
+  if (items.length === 0) {
+    return { ok: false, error: 'Tenes que seleccionar al menos una partida.' }
+  }
+
+  const { data, error } = await supabase.rpc('crear_pedido_por_partidas', {
     p_cliente_id: clienteId,
     p_numero_remito_externo: numeroRemitoExterno.trim() || null,
-    p_rollo_ids: rolloIds,
+    p_items: items,
     p_fecha_entrega_comprometida: fechaEntregaComprometida || null,
   })
 
@@ -39,11 +62,71 @@ export async function crearPedido(
   }
 
   revalidatePath('/pedidos')
+  revalidatePath('/picking')
   revalidatePath('/stock')
   return { ok: true, pedidoId: data as string }
 }
 
 export type SimpleResult = { ok: true } | { ok: false; error: string }
+
+function buildPedidoItems(partidas: PedidoPartidaInput[]) {
+  return partidas
+    .map((p) => ({
+      ingreso_id: p.ingresoId,
+      articulo_id: p.articuloId,
+      color_id: p.colorId,
+      cantidad: Math.trunc(Number(p.cantidad)),
+    }))
+    .filter(
+      (p) =>
+        p.ingreso_id &&
+        p.articulo_id &&
+        p.color_id &&
+        Number.isFinite(p.cantidad) &&
+        p.cantidad > 0
+    )
+}
+
+export async function actualizarPedidoRemito(
+  pedidoId: string,
+  numeroRemitoExterno: string
+): Promise<SimpleResult> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('actualizar_pedido_remito', {
+    p_pedido_id: pedidoId,
+    p_numero_remito_externo: numeroRemitoExterno.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath(`/clientes`)
+  return { ok: true }
+}
+
+export async function agregarPartidasAPedido(
+  pedidoId: string,
+  partidas: PedidoPartidaInput[]
+): Promise<SimpleResult> {
+  const supabase = await createClient()
+  const items = buildPedidoItems(partidas)
+  if (items.length === 0) {
+    return { ok: false, error: 'Tenes que seleccionar al menos una partida.' }
+  }
+
+  const { error } = await supabase.rpc('agregar_partidas_a_pedido', {
+    p_pedido_id: pedidoId,
+    p_items: items,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/picking')
+  revalidatePath(`/picking/${pedidoId}`)
+  revalidatePath('/stock')
+  return { ok: true }
+}
 
 export async function cancelarPedido(
   pedidoId: string,
@@ -62,6 +145,7 @@ export async function cancelarPedido(
 
   revalidatePath('/pedidos')
   revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/picking')
   revalidatePath('/stock')
   return { ok: true }
 }
@@ -81,20 +165,8 @@ export async function confirmarEgresoPedido(
 
   revalidatePath('/pedidos')
   revalidatePath(`/pedidos/${pedidoId}`)
-  return { ok: true }
-}
-
-export async function entregarPedido(
-  pedidoId: string
-): Promise<SimpleResult> {
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('entregar_pedido', {
-    p_pedido_id: pedidoId,
-  })
-  if (error) return { ok: false, error: error.message }
-
-  revalidatePath('/pedidos')
-  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/picking')
+  revalidatePath(`/picking/${pedidoId}`)
   revalidatePath('/stock')
   return { ok: true }
 }

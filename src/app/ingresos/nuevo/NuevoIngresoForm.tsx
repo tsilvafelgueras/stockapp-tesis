@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Camera, X } from 'lucide-react'
+import { Camera, QrCode, Barcode, X } from 'lucide-react'
 import {
   crearIngreso,
   procesarPlanillaConIA,
@@ -16,6 +16,13 @@ import {
   type IngresoExtraido,
   type Field,
 } from '@/lib/extraccion/extraerPlanilla'
+import type { UbicacionOption } from '@/lib/ubicaciones'
+import ScannerByReaderType from '@/components/ScannerByReaderType'
+import type { CodeScannerResult } from '@/components/CodeScanner'
+import { extraerCodigoCandidato } from '@/lib/scanner'
+import type { PatronCodigo } from '@/lib/scanner'
+
+type PatronConTintoreria = PatronCodigo & { tintoreria_id: string | null }
 
 type Catalog = { id: string; nombre: string }
 type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
@@ -178,12 +185,16 @@ export default function NuevoIngresoForm({
   tintorerias: initialTintorerias,
   articulos: initialArticulos,
   colores: initialColores,
+  ubicaciones,
   role,
+  patrones,
 }: {
   tintorerias: Catalog[]
   articulos: ArticuloCatalog[]
   colores: Catalog[]
+  ubicaciones: UbicacionOption[]
   role: Role
+  patrones: PatronConTintoreria[]
 }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -219,6 +230,8 @@ export default function NuevoIngresoForm({
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const [scannerTipo, setScannerTipo] = useState<'qr' | 'barcode' | null>(null)
 
   function updateRollo<K extends keyof RolloInput>(
     idx: number,
@@ -616,6 +629,74 @@ export default function NuevoIngresoForm({
       rollosInconsistentes,
     }
   }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
+
+  function handleScanIngreso(result: CodeScannerResult) {
+    const raw = result.texto.trim()
+    if (!raw) return
+
+    // 1. Extraer numero_pieza usando patrones de la tintorería seleccionada
+    const patronesFiltrados = patrones.filter(
+      (p) => p.tintoreria_id === tintoreriaId || p.tintoreria_id === null
+    )
+    let numeroPieza = extraerCodigoCandidato(raw, patronesFiltrados) ?? ''
+    if (!numeroPieza) {
+      numeroPieza = /^\d+$/.test(raw) ? raw.replace(/^0+/, '') || raw : raw
+    }
+
+    // 2. Extraer kilos: último número decimal en el payload
+    const kilosMatches = [...raw.matchAll(/\d+[.,]\d+/g)]
+    const kilosStr = kilosMatches.length > 0
+      ? kilosMatches[kilosMatches.length - 1][0].replace(',', '.')
+      : ''
+
+    // 3. Extraer color: buscar token exacto en catálogo
+    const rawNorm = raw.toLowerCase()
+    const colorEncontrado = colores.find((c) => {
+      const cn = normNombre(c.nombre)
+      return cn.length >= 3 && rawNorm.includes(cn)
+    })
+    const colorId = colorEncontrado?.id ?? null
+
+    // 4. Extraer artículo: fuzzy match por tokens
+    const rawToks = tokens(rawNorm)
+    const articuloEncontrado = articulos.find((a) => {
+      const toksArt = tokens(normNombre(a.nombre))
+      if (!toksArt.length) return false
+      const coinc = toksArt.filter((ct) => rawToks.some((rt) => tokenMatch(ct, rt))).length
+      return coinc >= 1 && coinc / toksArt.length >= 0.6
+    })
+    const articuloId = articuloEncontrado?.id ?? null
+
+    // 5. Color válido solo si el artículo lo tiene en su pivot
+    const colorValidoParaArticulo = articuloEncontrado
+      ? articuloEncontrado.colores.some((c) => c.id === colorId)
+      : true
+
+    const nuevoRollo: RolloInput = {
+      ...emptyRollo(),
+      numero_pieza: numeroPieza,
+      kilos: kilosStr,
+      articulo_id: articuloId,
+      color_id: colorValidoParaArticulo ? colorId : null,
+    }
+
+    setRollos((prev) => {
+      const ultimo = prev[prev.length - 1]
+      const ultimoVacio = !ultimo.numero_pieza && !ultimo.kilos && !ultimo.articulo_id
+      if (ultimoVacio) return [...prev.slice(0, -1), nuevoRollo]
+      return [...prev, nuevoRollo]
+    })
+
+    const extraidos = [
+      numeroPieza && 'N° pieza',
+      kilosStr && 'kilos',
+      articuloId && 'artículo',
+      colorValidoParaArticulo && colorId && 'color',
+    ].filter(Boolean)
+    toast.success(
+      `Rollo escaneado${extraidos.length ? ` — ${extraidos.join(', ')}` : ''}. Verificá los datos.`
+    )
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1053,13 +1134,19 @@ export default function NuevoIngresoForm({
           <div className="space-y-1">
             <label className="text-sm font-medium">Ubicación</label>
             <div className="flex gap-2">
-              <input
-                type="text"
+              <select
                 value={bulkUbicacion}
                 onChange={(e) => setBulkUbicacion(e.target.value)}
-                placeholder="Ej. A1"
                 className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
+              >
+                <option value="">Seleccionar...</option>
+                {ubicaciones.map((u) => (
+                  <option key={u.codigo} value={u.codigo}>
+                    {u.codigo}
+                    {u.descripcion ? ` - ${u.descripcion}` : ''}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={applyBulkUbicacion}
@@ -1083,6 +1170,64 @@ export default function NuevoIngresoForm({
           </span>
         </div>
 
+        {/* Scanner de etiquetas — solo en modo manual */}
+        {modo === 'manual' && (
+          <div className="px-3 sm:px-4 py-3 border-b bg-zinc-50/50 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Escanear etiquetas
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setScannerTipo(scannerTipo === 'qr' ? null : 'qr')}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
+                  scannerTipo === 'qr'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-white border-input hover:bg-zinc-50'
+                }`}
+              >
+                <QrCode className="size-3.5" />
+                Código QR
+              </button>
+              <button
+                type="button"
+                onClick={() => setScannerTipo(scannerTipo === 'barcode' ? null : 'barcode')}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
+                  scannerTipo === 'barcode'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-white border-input hover:bg-zinc-50'
+                }`}
+              >
+                <Barcode className="size-3.5" />
+                Código de barras
+              </button>
+              {scannerTipo && (
+                <button
+                  type="button"
+                  onClick={() => setScannerTipo(null)}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3.5" /> Cerrar
+                </button>
+              )}
+            </div>
+            {!scannerTipo && (
+              <p className="text-xs text-muted-foreground">
+                Seleccioná el tipo de etiqueta para activar la cámara. Se agrega una fila por cada código escaneado.
+              </p>
+            )}
+            {scannerTipo && (
+              <ScannerByReaderType
+                readerType={scannerTipo}
+                onRead={handleScanIngreso}
+                title={scannerTipo === 'qr' ? 'Escanear código QR' : 'Escanear código de barras'}
+                manualLabel="Código manual"
+                manualPlaceholder="Ingresá el código a mano"
+              />
+            )}
+          </div>
+        )}
+
         {/* Mobile */}
         <div className="sm:hidden divide-y">
           {rollos.map((r, i) => (
@@ -1091,6 +1236,7 @@ export default function NuevoIngresoForm({
               rollo={r}
               index={i}
               articulos={articulos}
+              ubicaciones={ubicaciones}
               fotoFalla={fotosFalla[i]}
               confianzas={confianzas?.rollos[i]}
               isDuplicate={
@@ -1264,15 +1410,20 @@ export default function NuevoIngresoForm({
                         </label>
                       </td>
                       <td className="px-3 py-1">
-                        <input
-                          type="text"
+                        <select
                           value={r.ubicacion}
                           onChange={(e) =>
                             updateRollo(i, 'ubicacion', e.target.value)
                           }
-                          placeholder="opcional"
-                          className="w-full rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                        />
+                          className="w-full rounded border border-input bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        >
+                          <option value="">Opcional</option>
+                          {ubicaciones.map((u) => (
+                            <option key={u.codigo} value={u.codigo}>
+                              {u.codigo}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-1 text-center">
                         <button
@@ -1505,6 +1656,7 @@ function RolloCardMobile({
   rollo,
   index,
   articulos,
+  ubicaciones,
   fotoFalla,
   confianzas,
   isDuplicate,
@@ -1517,6 +1669,7 @@ function RolloCardMobile({
   rollo: RolloInput
   index: number
   articulos: ArticuloCatalog[]
+  ubicaciones: UbicacionOption[]
   fotoFalla: FotoPendiente | undefined
   confianzas:
     | {
@@ -1678,13 +1831,18 @@ function RolloCardMobile({
           <label className="text-xs font-medium text-muted-foreground">
             Ubicación
           </label>
-          <input
-            type="text"
+          <select
             value={rollo.ubicacion}
             onChange={(e) => onUpdate('ubicacion', e.target.value)}
-            placeholder="opcional"
-            className="w-full rounded border border-input px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+            className="w-full rounded border border-input bg-white px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">Opcional</option>
+            {ubicaciones.map((u) => (
+              <option key={u.codigo} value={u.codigo}>
+                {u.codigo}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1">
           <label className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground mt-1">

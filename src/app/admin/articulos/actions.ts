@@ -10,48 +10,30 @@ type ArticuloFormData = {
   colores_ids: string[]
 }
 
-export async function createArticulo(formData: ArticuloFormData) {
+type CrearArticuloData = {
+  nombre: string
+  descripcion: string
+}
+
+export async function createArticulo(formData: CrearArticuloData) {
   const supabase = await createClient()
 
   const nombre = formData.nombre.trim()
   if (!nombre) return { error: 'El nombre es obligatorio.' }
-  if (!formData.colores_ids?.length) {
-    return { error: 'Asocia al menos un color al articulo.' }
-  }
 
-  const { data: articulo, error: aError } = await supabase
+  const { error: aError } = await supabase
     .from('articulos')
     .insert({
       nombre,
       descripcion: formData.descripcion.trim() || null,
       stock_minimo_kg: null,
     })
-    .select('id')
-    .single()
 
-  if (aError || !articulo) {
-    if (aError?.code === '23505') {
+  if (aError) {
+    if (aError.code === '23505') {
       return { error: `Ya existe un articulo llamado "${nombre}".` }
     }
-    return { error: aError?.message ?? 'No se pudo crear el articulo.' }
-  }
-
-  const pivotRows = formData.colores_ids.map((color_id) => ({
-    articulo_id: articulo.id,
-    color_id,
-    stock_minimo_kg: parseStockMinimo(
-      formData.stock_minimos_por_color?.[color_id]
-    ),
-  }))
-  const { error: pError } = await supabase
-    .from('articulo_colores')
-    .insert(pivotRows)
-
-  if (pError) {
-    await supabase.from('articulos').delete().eq('id', articulo.id)
-    return {
-      error: `No se pudieron asociar los colores: ${pError.message}`,
-    }
+    return { error: aError.message }
   }
 
   revalidatePath('/admin/articulos')

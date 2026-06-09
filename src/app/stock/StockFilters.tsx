@@ -4,7 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
 import { RotateCcw, Search } from 'lucide-react'
 import SearchableCombobox from '@/components/SearchableCombobox'
-import { UBICACIONES } from '@/lib/ubicaciones'
+import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
 
 type Catalogo = { id: string; nombre: string }
 
@@ -17,6 +20,7 @@ export type StockFiltersState = {
   ubicacion: string
   estado: string
   orden: string
+  ot: string
 }
 
 export const ORDEN_OPCIONES: { value: string; label: string }[] = [
@@ -28,19 +32,21 @@ export const ORDEN_OPCIONES: { value: string; label: string }[] = [
   { value: 'articulo_desc', label: 'Artículo (Z-A)' },
 ]
 
-const UBICACION_OPTIONS = UBICACIONES.map((u) => ({ value: u, label: u }))
-
 export default function StockFilters({
   articulos,
   tintorerias,
   colores,
   lotes,
+  ots,
+  ubicaciones,
   current,
 }: {
   articulos: Catalogo[]
   tintorerias: Catalogo[]
   colores: Catalogo[]
   lotes: string[]
+  ots: string[]
+  ubicaciones: UbicacionOption[]
   current: StockFiltersState
 }) {
   const router = useRouter()
@@ -68,6 +74,7 @@ export default function StockFilters({
     !!current.articulo ||
     !!current.color ||
     !!current.lote ||
+    !!current.ot ||
     !!current.tintoreria ||
     !!current.ubicacion ||
     current.estado !== 'en_stock' ||
@@ -147,6 +154,21 @@ export default function StockFilters({
           </select>
         </Field>
 
+        <Field label="OT">
+          <select
+            value={current.ot}
+            onChange={(e) => update('ot', e.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Todas</option>
+            {ots.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="Tintorería">
           <select
             value={current.tintoreria}
@@ -166,7 +188,10 @@ export default function StockFilters({
           <SearchableCombobox
             value={current.ubicacion}
             onChange={(value) => update('ubicacion', value)}
-            options={withCurrentUbicacion(current.ubicacion)}
+            options={withCurrentUbicacion(
+              current.ubicacion,
+              ubicacionesToOptions(ubicaciones)
+            )}
             placeholder="Todas"
             searchPlaceholder="Buscar ubicacion..."
             emptyLabel="No hay ubicaciones"
@@ -225,11 +250,14 @@ export default function StockFilters({
   )
 }
 
-function withCurrentUbicacion(current: string) {
-  if (!current || UBICACION_OPTIONS.some((o) => o.value === current)) {
-    return UBICACION_OPTIONS
+function withCurrentUbicacion(
+  current: string,
+  options: { value: string; label: string; description?: string }[]
+) {
+  if (!current || options.some((o) => o.value === current)) {
+    return options
   }
-  return [{ value: current, label: current }, ...UBICACION_OPTIONS]
+  return [{ value: current, label: current }, ...options]
 }
 
 function Field({

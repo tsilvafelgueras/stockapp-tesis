@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import BackButton from '@/components/BackButton'
+import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import ConfirmarPartidaForm, { type RolloPartida } from './ConfirmarPartidaForm'
 
 export default async function ConfirmarIngresoPage({
@@ -42,7 +43,7 @@ export default async function ConfirmarIngresoPage({
   // color_id (igual que en pedidos/stock/reportes). El embed PostgREST
   // `colores ( nombre )` sobre `rollos` NO resuelve la relación y hace fallar
   // toda la query (devolvía rollos=[] → parecía "sin pendientes").
-  const [{ data: rollosData }, { data: coloresRaw }] = await Promise.all([
+  const [{ data: rollosData }, { data: coloresRaw }, ubicaciones] = await Promise.all([
     supabase
       .from('rollos')
       .select(`
@@ -53,6 +54,7 @@ export default async function ConfirmarIngresoPage({
       .eq('estado', 'pendiente')
       .order('numero_pieza'),
     supabase.from('colores').select('id, nombre'),
+    getUbicacionesActivas(supabase),
   ])
 
   const colorById = new Map(
@@ -107,6 +109,7 @@ export default async function ConfirmarIngresoPage({
           ingresoId={id}
           rollos={rollos}
           totalDeclarado={ingreso.total_rollos_declarado}
+          ubicaciones={ubicaciones}
         />
       )}
     </div>

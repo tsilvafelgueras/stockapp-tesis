@@ -122,7 +122,7 @@ export async function reporteMovimientos(
   const { data: pedidosEntregadosRaw } = await supabase
     .from('pedidos')
     .select(`id, created_at, pedido_rollos ( rollos ( kilos, articulo_id, ingreso_id ) )`)
-    .eq('estado', 'entregada')
+    .eq('estado', 'confirmada_egreso')
     .gte('created_at', desde)
     .lt('created_at', hasta)
 
@@ -378,7 +378,7 @@ export type PedidosTintoreriaRow = {
   pedidos: number          // pedidos distintos con al menos un rollo de esta tintorería
   rollos: number           // rollos totales originados acá
   kilos: number            // suma de kilos
-  entregados: number       // pedidos en estado entregada
+  entregados: number       // pedidos con egreso confirmado
   cancelados: number       // pedidos en estado cancelada
   en_curso: number         // pedidos en estados intermedios
 }
@@ -508,7 +508,7 @@ export async function reporteTintorerias(
     let cancelados = 0
     let en_curso = 0
     for (const estado of v.pedidoEstados.values()) {
-      if (estado === 'entregada') entregados += 1
+      if (estado === 'confirmada_egreso') entregados += 1
       else if (estado === 'cancelada') cancelados += 1
       else en_curso += 1
     }

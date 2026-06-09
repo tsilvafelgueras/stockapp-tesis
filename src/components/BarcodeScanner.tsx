@@ -87,8 +87,10 @@ export default function BarcodeScanner({
   }, [paused])
 
   const emitRead = useCallback((result: CodeScannerResult) => {
-    const texto = result.texto.trim()
-    if (!texto) return
+    const raw = result.texto.trim()
+    if (!raw) return
+    // Códigos numéricos: ignorar ceros iniciales (ej. "0002157501" → "2157501")
+    const texto = /^\d+$/.test(raw) ? raw.replace(/^0+/, '') || raw : raw
 
     setScanSuccess(true)
     if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current)

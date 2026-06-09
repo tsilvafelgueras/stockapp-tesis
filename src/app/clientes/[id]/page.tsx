@@ -12,12 +12,12 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
     text: 'En preparacion',
     className: 'bg-primary/15 text-primary',
   },
-  lista: { text: 'Lista', className: 'bg-success/15 text-success' },
+  lista: { text: 'Pedido listo', className: 'bg-success/15 text-success' },
   confirmada_egreso: {
-    text: 'Salida confirmada',
+    text: 'Egreso confirmado',
     className: 'bg-primary/15 text-primary',
   },
-  entregada: { text: 'Entregada', className: 'bg-zinc-100 text-zinc-700' },
+  entregada: { text: 'Egreso confirmado', className: 'bg-zinc-100 text-zinc-700' },
   cancelada: {
     text: 'Cancelada',
     className: 'bg-destructive/15 text-destructive',
@@ -111,7 +111,9 @@ export default async function ClienteDetailPage({
         ) ?? 0),
       0
     )
-  const entregados = pedidos.filter((p) => p.estado === 'entregada').length
+  const entregados = pedidos.filter((p) =>
+    ['confirmada_egreso', 'entregada'].includes(p.estado)
+  ).length
   const enCurso = pedidos.filter((p) =>
     ['pendiente', 'en_preparacion', 'lista', 'confirmada_egreso'].includes(
       p.estado
@@ -140,7 +142,7 @@ export default async function ClienteDetailPage({
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Alta" value={fechaAlta} />
         <Stat label="Pedidos totales" value={String(pedidos.length)} />
-        <Stat label="Entregados" value={String(entregados)} />
+        <Stat label="Egresados" value={String(entregados)} />
         <Stat label="En curso" value={String(enCurso)} />
       </div>
 

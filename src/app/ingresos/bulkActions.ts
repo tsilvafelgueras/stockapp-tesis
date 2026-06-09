@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { validarUbicacionActiva } from '@/lib/ubicacionesServer'
 
 export type BulkEditChanges = {
   ubicacion?: string | null
@@ -104,7 +105,13 @@ export async function bulkEditRollos(
     if (changes.ubicacion !== null && !ubic) {
       return { ok: false, error: 'La ubicación no puede estar vacía.' }
     }
-    updateCommon.ubicacion = ubic || null
+    if (ubic) {
+      const ubicacionValida = await validarUbicacionActiva(supabase, ubic)
+      if (!ubicacionValida.ok) return ubicacionValida
+      updateCommon.ubicacion = ubicacionValida.codigo
+    } else {
+      updateCommon.ubicacion = null
+    }
   }
   if (changes.estado !== undefined) {
     updateCommon.estado = changes.estado

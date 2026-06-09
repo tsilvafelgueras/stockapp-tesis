@@ -6,7 +6,16 @@ import { createClient } from '@/lib/supabase/server'
 export type PickearRolloResult =
   | {
       ok: true
+      rolloId: string
       numeroPieza: string
+      kilos: number | null
+      ubicacion: string | null
+      articuloId: string | null
+      colorId: string | null
+      pedidoPartidaId: string
+      partidaRealLote: string | null
+      partidaSolicitadaLote: string | null
+      esSustitucionPartida: boolean
       pendientes: number
       total: number
       pedidoCompleto: boolean
@@ -35,6 +44,14 @@ export async function pickearRollo(
   const json = data as {
     rollo_id: string
     numero_pieza: string
+    kilos: number | null
+    ubicacion: string | null
+    articulo_id: string | null
+    color_id: string | null
+    pedido_partida_id: string
+    partida_real_lote: string | null
+    partida_solicitada_lote: string | null
+    es_sustitucion_partida: boolean
     pendientes: number
     total: number
     pedido_completo: boolean
@@ -42,10 +59,21 @@ export async function pickearRollo(
 
   revalidatePath(`/picking/${pedidoId}`)
   revalidatePath('/picking')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/pedidos')
 
   return {
     ok: true,
+    rolloId: json.rollo_id,
     numeroPieza: json.numero_pieza,
+    kilos: json.kilos,
+    ubicacion: json.ubicacion,
+    articuloId: json.articulo_id,
+    colorId: json.color_id,
+    pedidoPartidaId: json.pedido_partida_id,
+    partidaRealLote: json.partida_real_lote,
+    partidaSolicitadaLote: json.partida_solicitada_lote,
+    esSustitucionPartida: Boolean(json.es_sustitucion_partida),
     pendientes: json.pendientes,
     total: json.total,
     pedidoCompleto: json.pedido_completo,
@@ -55,36 +83,77 @@ export async function pickearRollo(
 // ── Reemplazo de rollo por falla detectada en picking ───────
 
 export type ReemplazoResult =
-  | { ok: true; pendientes: number; total: number }
+  | {
+      ok: true
+      pedidoRolloId: string
+      rolloId: string
+      numeroPieza: string
+      kilos: number | null
+      ubicacion: string | null
+      articuloId: string | null
+      colorId: string | null
+      pedidoPartidaId: string
+      partidaRealLote: string | null
+      partidaSolicitadaLote: string | null
+      esSustitucionPartida: boolean
+    }
   | { ok: false; error: string }
 
 export async function reemplazarRolloEnPicking(input: {
   pedidoId: string
   rolloViejoId: string
-  rolloNuevoId: string
-  motivoCategoria: string
-  motivoTexto: string
+  numeroPiezaNuevo: string
+  motivo: string
 }): Promise<ReemplazoResult> {
   const supabase = await createClient()
 
-  if (!input.motivoCategoria) {
-    return { ok: false, error: 'Falta el motivo del reemplazo.' }
+  if (!input.numeroPiezaNuevo.trim()) {
+    return { ok: false, error: 'Falta el numero de pieza nuevo.' }
   }
 
-  const { data, error } = await supabase.rpc('reemplazar_rollo_en_pedido', {
+  const { data, error } = await supabase.rpc('reemplazar_rollo_picking', {
     p_pedido_id: input.pedidoId,
     p_rollo_viejo_id: input.rolloViejoId,
-    p_rollo_nuevo_id: input.rolloNuevoId,
-    p_motivo_categoria: input.motivoCategoria,
-    p_motivo_texto: input.motivoTexto.trim() || null,
+    p_numero_pieza_nuevo: input.numeroPiezaNuevo.trim(),
+    p_motivo: input.motivo.trim() || null,
   })
-
   if (error) return { ok: false, error: error.message }
 
-  const json = data as { pendientes: number; total: number }
+  return mapReemplazo(data, input.pedidoId)
+}
 
-  revalidatePath(`/picking/${input.pedidoId}`)
+function mapReemplazo(data: unknown, pedidoId: string): ReemplazoResult {
+  const json = data as {
+    pedido_rollo_id: string
+    rollo_id: string
+    numero_pieza: string
+    kilos: number | null
+    ubicacion: string | null
+    articulo_id: string | null
+    color_id: string | null
+    pedido_partida_id: string
+    partida_real_lote: string | null
+    partida_solicitada_lote: string | null
+    es_sustitucion_partida: boolean
+  }
+
+  revalidatePath(`/picking/${pedidoId}`)
   revalidatePath('/picking')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/pedidos')
 
-  return { ok: true, pendientes: json.pendientes, total: json.total }
+  return {
+    ok: true,
+    pedidoRolloId: json.pedido_rollo_id,
+    rolloId: json.rollo_id,
+    numeroPieza: json.numero_pieza,
+    kilos: json.kilos,
+    ubicacion: json.ubicacion,
+    articuloId: json.articulo_id,
+    colorId: json.color_id,
+    pedidoPartidaId: json.pedido_partida_id,
+    partidaRealLote: json.partida_real_lote,
+    partidaSolicitadaLote: json.partida_solicitada_lote,
+    esSustitucionPartida: Boolean(json.es_sustitucion_partida),
+  }
 }

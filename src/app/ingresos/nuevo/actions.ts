@@ -8,6 +8,7 @@ import {
   UMBRAL_BAJA_CONFIANZA,
 } from '@/lib/extraccion/extraerPlanilla'
 import { subirPlanilla } from '@/lib/storage/planillas'
+import { validarUbicacionActiva } from '@/lib/ubicacionesServer'
 
 // ── Tipos del flow manual + IA ─────────────────────────────
 
@@ -316,6 +317,11 @@ export async function crearIngreso(input: IngresoInput) {
         error:
           'Los rollos en estado "en stock" deben tener ubicación asignada.',
       }
+    }
+    if (r.ubicacion.trim()) {
+      const valida = await validarUbicacionActiva(supabase, r.ubicacion)
+      if (!valida.ok) return { error: valida.error }
+      r.ubicacion = valida.codigo
     }
     if (r.segunda) {
       if (!r.falla_categoria || !FALLA_CATEGORIAS.includes(r.falla_categoria as typeof FALLA_CATEGORIAS[number])) {

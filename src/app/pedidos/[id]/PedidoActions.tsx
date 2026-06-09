@@ -4,19 +4,22 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import SearchableCombobox from '@/components/SearchableCombobox'
-import { UBICACIONES } from '@/lib/ubicaciones'
 import {
+  ubicacionesToOptions,
+  type UbicacionOption,
+} from '@/lib/ubicaciones'
+import {
+  actualizarPedidoRemito,
   cancelarPedido,
   confirmarEgresoPedido,
-  entregarPedido,
 } from '../actions'
 
 type Mode =
   | 'view'
   | 'confirmar-salida'
+  | 'editar-remito'
   | 'caer-pedido'
   | 'confirmar-cancelar'
-  | 'confirmar-entregar'
 
 const MOTIVOS_CAIDA = [
   { value: 'cliente_cancelo', label: 'Cliente cancelo' },
@@ -26,16 +29,18 @@ const MOTIVOS_CAIDA = [
   { value: 'otro', label: 'Otro' },
 ]
 
-const UBICACION_OPTIONS = UBICACIONES.map((u) => ({ value: u, label: u }))
-
 export default function PedidoActions({
   pedidoId,
   estado,
   role,
+  ubicaciones,
+  numeroRemitoExterno,
 }: {
   pedidoId: string
   estado: string
-  role: 'ventas' | 'admin'
+  role: 'ventas' | 'admin' | 'operario'
+  ubicaciones: UbicacionOption[]
+  numeroRemitoExterno: string | null
 }) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('view')
@@ -43,25 +48,33 @@ export default function PedidoActions({
 
   const [salidaComentario, setSalidaComentario] = useState('')
   const [remitoSalida, setRemitoSalida] = useState('')
+  const [remitoExterno, setRemitoExterno] = useState(numeroRemitoExterno ?? '')
   const [motivoCaida, setMotivoCaida] = useState('')
   const [comentarioCaida, setComentarioCaida] = useState('')
   const [ubicacionReasignacion, setUbicacionReasignacion] =
     useState('A ordenar')
+  const ubicacionOptions = ubicacionesToOptions(ubicaciones)
 
   const esVentasOAdmin = role === 'ventas' || role === 'admin'
-  const puedeConfirmarSalida = esVentasOAdmin && estado === 'lista'
-  const puedeCaerPedido = esVentasOAdmin && estado === 'lista'
+  const puedeConfirmarSalida =
+    (role === 'operario' || role === 'admin') && estado === 'lista'
+  const puedeEditarRemito =
+    esVentasOAdmin &&
+    estado !== 'cancelada' &&
+    estado !== 'confirmada_egreso' &&
+    estado !== 'entregada'
+  const puedeCaerPedido = false
   const puedeCancelar =
     esVentasOAdmin &&
     (estado === 'pendiente' ||
       estado === 'en_preparacion' ||
+      estado === 'lista' ||
       estado === 'confirmada_egreso')
-  const puedeEntregar = role === 'admin' && estado === 'confirmada_egreso'
 
   if (
     !puedeCancelar &&
-    !puedeEntregar &&
     !puedeConfirmarSalida &&
+    !puedeEditarRemito &&
     !puedeCaerPedido
   ) {
     return null
@@ -71,6 +84,7 @@ export default function PedidoActions({
     setMode('view')
     setSalidaComentario('')
     setRemitoSalida('')
+    setRemitoExterno(numeroRemitoExterno ?? '')
     setMotivoCaida('')
     setComentarioCaida('')
     setUbicacionReasignacion('A ordenar')
@@ -87,8 +101,21 @@ export default function PedidoActions({
         toast.error(res.error)
         return
       }
-      toast.success('Salida confirmada.')
+      toast.success('Egreso confirmado.')
       resetForms()
+      router.refresh()
+    })
+  }
+
+  function handleEditarRemito() {
+    startTransition(async () => {
+      const res = await actualizarPedidoRemito(pedidoId, remitoExterno)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Remito actualizado.')
+      setMode('view')
       router.refresh()
     })
   }
@@ -111,19 +138,6 @@ export default function PedidoActions({
     })
   }
 
-  function handleEntregar() {
-    startTransition(async () => {
-      const res = await entregarPedido(pedidoId)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
-      }
-      toast.success('Pedido marcado como entregado.')
-      resetForms()
-      router.refresh()
-    })
-  }
-
   return (
     <div className="rounded-lg border bg-white p-4 shadow-sm space-y-3">
       {estado === 'lista' && mode === 'view' && (
@@ -141,7 +155,16 @@ export default function PedidoActions({
             onClick={() => setMode('confirmar-salida')}
             className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            Confirmar salida
+            Confirmar egreso
+          </button>
+        )}
+        {puedeEditarRemito && mode === 'view' && (
+          <button
+            type="button"
+            onClick={() => setMode('editar-remito')}
+            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-zinc-50 transition-colors"
+          >
+            Editar remito
           </button>
         )}
         {puedeCaerPedido && mode === 'view' && (
@@ -151,15 +174,6 @@ export default function PedidoActions({
             className="rounded-md border border-destructive/40 text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/5 transition-colors"
           >
             Caer pedido
-          </button>
-        )}
-        {puedeEntregar && mode === 'view' && (
-          <button
-            type="button"
-            onClick={() => setMode('confirmar-entregar')}
-            className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            Marcar como entregado
           </button>
         )}
         {puedeCancelar && mode === 'view' && (
@@ -202,8 +216,33 @@ export default function PedidoActions({
           <ActionsFooter
             pending={pending}
             onCancel={resetForms}
-            confirmLabel={pending ? 'Confirmando...' : 'Si, confirmar salida'}
+            confirmLabel={pending ? 'Confirmando...' : 'Si, confirmar egreso'}
             onConfirm={handleConfirmarSalida}
+            tone="success"
+          />
+        </div>
+      )}
+
+      {mode === 'editar-remito' && (
+        <div className="rounded-md bg-zinc-50 border p-3 space-y-3">
+          <p className="text-sm">
+            Podés cargar o corregir el número de remito externo mientras el
+            pedido no tenga egreso confirmado.
+          </p>
+          <Field label="Nro remito externo">
+            <input
+              type="text"
+              value={remitoExterno}
+              onChange={(e) => setRemitoExterno(e.target.value)}
+              placeholder="Opcional"
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+            />
+          </Field>
+          <ActionsFooter
+            pending={pending}
+            onCancel={resetForms}
+            confirmLabel={pending ? 'Guardando...' : 'Guardar remito'}
+            onConfirm={handleEditarRemito}
             tone="success"
           />
         </div>
@@ -234,7 +273,10 @@ export default function PedidoActions({
               <SearchableCombobox
                 value={ubicacionReasignacion}
                 onChange={setUbicacionReasignacion}
-                options={UBICACION_OPTIONS}
+                options={withCurrentUbicacion(
+                  ubicacionReasignacion,
+                  ubicacionOptions
+                )}
                 placeholder="Seleccionar ubicacion..."
                 allowClear={false}
               />
@@ -262,23 +304,16 @@ export default function PedidoActions({
         </div>
       )}
 
-      {mode === 'confirmar-entregar' && (
-        <div className="rounded-md bg-zinc-50 border p-3 space-y-2">
-          <p className="text-sm">
-            Marcamos el pedido como entregado al cliente. Los rollos pasan a
-            estado &quot;Entregado&quot; y dejan de figurar en stock.
-          </p>
-          <ActionsFooter
-            pending={pending}
-            onCancel={resetForms}
-            confirmLabel={pending ? 'Marcando...' : 'Si, marcar entregada'}
-            onConfirm={handleEntregar}
-            tone="success"
-          />
-        </div>
-      )}
     </div>
   )
+}
+
+function withCurrentUbicacion(
+  current: string,
+  options: { value: string; label: string; description?: string }[]
+) {
+  if (!current || options.some((o) => o.value === current)) return options
+  return [{ value: current, label: current }, ...options]
 }
 
 function Field({

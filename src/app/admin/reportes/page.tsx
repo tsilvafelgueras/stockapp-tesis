@@ -34,6 +34,7 @@ import TabDemanda from './components/TabDemanda'
 import TabTintorerias from './components/TabTintorerias'
 import TabCalidad from './components/TabCalidad'
 import TabEficiencia from './components/TabEficiencia'
+import ReportesAgentWidget from './ReportesAgentWidget'
 
 type SearchParams = {
   tab?: string
@@ -162,6 +163,7 @@ export default async function ReportesPage({
       {tab === 'eficiencia' && (
         <EficienciaTab filters={filters} buildCsvHref={buildCsvHref} />
       )}
+      <ReportesAgentWidget />
     </div>
   )
 }

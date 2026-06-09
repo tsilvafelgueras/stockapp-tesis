@@ -100,7 +100,7 @@ export async function reporteTendenciaMensual(
     supabase
       .from('pedidos')
       .select('created_at, confirmada_egreso_at, pedido_rollos ( rollos ( kilos ) )')
-      .eq('estado', 'entregada')
+      .eq('estado', 'confirmada_egreso')
       .limit(5000),
   ])
 

@@ -13,6 +13,7 @@ import {
   type FallaCategoria,
   type EstadoEditable,
 } from './constants'
+import { validarUbicacionActiva } from '@/lib/ubicacionesServer'
 
 export type StockActionResult = { ok: true } | { ok: false; error: string }
 
@@ -45,6 +46,8 @@ export async function moverUbicacion(
   if (ubic.length > 50) {
     return { ok: false, error: 'La ubicación es demasiado larga (máx. 50).' }
   }
+  const ubicacionValida = await validarUbicacionActiva(supabase, ubic)
+  if (!ubicacionValida.ok) return ubicacionValida
 
   // RLS filtra por empresa, así que si no aparece es porque no es de esta empresa
   const { data: rollo, error: fetchError } = await supabase
@@ -66,7 +69,7 @@ export async function moverUbicacion(
 
   const { error } = await supabase
     .from('rollos')
-    .update({ ubicacion: ubic })
+    .update({ ubicacion: ubicacionValida.codigo })
     .eq('id', rolloId)
 
   if (error) return { ok: false, error: error.message }
@@ -158,6 +161,8 @@ export async function confirmarRolloManual(
   if (ubic.length > 50) {
     return { ok: false, error: 'La ubicación es demasiado larga (máx. 50).' }
   }
+  const ubicacionValida = await validarUbicacionActiva(supabase, ubic)
+  if (!ubicacionValida.ok) return ubicacionValida
 
   const { data: rollo, error: fetchError } = await supabase
     .from('rollos')
@@ -180,7 +185,7 @@ export async function confirmarRolloManual(
     .from('rollos')
     .update({
       estado: 'en_stock',
-      ubicacion: ubic,
+      ubicacion: ubicacionValida.codigo,
       auditado_at: nowIso,
       auditado_por: user.id,
     })
@@ -302,7 +307,16 @@ export async function editarRollo(
     if (cambios.numero_pieza !== undefined) {
       update.numero_pieza = cambios.numero_pieza.trim()
     }
-    if (cambios.ubicacion !== undefined) update.ubicacion = cleanText(cambios.ubicacion)
+    if (cambios.ubicacion !== undefined) {
+      const ubic = cleanText(cambios.ubicacion)
+      if (ubic) {
+        const ubicacionValida = await validarUbicacionActiva(supabase, ubic)
+        if (!ubicacionValida.ok) return ubicacionValida
+        update.ubicacion = ubicacionValida.codigo
+      } else {
+        update.ubicacion = null
+      }
+    }
     if (cambios.pantone !== undefined) update.pantone = cleanText(cambios.pantone)
     if (cambios.kilos !== undefined) update.kilos = cleanNumber(cambios.kilos)
     if (cambios.metros !== undefined) update.metros = cleanNumber(cambios.metros)

@@ -8,12 +8,12 @@ const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
     text: 'En preparacion',
     className: 'bg-primary/15 text-primary',
   },
-  lista: { text: 'Lista', className: 'bg-success/15 text-success' },
+  lista: { text: 'Pedido listo', className: 'bg-success/15 text-success' },
   confirmada_egreso: {
-    text: 'Salida confirmada',
+    text: 'Egreso confirmado',
     className: 'bg-primary/15 text-primary',
   },
-  entregada: { text: 'Entregada', className: 'bg-zinc-100 text-zinc-700' },
+  entregada: { text: 'Egreso confirmado', className: 'bg-zinc-100 text-zinc-700' },
   cancelada: {
     text: 'Cancelada',
     className: 'bg-destructive/15 text-destructive',
@@ -39,6 +39,7 @@ type PedidoRow = {
   estado: string
   created_at: string
   pedido_rollos: { rollos: { kilos: number | null } | null }[] | null
+  pedido_partidas: { rollos_solicitados: number }[] | null
 }
 
 export default async function PedidosListPage({
@@ -65,6 +66,7 @@ export default async function PedidosListPage({
         fecha_entrega_comprometida,
         estado,
         created_at,
+        pedido_partidas ( rollos_solicitados ),
         pedido_rollos ( rollos ( kilos ) )
       `
     )
@@ -195,8 +197,8 @@ function PedidoCardMobile({
   hoyIso: string
 }) {
   const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
-  const cantidad = pedido.pedido_rollos?.length ?? 0
-  const kilos = totalKilos(pedido)
+  const cantidadSolicitada = totalRollosSolicitados(pedido)
+  const kilos = totalKilosReal(pedido)
   const demorado = pedidoDemorado(pedido, hoyIso)
 
   return (
@@ -227,9 +229,11 @@ function PedidoCardMobile({
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span>
-          {cantidad} {cantidad === 1 ? 'rollo' : 'rollos'}
+          {cantidadSolicitada} {cantidadSolicitada === 1 ? 'rollo' : 'rollos'} solicitados
         </span>
-        {kilos > 0 && <span className="tabular-nums">{kilos.toFixed(2)} kg</span>}
+        <span className="tabular-nums">
+          {kilos > 0 ? `${kilos.toFixed(2)} kg reales` : 'kg reales pendientes'}
+        </span>
         {pedido.numero_remito_externo && (
           <span>Rem: {pedido.numero_remito_externo}</span>
         )}
@@ -254,8 +258,8 @@ function PedidoRowDesktop({
   hoyIso: string
 }) {
   const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
-  const cantidad = pedido.pedido_rollos?.length ?? 0
-  const kilos = totalKilos(pedido)
+  const cantidad = totalRollosSolicitados(pedido)
+  const kilos = totalKilosReal(pedido)
   const href = `/pedidos/${pedido.id}`
   const demorado = pedidoDemorado(pedido, hoyIso)
 
@@ -283,7 +287,7 @@ function PedidoRowDesktop({
       </td>
       <td>
         <Link href={href} className="block px-4 py-3 tabular-nums">
-          {kilos > 0 ? `${kilos.toFixed(2)} kg` : '-'}
+          {kilos > 0 ? `${kilos.toFixed(2)} kg reales` : 'Pendiente'}
         </Link>
       </td>
       <td>
@@ -323,7 +327,16 @@ function PedidoRowDesktop({
   )
 }
 
-function totalKilos(pedido: PedidoRow): number {
+function totalRollosSolicitados(pedido: PedidoRow): number {
+  const porPartidas =
+    pedido.pedido_partidas?.reduce(
+      (acc, pp) => acc + Number(pp.rollos_solicitados ?? 0),
+      0
+    ) ?? 0
+  return porPartidas > 0 ? porPartidas : pedido.pedido_rollos?.length ?? 0
+}
+
+function totalKilosReal(pedido: PedidoRow): number {
   return (
     pedido.pedido_rollos?.reduce(
       (acc, pr) => acc + Number(pr.rollos?.kilos ?? 0),
