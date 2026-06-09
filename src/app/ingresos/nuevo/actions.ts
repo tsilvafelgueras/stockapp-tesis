@@ -312,10 +312,10 @@ export async function crearIngreso(input: IngresoInput) {
     if (!r.color_id) {
       return { error: `El rollo "${r.numero_pieza.trim()}" no tiene color asignado.` }
     }
-    if (origen === 'manual' && r.estado === 'en_stock' && !r.ubicacion.trim()) {
+    if (origen === 'manual' && !r.ubicacion.trim()) {
       return {
         error:
-          'Los rollos en estado "en stock" deben tener ubicación asignada.',
+          'Todos los rollos del ingreso manual deben tener ubicación asignada.',
       }
     }
     if (r.ubicacion.trim()) {
@@ -428,7 +428,7 @@ export async function crearIngreso(input: IngresoInput) {
     if (rError.code === '23503') {
       return {
         error:
-          'Alguno de los rollos usa una combinación artículo-color que no está asociada. Pedile al admin que asocie el color al artículo.',
+          'Alguno de los rollos usa una combinación artículo-color que no está asociada. Pedile al administrador que asocie el color al artículo.',
       }
     }
     return { error: `No se pudieron cargar los rollos: ${rError.message}` }

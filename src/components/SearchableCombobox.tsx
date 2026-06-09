@@ -116,6 +116,11 @@ export default function SearchableCombobox({
                   <button
                     key={option.value}
                     type="button"
+                    onPointerDown={(e) => {
+                      e.preventDefault()
+                      onChange(option.value)
+                      close()
+                    }}
                     onClick={() => {
                       onChange(option.value)
                       close()

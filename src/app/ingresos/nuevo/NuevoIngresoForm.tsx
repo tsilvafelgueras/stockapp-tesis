@@ -16,8 +16,9 @@ import {
   type IngresoExtraido,
   type Field,
 } from '@/lib/extraccion/extraerPlanilla'
-import type { UbicacionOption } from '@/lib/ubicaciones'
+import { ubicacionesToOptions, type UbicacionOption } from '@/lib/ubicaciones'
 import ScannerByReaderType from '@/components/ScannerByReaderType'
+import SearchableCombobox from '@/components/SearchableCombobox'
 import type { CodeScannerResult } from '@/components/CodeScanner'
 import { extraerCodigoCandidato } from '@/lib/scanner'
 import type { PatronCodigo } from '@/lib/scanner'
@@ -232,6 +233,10 @@ export default function NuevoIngresoForm({
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [scannerTipo, setScannerTipo] = useState<'qr' | 'barcode' | null>(null)
+  const ubicacionOptions = useMemo(
+    () => ubicacionesToOptions(ubicaciones),
+    [ubicaciones]
+  )
 
   function updateRollo<K extends keyof RolloInput>(
     idx: number,
@@ -330,7 +335,9 @@ export default function NuevoIngresoForm({
 
   function applyBulkUbicacion() {
     if (!bulkUbicacion.trim()) return
-    setRollos(rollos.map((r) => ({ ...r, ubicacion: bulkUbicacion.trim() })))
+    setRollos((prev) =>
+      prev.map((r) => ({ ...r, ubicacion: bulkUbicacion.trim() }))
+    )
   }
 
   function applyBulkArticulo() {
@@ -586,6 +593,10 @@ export default function NuevoIngresoForm({
 
     const rollosSinArticulo = rollosConPieza.filter((r) => !r.articulo_id).length
     const rollosSinColor = rollosConPieza.filter((r) => !r.color_id).length
+    const rollosSinUbicacion =
+      modo === 'manual'
+        ? rollosConPieza.filter((r) => !r.ubicacion.trim()).length
+        : 0
     const rollosSegundaSinCategoria = rollosConPieza.filter(
       (r) => r.segunda && !r.falla_categoria
     ).length
@@ -625,10 +636,11 @@ export default function NuevoIngresoForm({
       kilosCoinciden,
       rollosSinArticulo,
       rollosSinColor,
+      rollosSinUbicacion,
       rollosSegundaSinCategoria,
       rollosInconsistentes,
     }
-  }, [rollos, totalRollosDeclarado, totalKilosDeclarado])
+  }, [rollos, totalRollosDeclarado, totalKilosDeclarado, modo])
 
   function handleScanIngreso(result: CodeScannerResult) {
     const raw = result.texto.trim()
@@ -758,6 +770,7 @@ export default function NuevoIngresoForm({
     validations.duplicados.length > 0 ||
     validations.rollosSinArticulo > 0 ||
     validations.rollosSinColor > 0 ||
+    validations.rollosSinUbicacion > 0 ||
     validations.rollosSegundaSinCategoria > 0 ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
@@ -1134,19 +1147,16 @@ export default function NuevoIngresoForm({
           <div className="space-y-1">
             <label className="text-sm font-medium">Ubicación</label>
             <div className="flex gap-2">
-              <select
+              <SearchableCombobox
                 value={bulkUbicacion}
-                onChange={(e) => setBulkUbicacion(e.target.value)}
-                className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">Seleccionar...</option>
-                {ubicaciones.map((u) => (
-                  <option key={u.codigo} value={u.codigo}>
-                    {u.codigo}
-                    {u.descripcion ? ` - ${u.descripcion}` : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={setBulkUbicacion}
+                options={ubicacionOptions}
+                placeholder="Seleccionar..."
+                searchPlaceholder="Buscar ubicacion..."
+                emptyLabel="No hay ubicaciones"
+                allowClear={false}
+                className="min-w-0 flex-1"
+              />
               <button
                 type="button"
                 onClick={applyBulkUbicacion}
@@ -1236,7 +1246,7 @@ export default function NuevoIngresoForm({
               rollo={r}
               index={i}
               articulos={articulos}
-              ubicaciones={ubicaciones}
+              ubicacionOptions={ubicacionOptions}
               fotoFalla={fotosFalla[i]}
               confianzas={confianzas?.rollos[i]}
               isDuplicate={
@@ -1266,7 +1276,7 @@ export default function NuevoIngresoForm({
                 <th className="px-3 py-2 font-medium w-20">Rinde</th>
                 <th className="px-3 py-2 font-medium w-20">Gramaje</th>
                 <th className="px-3 py-2 font-medium w-28">Segunda</th>
-                <th className="px-3 py-2 font-medium w-28">Ubicación</th>
+                <th className="px-3 py-2 font-medium w-28">Ubicación *</th>
                 <th className="px-3 py-2 w-10"></th>
               </tr>
             </thead>
@@ -1412,20 +1422,17 @@ export default function NuevoIngresoForm({
                         </label>
                       </td>
                       <td className="px-3 py-1">
-                        <select
+                        <SearchableCombobox
                           value={r.ubicacion}
-                          onChange={(e) =>
-                            updateRollo(i, 'ubicacion', e.target.value)
+                          onChange={(value) =>
+                            updateRollo(i, 'ubicacion', value)
                           }
-                          className="w-full rounded border border-input bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          <option value="">Opcional</option>
-                          {ubicaciones.map((u) => (
-                            <option key={u.codigo} value={u.codigo}>
-                              {u.codigo}
-                            </option>
-                          ))}
-                        </select>
+                          options={ubicacionOptions}
+                          placeholder="Seleccionar..."
+                          searchPlaceholder="Buscar ubicacion..."
+                          emptyLabel="No hay ubicaciones"
+                          allowClear={false}
+                        />
                       </td>
                       <td className="px-3 py-1 text-center">
                         <button
@@ -1476,6 +1483,7 @@ export default function NuevoIngresoForm({
       {(validations.duplicados.length > 0 ||
         validations.rollosSinArticulo > 0 ||
         validations.rollosSinColor > 0 ||
+        validations.rollosSinUbicacion > 0 ||
         validations.rollosSegundaSinCategoria > 0 ||
         validations.rollosInconsistentes.length > 0 ||
         !validations.cantidadCoincide ||
@@ -1497,6 +1505,12 @@ export default function NuevoIngresoForm({
             <p className="text-destructive">
               ⚠ {validations.rollosSinColor} rollo
               {validations.rollosSinColor === 1 ? '' : 's'} sin color asignado.
+            </p>
+          )}
+          {validations.rollosSinUbicacion > 0 && (
+            <p className="text-destructive">
+              âš  {validations.rollosSinUbicacion} rollo
+              {validations.rollosSinUbicacion === 1 ? '' : 's'} sin ubicaciÃ³n asignada.
             </p>
           )}
           {validations.rollosSegundaSinCategoria > 0 && (
@@ -1658,7 +1672,7 @@ function RolloCardMobile({
   rollo,
   index,
   articulos,
-  ubicaciones,
+  ubicacionOptions,
   fotoFalla,
   confianzas,
   isDuplicate,
@@ -1671,7 +1685,7 @@ function RolloCardMobile({
   rollo: RolloInput
   index: number
   articulos: ArticuloCatalog[]
-  ubicaciones: UbicacionOption[]
+  ubicacionOptions: ReturnType<typeof ubicacionesToOptions>
   fotoFalla: FotoPendiente | undefined
   confianzas:
     | {
@@ -1833,20 +1847,17 @@ function RolloCardMobile({
         </div>
         <div className="space-y-1">
           <label className="text-xs font-semibold text-foreground">
-            Ubicación
+            Ubicación *
           </label>
-          <select
+          <SearchableCombobox
             value={rollo.ubicacion}
-            onChange={(e) => onUpdate('ubicacion', e.target.value)}
-            className="w-full rounded border border-input bg-white px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="">Opcional</option>
-            {ubicaciones.map((u) => (
-              <option key={u.codigo} value={u.codigo}>
-                {u.codigo}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => onUpdate('ubicacion', value)}
+            options={ubicacionOptions}
+            placeholder="Seleccionar..."
+            searchPlaceholder="Buscar ubicacion..."
+            emptyLabel="No hay ubicaciones"
+            allowClear={false}
+          />
         </div>
         <div className="space-y-1">
           <label className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground mt-1">
