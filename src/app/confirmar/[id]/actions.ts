@@ -174,7 +174,7 @@ export async function confirmarPartida(
 
   const { data: pendientes, error: rollosError } = await supabase
     .from('rollos')
-    .select('id, numero_pieza')
+    .select('id, numero_pieza, ubicacion')
     .eq('ingreso_id', ingresoId)
     .eq('estado', 'pendiente')
 
@@ -226,7 +226,12 @@ export async function confirmarPartida(
         return { ok: false, error: valida.error, codigo: 'DB_ERROR' }
       }
     }
-    const ubicacion = overrideUbicacion || ubicacionGeneral
+    // Prioridad: override puntual > ubicacionGeneral > ubicación existente del rollo.
+    const ubicacion =
+      overrideUbicacion ||
+      ubicacionGeneral ||
+      (rollo as unknown as { ubicacion: string | null }).ubicacion ||
+      null
     const comentario = override?.comentario?.trim() || null
 
     const { error: updError } = await supabase

@@ -20,10 +20,10 @@ export default async function ConfirmarPage() {
       ? await supabase
           .from('ingresos')
           .select(`
-            id, fecha_despacho, numero_remito, total_rollos_declarado,
+            id, fecha_despacho, numero_remito, total_rollos_declarado, ot,
             tintorerias ( nombre ),
             articulos ( nombre ),
-            rollos ( id, estado )
+            rollos ( id, estado, colores ( nombre ) )
           `)
           .in('id', ingresoIds)
           .order('fecha_despacho', { ascending: false })
@@ -58,9 +58,18 @@ export default async function ConfirmarPage() {
               ingreso.articulos as unknown as { nombre: string } | null
             )?.nombre
             const rollosArr =
-              (ingreso.rollos as unknown as { id: string; estado: string }[] | null) ?? []
+              (ingreso.rollos as unknown as {
+                id: string
+                estado: string
+                colores: { nombre: string } | null
+              }[] | null) ?? []
             const pendientes = rollosArr.filter((r) => r.estado === 'pendiente').length
             const total = rollosArr.length
+
+            // Obtener color del primer rollo que lo tenga
+            const colorNombre = rollosArr
+              .map((r) => r.colores?.nombre)
+              .find((c): c is string => Boolean(c))
 
             return (
               <Link
@@ -69,14 +78,21 @@ export default async function ConfirmarPage() {
                 className="block rounded-lg border bg-white p-4 shadow-sm hover:bg-zinc-50 active:bg-zinc-100 transition-colors"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 space-y-0.5">
                     <p className="font-medium">{tintoreria ?? '—'}</p>
                     <p className="text-sm text-muted-foreground truncate">
                       {ingreso.fecha_despacho}
                       {ingreso.numero_remito ? ` · Rem. ${ingreso.numero_remito}` : ''}
                     </p>
-                    {articulo && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{articulo}</p>
+                    {(articulo || colorNombre) && (
+                      <p className="text-xs text-muted-foreground">
+                        {[articulo, colorNombre].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                    {(ingreso as unknown as { ot: string | null }).ot && (
+                      <p className="text-xs text-muted-foreground">
+                        OT {(ingreso as unknown as { ot: string | null }).ot}
+                      </p>
                     )}
                   </div>
                   <div className="shrink-0 text-right">

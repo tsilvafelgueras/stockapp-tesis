@@ -31,6 +31,7 @@ export default function SearchableCombobox({
   className?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const touchingListRef = useRef(false)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
@@ -55,6 +56,7 @@ export default function SearchableCombobox({
       onBlur={(e) => {
         const next = e.relatedTarget
         if (next instanceof Node && rootRef.current?.contains(next)) return
+        if (touchingListRef.current) return
         close()
       }}
     >
@@ -104,7 +106,12 @@ export default function SearchableCombobox({
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
           </div>
-          <div className="max-h-56 overflow-y-auto py-1">
+          <div
+            className="max-h-56 overflow-y-auto py-1"
+            onTouchStart={() => { touchingListRef.current = true }}
+            onTouchEnd={() => { touchingListRef.current = false }}
+            onTouchCancel={() => { touchingListRef.current = false }}
+          >
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-sm text-muted-foreground">
                 {emptyLabel}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { type CodeScannerResult } from '@/components/CodeScanner'
@@ -66,6 +66,10 @@ export default function PickingScanner({
   readerType: ReaderType
 }) {
   const router = useRouter()
+  const lastCodeRef = useRef<string | null>(null)
+  const lastCodeAtRef = useRef<number>(0)
+  const COOLDOWN_MS = 3000
+
   const [partidasLocales, setPartidasLocales] = useState<PickPartida[]>(partidas)
   const [itemsLocales, setItemsLocales] = useState<PickRollo[]>(items)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
@@ -165,6 +169,18 @@ export default function PickingScanner({
         toast.error('No reconocimos el codigo. Probalo de nuevo o ingresalo manualmente.')
         return
       }
+
+      const ahora = Date.now()
+      if (
+        candidato === lastCodeRef.current &&
+        ahora - lastCodeAtRef.current < COOLDOWN_MS
+      ) {
+        toast.warning('Ese código ya fue ingresado.')
+        return
+      }
+      lastCodeRef.current = candidato
+      lastCodeAtRef.current = ahora
+
       setPendingCode(candidato)
     },
     [patrones]

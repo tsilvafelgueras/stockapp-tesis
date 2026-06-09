@@ -47,7 +47,7 @@ export default async function ConfirmarIngresoPage({
     supabase
       .from('rollos')
       .select(`
-        id, numero_pieza, estado, color_id,
+        id, numero_pieza, estado, color_id, ubicacion,
         articulos ( nombre )
       `)
       .eq('ingreso_id', id)
@@ -76,7 +76,15 @@ export default async function ConfirmarIngresoPage({
     numero_pieza: r.numero_pieza as string,
     articulo: (r.articulos as unknown as { nombre: string } | null)?.nombre ?? null,
     color: r.color_id ? colorById.get(r.color_id as string) ?? null : null,
+    ubicacion: (r.ubicacion as string | null) ?? null,
   }))
+
+  // Si todos los rollos pendientes comparten la misma ubicación no-nula, la
+  // pre-cargamos en el formulario para que el operario no tenga que re-ingresarla.
+  const ubicacionesUnicas = [
+    ...new Set(rollos.map((r) => r.ubicacion).filter((u): u is string => Boolean(u))),
+  ]
+  const ubicacionComun = ubicacionesUnicas.length === 1 ? ubicacionesUnicas[0] : undefined
 
   const pendientes = rollos.length
 
@@ -110,6 +118,7 @@ export default async function ConfirmarIngresoPage({
           rollos={rollos}
           totalDeclarado={ingreso.total_rollos_declarado}
           ubicaciones={ubicaciones}
+          ubicacionPrevia={ubicacionComun}
         />
       )}
     </div>

@@ -39,6 +39,8 @@ export default async function IngresoDetailPage({
     .eq('id', user!.id)
     .single()
   const esAdmin = profile?.role === 'admin'
+  const esOperarioOAdmin =
+    profile?.role === 'admin' || profile?.role === 'operario'
 
   const { data: ingreso } = await supabase
     .from('ingresos')
@@ -184,14 +186,24 @@ export default async function IngresoDetailPage({
               {estado.text}
             </span>
           </div>
-          {esAdmin && (
-            <Link
-              href={`/ingresos/${id}/editar`}
-              className="rounded-md border px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors"
-            >
-              Editar
-            </Link>
-          )}
+          <div className="flex gap-2">
+            {esOperarioOAdmin && (
+              <Link
+                href={`/ingresos/${id}/agregar-rollo`}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors"
+              >
+                Agregar rollo faltante
+              </Link>
+            )}
+            {esAdmin && (
+              <Link
+                href={`/ingresos/${id}/editar`}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-zinc-50 transition-colors"
+              >
+                Editar
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 

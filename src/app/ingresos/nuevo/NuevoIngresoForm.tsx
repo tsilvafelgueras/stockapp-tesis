@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Fragment, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -1531,8 +1531,8 @@ export default function NuevoIngresoForm({
           )}
           {validations.rollosSinUbicacion > 0 && (
             <p className="text-destructive">
-              âš  {validations.rollosSinUbicacion} rollo
-              {validations.rollosSinUbicacion === 1 ? '' : 's'} sin ubicaciÃ³n asignada.
+              ⚠ {validations.rollosSinUbicacion} rollo
+              {validations.rollosSinUbicacion === 1 ? '' : 's'} sin ubicación asignada.
             </p>
           )}
           {validations.rollosSegundaSinCategoria > 0 && (

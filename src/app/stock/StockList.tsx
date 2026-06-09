@@ -184,6 +184,7 @@ export default function StockList({
                         {r.ingresos?.numero_lote && (
                           <p className="font-mono text-xs text-muted-foreground">
                             {r.ingresos.numero_lote}
+                            {r.ingresos.ot ? ` · OT ${r.ingresos.ot}` : ''}
                           </p>
                         )}
                       </div>
@@ -241,13 +242,14 @@ export default function StockList({
 
           <div className="hidden overflow-hidden rounded-lg border bg-white shadow-sm sm:block">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1040px] text-sm">
+              <table className="w-full min-w-[1140px] text-sm">
                 <thead className="border-b bg-muted">
                   <tr className="text-left">
                     <th className="w-12 px-3 py-3 font-medium"></th>
                     <th className="px-3 py-3 font-medium">Pieza</th>
                     <th className="px-3 py-3 font-medium">Estado</th>
                     <th className="px-3 py-3 font-medium">Partida</th>
+                    <th className="px-3 py-3 font-medium">OT</th>
                     <th className="px-3 py-3 font-medium">Artículo</th>
                     <th className="px-3 py-3 font-medium">Color</th>
                     <th className="px-3 py-3 font-medium">Kilos</th>
@@ -293,6 +295,9 @@ export default function StockList({
                         </td>
                         <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
                           {r.ingresos?.numero_lote ?? '-'}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-muted-foreground">
+                          {r.ingresos?.ot ?? '—'}
                         </td>
                         <td className="px-3 py-3">
                           {r.articulos?.nombre ?? '-'}

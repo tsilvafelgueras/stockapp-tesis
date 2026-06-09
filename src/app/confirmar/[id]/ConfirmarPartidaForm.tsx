@@ -15,6 +15,7 @@ export type RolloPartida = {
   numero_pieza: string
   articulo: string | null
   color: string | null
+  ubicacion: string | null
 }
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
   rollos: RolloPartida[]
   totalDeclarado: number | null
   ubicaciones: UbicacionOption[]
+  ubicacionPrevia?: string
 }
 
 type Override = { ubicacion: string; comentario: string }
@@ -31,6 +33,7 @@ export default function ConfirmarPartidaForm({
   rollos,
   totalDeclarado,
   ubicaciones,
+  ubicacionPrevia,
 }: Props) {
   const router = useRouter()
   const filas = rollos.length
@@ -38,7 +41,7 @@ export default function ConfirmarPartidaForm({
   const [paso, setPaso] = useState<'conteo' | 'revision'>('conteo')
   const [conteoStr, setConteoStr] = useState('')
   const [conteo, setConteo] = useState<number | null>(null)
-  const [ubicacionGeneral, setUbicacionGeneral] = useState('')
+  const [ubicacionGeneral, setUbicacionGeneral] = useState(ubicacionPrevia ?? '')
   const [nota, setNota] = useState('')
   const [overrides, setOverrides] = useState<Record<string, Override>>({})
   const [confirmando, setConfirmando] = useState(false)
@@ -228,6 +231,11 @@ export default function ConfirmarPartidaForm({
           searchPlaceholder="Buscar ubicacion..."
           emptyLabel="No hay ubicaciones"
         />
+        {ubicacionPrevia && ubicacionGeneral === ubicacionPrevia && (
+          <p className="text-xs text-muted-foreground">
+            Pre-cargada desde el ingreso — cambiala si es necesario.
+          </p>
+        )}
       </div>
 
       <div className="rounded-lg border bg-white shadow-sm">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { type CodeScannerResult } from '@/components/CodeScanner'
 import ScannerByReaderType, {
   type ReaderType,
@@ -30,6 +30,10 @@ export default function Scanner({
   patrones,
   readerType,
 }: Props) {
+  const lastCodeRef = useRef<string | null>(null)
+  const lastCodeAtRef = useRef<number>(0)
+  const COOLDOWN_MS = 3000
+
   const [rollosLocales, setRollosLocales] = useState<Rollo[]>(rollos)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
   const [ubicacion, setUbicacion] = useState('')
@@ -62,6 +66,18 @@ export default function Scanner({
         )
         return
       }
+
+      const ahora = Date.now()
+      if (
+        extraido.codigo === lastCodeRef.current &&
+        ahora - lastCodeAtRef.current < COOLDOWN_MS
+      ) {
+        mostrarMensaje('Ese código ya fue ingresado.', 'warning')
+        return
+      }
+      lastCodeRef.current = extraido.codigo
+      lastCodeAtRef.current = ahora
+
       setPendingCode(extraido.codigo)
     },
     [codigosRollos, patrones, mostrarMensaje]
