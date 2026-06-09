@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import QRCode from 'react-qr-code'
-import { ArrowLeft, Printer, Share2, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Printer, Share2, Copy, Check, Download } from 'lucide-react'
 import Link from 'next/link'
 
 type RolloEtiqueta = {
@@ -130,6 +130,21 @@ export default function EtiquetaPage() {
     window.print()
   }
 
+  function handleExportPdf() {
+    const originalTitle = document.title
+    const date = new Date().toISOString().slice(0, 10)
+    document.title = `etiquetas-rollos-${date}`
+
+    const restoreTitle = () => {
+      document.title = originalTitle
+      window.removeEventListener('afterprint', restoreTitle)
+    }
+
+    window.addEventListener('afterprint', restoreTitle)
+    window.print()
+    setTimeout(restoreTitle, 1000)
+  }
+
   async function handleShare() {
     try {
       await navigator.share({
@@ -211,10 +226,18 @@ export default function EtiquetaPage() {
           <button
             type="button"
             onClick={handlePrint}
-            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
           >
             <Printer className="size-4" />
             Imprimir
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Download className="size-4" />
+            Exportar PDF
           </button>
         </div>
       </div>
