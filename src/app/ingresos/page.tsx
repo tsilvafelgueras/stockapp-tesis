@@ -3,12 +3,7 @@ import Link from 'next/link'
 import DashboardBackButton from '@/components/DashboardBackButton'
 import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import RollosBulkView, { type RolloBulk } from './RollosBulkView'
-
-const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
-  borrador: { text: 'Borrador', className: 'bg-zinc-100 text-zinc-700' },
-  auditado: { text: 'Auditado', className: 'bg-warning/15 text-warning' },
-  confirmado: { text: 'Confirmado', className: 'bg-success/15 text-success' },
-}
+import IngresosListClient, { type IngresoRow } from './IngresosListClient'
 
 type SearchParams = { vista?: 'ingresos' | 'rollos' }
 
@@ -96,168 +91,44 @@ async function IngresosListView() {
       numero_lote,
       fecha_despacho,
       numero_remito,
+      ot,
+      referencia,
+      rem_tejeduria,
       estado,
       tintorerias ( nombre ),
       rollos ( kilos, articulos ( nombre ) )
     `)
     .order('fecha_despacho', { ascending: false })
 
-  return (
-    <>
-      {/* Vista mobile: cards apilados */}
-      <div className="sm:hidden space-y-3">
-        {ingresos && ingresos.length > 0 ? (
-          ingresos.map((d) => {
-            const estado = ESTADO_LABEL[d.estado] ?? ESTADO_LABEL.borrador
-            const tintoreria = (
-              d.tintorerias as unknown as { nombre: string } | null
-            )?.nombre
-            const rollosArr =
-              (d.rollos as unknown as
-                | { kilos: number | null; articulos: { nombre: string } | null }[]
-                | null) ?? []
-            const cantidadRollos = rollosArr.length
-            const sumaKilos = rollosArr.reduce(
-              (acc, r) => acc + Number(r.kilos ?? 0),
-              0
-            )
-            const articulosResumen = Array.from(
-              new Set(
-                rollosArr
-                  .map((r) => r.articulos?.nombre)
-                  .filter((n): n is string => Boolean(n))
-              )
-            ).join(', ')
-            return (
-              <Link
-                key={d.id}
-                href={`/ingresos/${d.id}`}
-                className="block rounded-lg border bg-white p-4 shadow-sm hover:bg-zinc-50 active:bg-zinc-100"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium">
-                      {d.numero_lote ? `${d.numero_lote} · ` : ''}
-                      {d.fecha_despacho}
-                    </p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {tintoreria ?? '—'} · {articulosResumen || '—'}
-                    </p>
-                  </div>
-                  <span
-                    className={`flex-shrink-0 text-xs rounded-full px-2 py-0.5 ${estado.className}`}
-                  >
-                    {estado.text}
-                  </span>
-                </div>
-                <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
-                  <span>
-                    {cantidadRollos} {cantidadRollos === 1 ? 'rollo' : 'rollos'}
-                  </span>
-                  {sumaKilos > 0 && <span>{sumaKilos.toFixed(2)} kg</span>}
-                  {d.numero_remito && <span>Rem: {d.numero_remito}</span>}
-                </div>
-              </Link>
-            )
-          })
-        ) : (
-          <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">
-            Todavía no cargaste ningún ingreso.
-          </div>
-        )}
-      </div>
+  const rows: IngresoRow[] = (ingresos ?? []).map((d) => {
+    const rollosArr =
+      (d.rollos as unknown as
+        | { kilos: number | null; articulos: { nombre: string } | null }[]
+        | null) ?? []
+    const articulosResumen = Array.from(
+      new Set(
+        rollosArr
+          .map((r) => r.articulos?.nombre)
+          .filter((n): n is string => Boolean(n))
+      )
+    ).join(', ')
+    return {
+      id: d.id,
+      numero_lote: d.numero_lote ?? null,
+      fecha_despacho: d.fecha_despacho ?? null,
+      numero_remito: d.numero_remito ?? null,
+      ot: d.ot ?? null,
+      referencia: d.referencia ?? null,
+      rem_tejeduria: d.rem_tejeduria ?? null,
+      estado: d.estado,
+      tintoreria: (d.tintorerias as unknown as { nombre: string } | null)?.nombre ?? null,
+      cantidadRollos: rollosArr.length,
+      sumaKilos: rollosArr.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0),
+      articulosResumen,
+    }
+  })
 
-      {/* Vista desktop: tabla */}
-      <div className="hidden sm:block rounded-lg border bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-zinc-50 border-b">
-              <tr className="text-left">
-                <th className="px-4 py-3 font-medium">Partida</th>
-                <th className="px-4 py-3 font-medium">Fecha</th>
-                <th className="px-4 py-3 font-medium">Tintorería</th>
-                <th className="px-4 py-3 font-medium">Artículos</th>
-                <th className="px-4 py-3 font-medium">Remito</th>
-                <th className="px-4 py-3 font-medium">Rollos</th>
-                <th className="px-4 py-3 font-medium">Kilos</th>
-                <th className="px-4 py-3 font-medium">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ingresos && ingresos.length > 0 ? (
-                ingresos.map((d) => {
-                  const estado = ESTADO_LABEL[d.estado] ?? ESTADO_LABEL.borrador
-                  const tintoreria = (
-                    d.tintorerias as unknown as { nombre: string } | null
-                  )?.nombre
-                  const rollosArr =
-                    (d.rollos as unknown as
-                      | {
-                          kilos: number | null
-                          articulos: { nombre: string } | null
-                        }[]
-                      | null) ?? []
-                  const cantidadRollos = rollosArr.length
-                  const sumaKilos = rollosArr.reduce(
-                    (acc, r) => acc + Number(r.kilos ?? 0),
-                    0
-                  )
-                  const articulosResumen = Array.from(
-                    new Set(
-                      rollosArr
-                        .map((r) => r.articulos?.nombre)
-                        .filter((n): n is string => Boolean(n))
-                    )
-                  ).join(', ')
-                  return (
-                    <tr
-                      key={d.id}
-                      className="border-b last:border-0 hover:bg-zinc-50"
-                    >
-                      <td className="px-4 py-3 font-mono text-xs">
-                        <Link
-                          href={`/ingresos/${d.id}`}
-                          className="font-medium hover:underline"
-                        >
-                          {d.numero_lote ?? '—'}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">{d.fecha_despacho}</td>
-                      <td className="px-4 py-3">{tintoreria ?? '—'}</td>
-                      <td className="px-4 py-3">{articulosResumen || '—'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {d.numero_remito ?? '—'}
-                      </td>
-                      <td className="px-4 py-3">{cantidadRollos}</td>
-                      <td className="px-4 py-3">
-                        {sumaKilos > 0 ? `${sumaKilos.toFixed(2)} kg` : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs rounded-full px-2 py-0.5 ${estado.className}`}
-                        >
-                          {estado.text}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-8 text-center text-sm text-muted-foreground"
-                  >
-                    Todavía no cargaste ningún ingreso.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
-  )
+  return <IngresosListClient ingresos={rows} />
 }
 
 async function RollosBulkLoader({ role }: { role: 'operario' | 'admin' }) {

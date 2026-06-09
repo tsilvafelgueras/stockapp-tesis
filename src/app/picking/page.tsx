@@ -1,15 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import DashboardBackButton from '@/components/DashboardBackButton'
-
-const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
-  pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
-  en_preparacion: {
-    text: 'En preparacion',
-    className: 'bg-primary/15 text-primary',
-  },
-  lista: { text: 'Pedido listo', className: 'bg-success/15 text-success' },
-}
+import { estadoPedidoBadge } from '@/lib/estadoPedido'
 
 type Row = {
   id: string
@@ -156,7 +148,7 @@ export default async function PickingListPage() {
 }
 
 function PedidoCard({ pedido, cta }: { pedido: Row; cta?: string }) {
-  const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
+  const estado = estadoPedidoBadge(pedido.estado)
   const total =
     pedido.pedido_partidas?.reduce(
       (acc, pp) => acc + Number(pp.rollos_solicitados ?? 0),

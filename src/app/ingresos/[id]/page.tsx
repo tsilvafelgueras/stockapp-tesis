@@ -212,7 +212,7 @@ export default async function IngresoDetailPage({
           label={coloresResumen.length === 1 ? 'Color' : 'Colores'}
           value={coloresResumen.length ? coloresResumen.join(', ') : '—'}
         />
-        {ingreso.ot && <Field label="OT" value={ingreso.ot} />}
+        {ingreso.ot && <Field label="OT (partida tintorería)" value={ingreso.ot} />}
         {ingreso.rem_tejeduria && (
           <Field label="Rem. tejeduría" value={ingreso.rem_tejeduria} />
         )}

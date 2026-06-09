@@ -6,23 +6,7 @@ import PickingScanner, {
   type PickRollo,
 } from './PickingScanner'
 import ConfirmarEgresoCard from './ConfirmarEgresoCard'
-
-const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
-  pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
-  en_preparacion: {
-    text: 'En preparacion',
-    className: 'bg-primary/15 text-primary',
-  },
-  lista: { text: 'Pedido listo', className: 'bg-success/15 text-success' },
-  confirmada_egreso: {
-    text: 'Egreso confirmado',
-    className: 'bg-primary/15 text-primary',
-  },
-  cancelada: {
-    text: 'Cancelada',
-    className: 'bg-destructive/15 text-destructive',
-  },
-}
+import { estadoPedidoBadge, ESTADO_PEDIDO_LABEL } from '@/lib/estadoPedido'
 
 type PedidoPartidaRaw = {
   id: string
@@ -243,7 +227,7 @@ export default async function PickingDetailPage({
     }
   }
 
-  const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
+  const estado = estadoPedidoBadge(pedido.estado)
   const totalSolicitado = partidas.reduce((acc, p) => acc + p.rollosSolicitados, 0)
   const totalPickeado = items.length
   const kilosReales = items.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0)
@@ -288,7 +272,7 @@ export default async function PickingDetailPage({
           <ResumenPedidoPicking partidas={partidas} items={items} />
           <div className="rounded-lg border bg-success/10 border-success/30 p-5 text-center space-y-2">
             <p className="font-semibold text-success">
-              {ESTADO_LABEL[pedido.estado]?.text ?? pedido.estado}
+              {ESTADO_PEDIDO_LABEL[pedido.estado]?.text ?? pedido.estado}
             </p>
             <p className="text-sm text-muted-foreground">
               Este pedido ya no esta en etapa de picking.

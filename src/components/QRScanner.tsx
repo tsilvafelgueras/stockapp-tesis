@@ -76,7 +76,7 @@ export default function QRScanner({
 
     beep()
     navigator.vibrate?.(100)
-    onReadRef.current({ texto, formato: result.formato })
+    onReadRef.current({ texto, formato: result.formato, manual: result.manual })
   }, [])
 
   useEffect(() => {
@@ -203,7 +203,7 @@ export default function QRScanner({
     e.preventDefault()
     const texto = manualValue.trim()
     if (!texto) return
-    emitRead({ texto, formato: null })
+    emitRead({ texto, formato: null, manual: true })
     setManualValue('')
   }
 
@@ -286,6 +286,8 @@ export default function QRScanner({
               value={manualValue}
               onChange={(e) => setManualValue(e.target.value)}
               placeholder={manualPlaceholder}
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="min-w-0 flex-1 rounded-md border border-input bg-white px-3 py-2.5 text-sm"
             />
             <button

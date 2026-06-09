@@ -155,7 +155,12 @@ export default function PickingScanner({
 
   const handleLectura = useCallback(
     (result: CodeScannerResult) => {
-      const candidato = extraerCodigoCandidato(result.texto, patrones) ?? result.texto.trim()
+      // Ingreso manual: el operario tipeó el número de pieza, se usa tal cual
+      // (sin pasar por los regex del QR, que son para el payload de cámara).
+      // Escaneo de cámara: se extrae el número de pieza del payload con los patrones.
+      const candidato = result.manual
+        ? result.texto.trim()
+        : extraerCodigoCandidato(result.texto, patrones) ?? result.texto.trim()
       if (!candidato) {
         toast.error('No reconocimos el codigo. Probalo de nuevo o ingresalo manualmente.')
         return
@@ -452,6 +457,8 @@ export default function PickingScanner({
               <Field label="Nueva pieza">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={numeroReemplazo}
                   onChange={(e) => setNumeroReemplazo(e.target.value)}
                   placeholder="Ej. 204021911"

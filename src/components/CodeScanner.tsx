@@ -10,6 +10,10 @@ import {
 export type CodeScannerResult = {
   texto: string
   formato: string | null
+  /** true cuando el usuario tipeó el código a mano (no vino de la cámara).
+      En ese caso el consumidor debe usar el texto tal cual como número de
+      pieza, sin pasarlo por los regex de extracción del QR. */
+  manual?: boolean
 }
 
 type ScannerStatus =
@@ -90,7 +94,7 @@ export default function CodeScanner({
 
     beep()
     navigator.vibrate?.(100)
-    onReadRef.current({ texto, formato: result.formato })
+    onReadRef.current({ texto, formato: result.formato, manual: result.manual })
   }, [])
 
   const handleScan = useCallback(
@@ -120,7 +124,7 @@ export default function CodeScanner({
     e.preventDefault()
     const texto = manualValue.trim()
     if (!texto) return
-    emitRead({ texto, formato: null })
+    emitRead({ texto, formato: null, manual: true })
     setManualValue('')
   }
 
@@ -213,6 +217,8 @@ export default function CodeScanner({
               value={manualValue}
               onChange={(e) => setManualValue(e.target.value)}
               placeholder={manualPlaceholder}
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="min-w-0 flex-1 rounded-md border border-input bg-white px-3 py-2.5 text-sm"
             />
             <button

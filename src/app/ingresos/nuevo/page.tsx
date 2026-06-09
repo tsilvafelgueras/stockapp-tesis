@@ -8,6 +8,7 @@ type ArticuloRow = {
   id: string
   nombre: string
   articulo_colores: Array<{
+    fijado: boolean | null
     colores: { id: string; nombre: string } | { id: string; nombre: string }[] | null
   }> | null
 }
@@ -34,7 +35,7 @@ export default async function NuevoIngresoPage() {
       .from('articulos')
       .select(
         `id, nombre,
-         articulo_colores(colores(id, nombre))`
+         articulo_colores(fijado, colores(id, nombre))`
       )
       .eq('activo', true)
       .order('nombre'),
@@ -68,8 +69,18 @@ export default async function NuevoIngresoPage() {
   // Aplastar M:N: cada artículo lleva su lista de colores asociados.
   const articulos = (articulosRaw ?? []).map((a: ArticuloRow) => {
     const cols = (a.articulo_colores ?? [])
-      .map((ac) => (Array.isArray(ac.colores) ? ac.colores[0] : ac.colores))
-      .filter((c): c is { id: string; nombre: string } => !!c)
+      .map((ac) => {
+        const color = Array.isArray(ac.colores) ? ac.colores[0] : ac.colores
+        return color ? { ...color, fijado: ac.fijado ?? false } : null
+      })
+      .filter((c): c is { id: string; nombre: string; fijado: boolean } => !!c)
+      // Fijados primero (alfabético), luego el resto. Así el dropdown de color
+      // por rollo muestra arriba los colores fijados del artículo.
+      .sort((x, y) => {
+        if (x.fijado !== y.fijado) return x.fijado ? -1 : 1
+        return x.nombre.localeCompare(y.nombre, 'es')
+      })
+      .map(({ id, nombre }) => ({ id, nombre }))
     return { id: a.id, nombre: a.nombre, colores: cols }
   })
 

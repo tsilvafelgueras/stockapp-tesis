@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { crearCliente } from '@/app/clientes/actions'
 import { crearPedidoPorPartidas } from '../actions'
+import SearchableCombobox from '@/components/SearchableCombobox'
 
 export type Catalogo = { id: string; nombre: string }
 
@@ -363,18 +364,14 @@ export default function NuevoPedidoForm({
           </Field>
 
           <Field label="Color">
-            <select
+            <SearchableCombobox
+              options={colores.map((c) => ({ value: c.id, label: c.nombre }))}
               value={currentFilters.color}
-              onChange={(e) => updateFilter('color', e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm bg-white"
-            >
-              <option value="">Todos</option>
-              {colores.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => updateFilter('color', v)}
+              placeholder="Todos"
+              searchPlaceholder="Buscar color..."
+              emptyLabel="Sin colores"
+            />
           </Field>
 
           <Field label="Tintoreria">

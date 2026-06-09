@@ -160,7 +160,7 @@ export default function EditarIngresoForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium">OT</label>
+          <label className="text-sm font-medium">OT (partida tintorería)</label>
           <input
             type="text"
             value={ot}

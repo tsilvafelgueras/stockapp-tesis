@@ -1,24 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import PedidosFilters from './PedidosFilters'
-
-const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
-  pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
-  en_preparacion: {
-    text: 'En preparacion',
-    className: 'bg-primary/15 text-primary',
-  },
-  lista: { text: 'Pedido listo', className: 'bg-success/15 text-success' },
-  confirmada_egreso: {
-    text: 'Egreso confirmado',
-    className: 'bg-primary/15 text-primary',
-  },
-  entregada: { text: 'Egreso confirmado', className: 'bg-zinc-100 text-zinc-700' },
-  cancelada: {
-    text: 'Cancelada',
-    className: 'bg-destructive/15 text-destructive',
-  },
-}
+import { estadoPedidoBadge } from '@/lib/estadoPedido'
 
 type SearchParams = {
   estado?: string
@@ -196,7 +179,7 @@ function PedidoCardMobile({
   pedido: PedidoRow
   hoyIso: string
 }) {
-  const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
+  const estado = estadoPedidoBadge(pedido.estado)
   const cantidadSolicitada = totalRollosSolicitados(pedido)
   const kilos = totalKilosReal(pedido)
   const demorado = pedidoDemorado(pedido, hoyIso)
@@ -257,7 +240,7 @@ function PedidoRowDesktop({
   pedido: PedidoRow
   hoyIso: string
 }) {
-  const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
+  const estado = estadoPedidoBadge(pedido.estado)
   const cantidad = totalRollosSolicitados(pedido)
   const kilos = totalKilosReal(pedido)
   const href = `/pedidos/${pedido.id}`

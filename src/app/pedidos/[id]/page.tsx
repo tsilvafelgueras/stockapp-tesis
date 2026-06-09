@@ -6,27 +6,7 @@ import PedidoActions from './PedidoActions'
 import AgregarRollosPedido, {
   type PartidaParaAgregar,
 } from './AgregarRollosPedido'
-
-const ESTADO_LABEL: Record<string, { text: string; className: string }> = {
-  pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
-  en_preparacion: {
-    text: 'En preparacion',
-    className: 'bg-primary/15 text-primary',
-  },
-  lista: {
-    text: 'Pedido listo',
-    className: 'bg-success/15 text-success',
-  },
-  confirmada_egreso: {
-    text: 'Egreso confirmado',
-    className: 'bg-primary/15 text-primary',
-  },
-  entregada: { text: 'Egreso confirmado', className: 'bg-zinc-100 text-zinc-700' },
-  cancelada: {
-    text: 'Cancelada',
-    className: 'bg-destructive/15 text-destructive',
-  },
-}
+import { estadoPedidoBadge } from '@/lib/estadoPedido'
 
 type PedidoPartidaRaw = {
   id: string
@@ -250,7 +230,7 @@ export default async function PedidoDetailPage({
     (acc, r) => acc + Number(r.rollos?.kilos ?? 0),
     0
   )
-  const estado = ESTADO_LABEL[pedido.estado] ?? ESTADO_LABEL.pendiente
+  const estado = estadoPedidoBadge(pedido.estado)
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   const demorado =

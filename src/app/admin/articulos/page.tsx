@@ -7,6 +7,7 @@ type Role = 'admin' | 'ventas' | 'operario' | 'super'
 
 type ArticuloColorRow = {
   stock_minimo_kg: number | null
+  fijado: boolean | null
   colores: { id: string; nombre: string } | { id: string; nombre: string }[] | null
 }
 
@@ -33,7 +34,7 @@ export default async function ArticulosPage() {
       .from('articulos')
       .select(
         `id, nombre, descripcion, stock_minimo_kg,
-         articulo_colores(stock_minimo_kg, colores(id, nombre))`
+         articulo_colores(stock_minimo_kg, fijado, colores(id, nombre))`
       )
       .eq('activo', true)
       .order('created_at', { ascending: false }),
@@ -54,13 +55,28 @@ export default async function ArticulosPage() {
       .map((ac) => {
         const color = Array.isArray(ac.colores) ? ac.colores[0] : ac.colores
         return color
-          ? { ...color, stock_minimo_kg: ac.stock_minimo_kg }
+          ? {
+              ...color,
+              stock_minimo_kg: ac.stock_minimo_kg,
+              fijado: ac.fijado ?? false,
+            }
           : null
       })
       .filter(
-        (c): c is { id: string; nombre: string; stock_minimo_kg: number | null } =>
-          !!c
+        (
+          c
+        ): c is {
+          id: string
+          nombre: string
+          stock_minimo_kg: number | null
+          fijado: boolean
+        } => !!c
       )
+      // Fijados primero (alfabético), luego el resto (alfabético).
+      .sort((x, y) => {
+        if (x.fijado !== y.fijado) return x.fijado ? -1 : 1
+        return x.nombre.localeCompare(y.nombre, 'es')
+      })
     return {
       id: a.id,
       nombre: a.nombre,

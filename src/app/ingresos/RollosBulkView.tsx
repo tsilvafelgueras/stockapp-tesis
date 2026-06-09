@@ -175,7 +175,16 @@ export default function RollosBulkView({
       if (filters.ubicacion.length && !filters.ubicacion.includes(r.ubicacion ?? '')) {
         return false
       }
-      if (q && !r.numero_pieza.toLowerCase().includes(q)) return false
+      if (
+        q &&
+        ![
+          r.numero_pieza,
+          r.ingreso_ot,
+          r.ingreso_remito,
+          r.ingreso_referencia,
+        ].some((campo) => campo?.toLowerCase().includes(q))
+      )
+        return false
       return true
     })
   }, [rollos, filters, search])
@@ -297,7 +306,7 @@ export default function RollosBulkView({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nº de pieza..."
+          placeholder="Buscar por nº de pieza, OT (tintorería), remito o referencia..."
           className="flex-1 min-w-[160px] rounded-md border px-3 py-2 text-sm"
         />
         {(activeFilterCount > 0 || search) && (

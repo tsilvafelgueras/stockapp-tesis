@@ -154,7 +154,7 @@ export default function StockFilters({
           </select>
         </Field>
 
-        <Field label="OT">
+        <Field label="OT (partida tintorería)">
           <select
             value={current.ot}
             onChange={(e) => update('ot', e.target.value)}

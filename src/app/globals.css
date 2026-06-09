@@ -152,6 +152,12 @@
     min-width: 0;
     overflow-x: hidden;
     font-size: 16px;
+    /* PWA standalone (iOS): respeta el notch lateral y el home indicator.
+       En portrait las insets laterales son 0; position:fixed ignora este
+       padding, así que el topbar no se desplaza. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   h1,

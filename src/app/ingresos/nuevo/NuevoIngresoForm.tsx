@@ -1016,7 +1016,7 @@ export default function NuevoIngresoForm({
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">OT</label>
+            <label className="text-sm font-medium">OT (partida tintorería)</label>
             <input
               type="text"
               value={ot}
@@ -1289,6 +1289,8 @@ export default function NuevoIngresoForm({
                       <td className="px-3 py-1">
                         <input
                           type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={r.numero_pieza}
                           onChange={(e) =>
                             updateRollo(i, 'numero_pieza', e.target.value)
@@ -1575,7 +1577,7 @@ function SegundaCalidadFields({
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
+        <label className="text-xs font-semibold text-foreground">
           Categoría de falla *
         </label>
         <select
@@ -1596,7 +1598,7 @@ function SegundaCalidadFields({
         </select>
       </div>
       <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
+        <label className="text-xs font-semibold text-foreground">
           Descripción
         </label>
         <textarea
@@ -1610,7 +1612,7 @@ function SegundaCalidadFields({
         />
       </div>
       <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
+        <label className="text-xs font-semibold text-foreground">
           Foto de la falla
         </label>
         {foto ? (
@@ -1711,11 +1713,13 @@ function RolloCardMobile({
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
+        <label className="text-xs font-semibold text-foreground">
           N° Pieza *
         </label>
         <input
           type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={rollo.numero_pieza}
           onChange={(e) => onUpdate('numero_pieza', e.target.value)}
           placeholder="204021911"
@@ -1728,7 +1732,7 @@ function RolloCardMobile({
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
+        <label className="text-xs font-semibold text-foreground">
           Artículo *
         </label>
         <select
@@ -1750,7 +1754,7 @@ function RolloCardMobile({
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
+        <label className="text-xs font-semibold text-foreground">
           Color *
         </label>
         <select
@@ -1776,7 +1780,7 @@ function RolloCardMobile({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Kilos</label>
+          <label className="text-xs font-semibold text-foreground">Kilos</label>
           <input
             type="number"
             step="0.01"
@@ -1789,7 +1793,7 @@ function RolloCardMobile({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Metros</label>
+          <label className="text-xs font-semibold text-foreground">Metros</label>
           <input
             type="number"
             step="0.01"
@@ -1802,7 +1806,7 @@ function RolloCardMobile({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Rinde</label>
+          <label className="text-xs font-semibold text-foreground">Rinde</label>
           <input
             type="number"
             step="0.01"
@@ -1815,7 +1819,7 @@ function RolloCardMobile({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Gramaje</label>
+          <label className="text-xs font-semibold text-foreground">Gramaje</label>
           <input
             type="number"
             step="0.01"
@@ -1828,7 +1832,7 @@ function RolloCardMobile({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label className="text-xs font-semibold text-foreground">
             Ubicación
           </label>
           <select

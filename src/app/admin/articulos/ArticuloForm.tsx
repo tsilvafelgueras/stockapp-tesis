@@ -1,11 +1,16 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { ChevronDown, ChevronRight, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Pin, PinOff, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { createArticulo, deleteArticulo, updateArticulo } from './actions'
 
-type Catalog = { id: string; nombre: string; stock_minimo_kg?: number | null }
+type Catalog = {
+  id: string
+  nombre: string
+  stock_minimo_kg?: number | null
+  fijado?: boolean
+}
 
 type Articulo = {
   id: string
@@ -108,6 +113,9 @@ export function EditArticuloRow({
         .map((c) => [c.id, String(c.stock_minimo_kg)])
     )
   )
+  const [fijados, setFijados] = useState<Set<string>>(
+    () => new Set(articulo.colores.filter((c) => c.fijado).map((c) => c.id))
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [eliminandoPending, startEliminar] = useTransition()
@@ -117,6 +125,30 @@ export function EditArticuloRow({
     () => colores.filter((c) => !coloresIds.includes(c.id)),
     [colores, coloresIds]
   )
+
+  const nombreColor = useMemo(() => {
+    const map = new Map(colores.map((c) => [c.id, c.nombre]))
+    return (id: string) => map.get(id) ?? id
+  }, [colores])
+
+  // Orden de visualización: fijados primero (alfabético), luego el resto (alfabético).
+  const coloresOrdenados = useMemo(() => {
+    return [...coloresIds].sort((a, b) => {
+      const fa = fijados.has(a)
+      const fb = fijados.has(b)
+      if (fa !== fb) return fa ? -1 : 1
+      return nombreColor(a).localeCompare(nombreColor(b), 'es')
+    })
+  }, [coloresIds, fijados, nombreColor])
+
+  function toggleFijado(id: string) {
+    setFijados((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   function resetForm() {
     setNombre(articulo.nombre)
@@ -129,6 +161,7 @@ export function EditArticuloRow({
           .map((c) => [c.id, String(c.stock_minimo_kg)])
       )
     )
+    setFijados(new Set(articulo.colores.filter((c) => c.fijado).map((c) => c.id)))
     setAgregando(false)
     setError(null)
   }
@@ -144,6 +177,12 @@ export function EditArticuloRow({
     setStockMinimos((prev) => {
       const next = { ...prev }
       delete next[id]
+      return next
+    })
+    setFijados((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
       return next
     })
   }
@@ -162,6 +201,7 @@ export function EditArticuloRow({
       descripcion,
       colores_ids: coloresIds,
       stock_minimos_por_color: stockMinimos,
+      fijados_color_ids: [...fijados],
     })
     if (result.error) {
       setError(result.error)
@@ -286,7 +326,7 @@ export function EditArticuloRow({
           <td colSpan={5} className="pb-3 pl-14 pr-4 pt-1">
             {coloresIds.length > 0 ? (
               <dl className="divide-y divide-zinc-200">
-                {coloresIds.map((colorId) => {
+                {coloresOrdenados.map((colorId) => {
                   const color = colores.find((c) => c.id === colorId)
                   const stock = stockMinimos[colorId]
                   return (
@@ -294,7 +334,13 @@ export function EditArticuloRow({
                       key={colorId}
                       className="flex items-center justify-between gap-4 py-2"
                     >
-                      <dt className="text-sm font-medium text-foreground">
+                      <dt className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                        {fijados.has(colorId) && (
+                          <Pin
+                            className="size-3.5 fill-warning text-warning"
+                            aria-label="Fijado"
+                          />
+                        )}
                         {color?.nombre ?? colorId}
                       </dt>
                       <dd
@@ -347,15 +393,24 @@ export function EditArticuloRow({
                     <tr className="text-left">
                       <th className="px-3 py-2 font-medium">Color</th>
                       <th className="px-3 py-2 font-medium">Stock mínimo</th>
+                      <th className="px-3 py-2 font-medium text-center">Fijar</th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
-                    {coloresIds.map((colorId) => {
+                    {coloresOrdenados.map((colorId) => {
                       const color = colores.find((c) => c.id === colorId)
+                      const estaFijado = fijados.has(colorId)
                       return (
                         <tr key={colorId} className="border-b last:border-0">
-                          <td className="px-3 py-2">{color?.nombre ?? 'Color'}</td>
+                          <td className="px-3 py-2">
+                            <span className="flex items-center gap-1.5">
+                              {estaFijado && (
+                                <Pin className="size-3.5 fill-warning text-warning" />
+                              )}
+                              {color?.nombre ?? 'Color'}
+                            </span>
+                          </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               <input
@@ -376,6 +431,25 @@ export function EditArticuloRow({
                               <span className="text-xs text-muted-foreground">kg</span>
                             </div>
                           </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggleFijado(colorId)}
+                              className={`inline-flex size-7 items-center justify-center rounded transition-colors ${
+                                estaFijado
+                                  ? 'text-warning hover:bg-warning/10'
+                                  : 'text-muted-foreground hover:bg-zinc-100 hover:text-foreground'
+                              }`}
+                              title={estaFijado ? 'Desfijar color' : 'Fijar arriba'}
+                              aria-pressed={estaFijado}
+                            >
+                              {estaFijado ? (
+                                <Pin className="size-4 fill-warning" />
+                              ) : (
+                                <PinOff className="size-4" />
+                              )}
+                            </button>
+                          </td>
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
@@ -392,7 +466,7 @@ export function EditArticuloRow({
                     {coloresIds.length === 0 && (
                       <tr>
                         <td
-                          colSpan={3}
+                          colSpan={4}
                           className="px-3 py-4 text-center text-sm text-muted-foreground"
                         >
                           Sin colores asociados.
@@ -400,7 +474,7 @@ export function EditArticuloRow({
                       </tr>
                     )}
                     <tr>
-                      <td colSpan={3} className="px-3 py-2">
+                      <td colSpan={4} className="px-3 py-2">
                         {agregando ? (
                           <div className="flex items-center gap-2">
                             <select

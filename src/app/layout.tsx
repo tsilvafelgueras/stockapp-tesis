@@ -23,6 +23,14 @@ export const metadata: Metadata = {
   description: "WMS ligero para PyMEs textiles argentinas",
   icons: {
     icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
+  // Hace que iOS la trate como app standalone (sin barras de Safari) al
+  // agregarla a la pantalla de inicio. Aplica a todos los roles.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "NUDO",
   },
 };
 
@@ -32,6 +40,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#1A2744",
 };
 
 export default function RootLayout({

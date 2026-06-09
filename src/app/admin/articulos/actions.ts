@@ -8,6 +8,8 @@ type ArticuloFormData = {
   descripcion: string
   stock_minimos_por_color?: Record<string, string>
   colores_ids: string[]
+  /** ids de colores fijados (pin) para este artículo. */
+  fijados_color_ids?: string[]
 }
 
 type CrearArticuloData = {
@@ -94,6 +96,8 @@ export async function updateArticulo(id: string, formData: ArticuloFormData) {
     }
   }
 
+  const fijados = new Set(formData.fijados_color_ids ?? [])
+
   if (aAgregar.length) {
     const rows = aAgregar.map((color_id) => ({
       articulo_id: id,
@@ -101,6 +105,7 @@ export async function updateArticulo(id: string, formData: ArticuloFormData) {
       stock_minimo_kg: parseStockMinimo(
         formData.stock_minimos_por_color?.[color_id]
       ),
+      fijado: fijados.has(color_id),
     }))
     const { error: iError } = await supabase
       .from('articulo_colores')
@@ -117,6 +122,7 @@ export async function updateArticulo(id: string, formData: ArticuloFormData) {
         stock_minimo_kg: parseStockMinimo(
           formData.stock_minimos_por_color?.[color_id]
         ),
+        fijado: fijados.has(color_id),
       })
       .eq('articulo_id', id)
       .eq('color_id', color_id)
