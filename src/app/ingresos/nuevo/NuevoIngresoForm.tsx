@@ -158,6 +158,13 @@ function fmt(v: number | null): string {
   return v === null || v === undefined ? '' : String(v)
 }
 
+function parseDecimalInput(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed.replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
 function valOf<T>(f: Field<T>): string {
   if (f.value === null || f.value === undefined) return ''
   return String(f.value)
@@ -561,7 +568,10 @@ export default function NuevoIngresoForm({
 
   const validations = useMemo(() => {
     const sumaKilos = rollos.reduce(
-      (acc, r) => acc + (parseFloat(r.kilos) || 0),
+      (acc, r) => {
+        const kilos = parseDecimalInput(r.kilos)
+        return acc + (Number.isNaN(kilos) ? 0 : (kilos ?? 0))
+      },
       0
     )
     const rollosConPieza = rollos.filter((r) => r.numero_pieza.trim())
@@ -577,7 +587,7 @@ export default function NuevoIngresoForm({
     const duplicados = Array.from(duplicadosSet)
 
     const totalRollosNum = parseInt(totalRollosDeclarado) || null
-    const totalKilosNum = parseFloat(totalKilosDeclarado) || null
+    const totalKilosNum = parseDecimalInput(totalKilosDeclarado)
 
     const cantidadCoincide =
       totalRollosNum === null || totalRollosNum === cantidadRollos
@@ -600,6 +610,10 @@ export default function NuevoIngresoForm({
     const rollosSegundaSinCategoria = rollosConPieza.filter(
       (r) => r.segunda && !r.falla_categoria
     ).length
+    const rollosKilosInvalidos = rollosConPieza.filter((r) => {
+      const kilos = parseDecimalInput(r.kilos)
+      return Number.isNaN(kilos) || (kilos != null && kilos < 0)
+    }).length
 
     // Cross-check Kilos vs Metros/Rdto. En la planilla Rdto = Metros / Kilos,
     // así que los kilos esperados ≈ Metros / Rdto. Si los kilos cargados no
@@ -614,10 +628,19 @@ export default function NuevoIngresoForm({
       esperado: number
     }[] = []
     for (const r of rollos) {
-      const kg = parseFloat(r.kilos)
+      const kg = parseDecimalInput(r.kilos)
       const m = parseFloat(r.metros)
       const rd = parseFloat(r.rinde)
-      if (!r.numero_pieza.trim() || !(kg > 0) || !(m > 0) || !(rd > 0)) continue
+      if (
+        !r.numero_pieza.trim() ||
+        kg == null ||
+        Number.isNaN(kg) ||
+        kg <= 0 ||
+        !(m > 0) ||
+        !(rd > 0)
+      ) {
+        continue
+      }
       const esperado = m / rd
       if (Math.abs(kg - esperado) / esperado > TOLERANCIA_RDTO) {
         rollosInconsistentes.push({
@@ -638,6 +661,7 @@ export default function NuevoIngresoForm({
       rollosSinColor,
       rollosSinUbicacion,
       rollosSegundaSinCategoria,
+      rollosKilosInvalidos,
       rollosInconsistentes,
     }
   }, [rollos, totalRollosDeclarado, totalKilosDeclarado, modo])
@@ -772,6 +796,7 @@ export default function NuevoIngresoForm({
     validations.rollosSinColor > 0 ||
     validations.rollosSinUbicacion > 0 ||
     validations.rollosSegundaSinCategoria > 0 ||
+    validations.rollosKilosInvalidos > 0 ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
 
@@ -1017,13 +1042,11 @@ export default function NuevoIngresoForm({
               Total de kilos declarado
             </label>
             <input
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
               inputMode="decimal"
               value={totalKilosDeclarado}
               onChange={(e) => setTotalKilosDeclarado(e.target.value)}
-              placeholder="Ej: 480.50"
+              placeholder="Ej: 480.50 o 480,50"
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.total_kilos_declarado)}`}
             />
           </div>
@@ -1358,13 +1381,11 @@ export default function NuevoIngresoForm({
                       </td>
                       <td className="px-3 py-1">
                         <input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                          type="text"
                           inputMode="decimal"
                           value={r.kilos}
                           onChange={(e) => updateRollo(i, 'kilos', e.target.value)}
-                          placeholder="20.5"
+                          placeholder="20.5 o 20,5"
                           className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.kilos)}`}
                         />
                       </td>
@@ -1485,6 +1506,7 @@ export default function NuevoIngresoForm({
         validations.rollosSinColor > 0 ||
         validations.rollosSinUbicacion > 0 ||
         validations.rollosSegundaSinCategoria > 0 ||
+        validations.rollosKilosInvalidos > 0 ||
         validations.rollosInconsistentes.length > 0 ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
@@ -1517,6 +1539,12 @@ export default function NuevoIngresoForm({
             <p className="text-destructive">
               ⚠ {validations.rollosSegundaSinCategoria} rollo
               {validations.rollosSegundaSinCategoria === 1 ? '' : 's'} marcado como segunda sin categoría de falla.
+            </p>
+          )}
+          {validations.rollosKilosInvalidos > 0 && (
+            <p className="text-destructive">
+              ⚠ {validations.rollosKilosInvalidos} rollo
+              {validations.rollosKilosInvalidos === 1 ? '' : 's'} con kilos inválidos.
             </p>
           )}
           {!validations.cantidadCoincide && (
@@ -1796,13 +1824,11 @@ function RolloCardMobile({
         <div className="space-y-1">
           <label className="text-xs font-semibold text-foreground">Kilos</label>
           <input
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
             inputMode="decimal"
             value={rollo.kilos}
             onChange={(e) => onUpdate('kilos', e.target.value)}
-            placeholder="20.5"
+            placeholder="20.5 o 20,5"
             className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.kilos)}`}
           />
         </div>

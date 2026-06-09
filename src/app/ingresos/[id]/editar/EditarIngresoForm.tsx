@@ -7,6 +7,13 @@ import { normalizarFechaISO } from '@/lib/fechas'
 
 type Catalog = { id: string; nombre: string }
 
+function parseDecimalInput(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed.replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
 export default function EditarIngresoForm({
   ingreso,
   tintorerias,
@@ -48,7 +55,7 @@ export default function EditarIngresoForm({
 
   const validation = useMemo(() => {
     const declaradoRollos = totalRollos.trim() === '' ? null : parseInt(totalRollos)
-    const declaradoKilos = totalKilos.trim() === '' ? null : parseFloat(totalKilos)
+    const declaradoKilos = parseDecimalInput(totalKilos)
 
     const cantidadCoincide =
       declaradoRollos === null ||
@@ -148,13 +155,11 @@ export default function EditarIngresoForm({
         <div className="space-y-1">
           <label className="text-sm font-medium">Total kilos declarado</label>
           <input
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
             inputMode="decimal"
             value={totalKilos}
             onChange={(e) => setTotalKilos(e.target.value)}
-            placeholder="Ej: 480.50"
+            placeholder="Ej: 480.50 o 480,50"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>

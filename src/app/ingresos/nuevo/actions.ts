@@ -301,6 +301,13 @@ export async function crearIngreso(input: IngresoInput) {
   if (!input.rollos.length) return { error: 'Cargá al menos un rollo.' }
 
   const origen = input.origen ?? 'manual'
+  const totalKilosDeclarado = parseDecimal(input.total_kilos_declarado)
+  if (
+    Number.isNaN(totalKilosDeclarado) ||
+    (totalKilosDeclarado != null && totalKilosDeclarado < 0)
+  ) {
+    return { error: 'Ingresa un total de kilos declarado valido.' }
+  }
 
   for (const r of input.rollos) {
     if (!r.numero_pieza.trim()) {
@@ -311,6 +318,12 @@ export async function crearIngreso(input: IngresoInput) {
     }
     if (!r.color_id) {
       return { error: `El rollo "${r.numero_pieza.trim()}" no tiene color asignado.` }
+    }
+    const kilos = parseDecimal(r.kilos)
+    if (Number.isNaN(kilos) || (kilos != null && kilos < 0)) {
+      return {
+        error: `El rollo "${r.numero_pieza.trim()}" tiene kilos invalidos.`,
+      }
     }
     if (origen === 'manual' && !r.ubicacion.trim()) {
       return {
@@ -371,9 +384,7 @@ export async function crearIngreso(input: IngresoInput) {
       total_rollos_declarado: input.total_rollos_declarado
         ? parseInt(input.total_rollos_declarado)
         : null,
-      total_kilos_declarado: input.total_kilos_declarado
-        ? parseFloat(input.total_kilos_declarado)
-        : null,
+      total_kilos_declarado: totalKilosDeclarado,
       imagen_url: input.imagen_path ?? null,
       estado: ingresoEstado,
       origen,
@@ -394,7 +405,7 @@ export async function crearIngreso(input: IngresoInput) {
     articulo_id: r.articulo_id,
     color_id: r.color_id,
     numero_pieza: r.numero_pieza.trim(),
-    kilos: r.kilos ? parseFloat(r.kilos) : null,
+    kilos: parseDecimal(r.kilos),
     metros: r.metros ? parseFloat(r.metros) : null,
     rinde: r.rinde ? parseFloat(r.rinde) : null,
     gramaje_planilla: r.gramaje_planilla
@@ -498,6 +509,14 @@ export async function editarIngreso(input: EditarIngresoInput) {
     return { error: 'Solo el administrador puede editar ingresos.' }
   }
 
+  const totalKilosDeclarado = parseDecimal(input.total_kilos_declarado)
+  if (
+    Number.isNaN(totalKilosDeclarado) ||
+    (totalKilosDeclarado != null && totalKilosDeclarado < 0)
+  ) {
+    return { error: 'Ingresa un total de kilos declarado valido.' }
+  }
+
   const { error } = await supabase
     .from('ingresos')
     .update({
@@ -510,9 +529,7 @@ export async function editarIngreso(input: EditarIngresoInput) {
       total_rollos_declarado: input.total_rollos_declarado
         ? parseInt(input.total_rollos_declarado)
         : null,
-      total_kilos_declarado: input.total_kilos_declarado
-        ? parseFloat(input.total_kilos_declarado)
-        : null,
+      total_kilos_declarado: totalKilosDeclarado,
       editado_at: new Date().toISOString(),
       editado_por: user.id,
     })
@@ -521,4 +538,11 @@ export async function editarIngreso(input: EditarIngresoInput) {
   if (error) return { error: error.message }
 
   redirect(`/ingresos/${input.ingresoId}?editado=1`)
+}
+
+function parseDecimal(value: string | undefined): number | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed.replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : Number.NaN
 }
