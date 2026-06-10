@@ -1,4 +1,4 @@
-# StockApp
+# Nudo Stock
 
 Sistema de gestión de stock de rollos textiles. Proyecto MVP de tesis (ITBA).
 
@@ -19,13 +19,3 @@ npm run dev
 
 Abrí [http://localhost:3000](http://localhost:3000).
 
-## Estado
-
-- ✅ **Etapa 0** — bootstrap (Next + Tailwind + shadcn, deploy a Vercel)
-- ✅ **Etapa 1** — modelo de datos + auth con roles
-- ⏳ Etapa 2 — ingreso manual de despacho
-- ⏳ Etapa 3 — extracción IA + auditoría
-- ⏳ Etapa 4 — confirmación física en mobile (scanner QR/barcode)
-- ⏳ Etapa 5 — vista de stock
-- ⏳ Etapa 6 — órdenes + picking
-- ⏳ Etapa 7 — muestras + reportes
