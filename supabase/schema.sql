@@ -414,7 +414,8 @@ CREATE TRIGGER set_empresa_rollos BEFORE INSERT ON rollos
 CREATE TABLE IF NOT EXISTS pedidos (
   id                       UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   empresa_id               UUID NOT NULL REFERENCES empresas(id),
-  numero_pedido            TEXT UNIQUE,
+  numero_pedido            TEXT,
+  CONSTRAINT pedidos_empresa_numero_pedido_key UNIQUE (empresa_id, numero_pedido),
   cliente                  TEXT NOT NULL,
   numero_remito_externo    TEXT,
   estado                   TEXT NOT NULL DEFAULT 'pendiente'
