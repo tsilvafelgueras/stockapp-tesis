@@ -57,6 +57,7 @@ export default function BarcodeScanner({
   title = 'Escanear código de barras',
   manualLabel = 'Código manual',
   manualPlaceholder = 'Escaneá o ingresá el código',
+  hideManualInput = false,
   variant = 'embedded',
   className = '',
 }: {
@@ -65,6 +66,7 @@ export default function BarcodeScanner({
   title?: string
   manualLabel?: string
   manualPlaceholder?: string
+  hideManualInput?: boolean
   variant?: 'standalone' | 'embedded'
   className?: string
 }) {
@@ -255,28 +257,30 @@ export default function BarcodeScanner({
           </div>
         )}
 
-        <form onSubmit={handleManualSubmit} className="mt-4 space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            {manualLabel}
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              value={manualValue}
-              onChange={(e) => setManualValue(e.target.value)}
-              placeholder={manualPlaceholder}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              className="min-w-0 flex-1 rounded-md border border-input bg-white px-3 py-2.5 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={!manualValue.trim()}
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-action px-4 text-sm font-semibold text-action-foreground transition-colors hover:bg-action/90 disabled:opacity-50"
-            >
-              Usar código
-            </button>
-          </div>
-        </form>
+        {!hideManualInput && (
+          <form onSubmit={handleManualSubmit} className="mt-4 space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              {manualLabel}
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={manualValue}
+                onChange={(e) => setManualValue(e.target.value)}
+                placeholder={manualPlaceholder}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className="min-w-0 flex-1 rounded-md border border-input bg-white px-3 py-2.5 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={!manualValue.trim()}
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-action px-4 text-sm font-semibold text-action-foreground transition-colors hover:bg-action/90 disabled:opacity-50"
+              >
+                Usar código
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </section>
   )

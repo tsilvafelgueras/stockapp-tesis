@@ -85,6 +85,7 @@ export default function NotificationBell({
       <button
         ref={buttonRef}
         type="button"
+        data-no-ripple
         onClick={() => setOpen((v) => !v)}
         className="relative flex size-10 items-center justify-center rounded-md text-white/85 transition-colors hover:bg-white/10 hover:text-white"
         aria-label={`Notificaciones${count > 0 ? ` (${count} sin leer)` : ''}`}

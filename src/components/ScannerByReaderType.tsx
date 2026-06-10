@@ -13,6 +13,9 @@ type Props = {
   title?: string
   manualLabel?: string
   manualPlaceholder?: string
+  /** Oculta el input de "código manual" debajo de la cámara (en el alta de
+      ingreso el código se carga por pieza, no hace falta el manual del scanner). */
+  hideManualInput?: boolean
   variant?: 'standalone' | 'embedded'
   className?: string
 }

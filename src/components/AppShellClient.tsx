@@ -388,6 +388,7 @@ function SidebarNav({
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-ripple
                   onClick={onItemClick}
                   title={collapsed ? item.label : undefined}
                   className={`flex min-h-11 items-center gap-3 rounded-md text-sm font-medium transition-colors ${

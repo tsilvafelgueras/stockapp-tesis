@@ -28,6 +28,7 @@ export default function EditarIngresoForm({
     ot: string | null
     rem_tejeduria: string | null
     referencia: string | null
+    comentario: string | null
     total_rollos_declarado: number | null
     total_kilos_declarado: number | null
   }
@@ -43,6 +44,7 @@ export default function EditarIngresoForm({
   const [ot, setOt] = useState(ingreso.ot ?? '')
   const [remTejeduria, setRemTejeduria] = useState(ingreso.rem_tejeduria ?? '')
   const [referencia, setReferencia] = useState(ingreso.referencia ?? '')
+  const [comentario, setComentario] = useState(ingreso.comentario ?? '')
   const [totalRollos, setTotalRollos] = useState(
     ingreso.total_rollos_declarado != null ? String(ingreso.total_rollos_declarado) : ''
   )
@@ -83,6 +85,7 @@ export default function EditarIngresoForm({
       ot,
       rem_tejeduria: remTejeduria,
       referencia,
+      comentario,
       total_rollos_declarado: totalRollos,
       total_kilos_declarado: totalKilos,
     })
@@ -194,6 +197,17 @@ export default function EditarIngresoForm({
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Comentario</label>
+        <textarea
+          value={comentario}
+          onChange={(e) => setComentario(e.target.value)}
+          rows={2}
+          placeholder="Comentario de la partida. Vaciálo para borrarlo."
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
       </div>
 
       {(!validation.cantidadCoincide || !validation.kilosCoinciden) && (

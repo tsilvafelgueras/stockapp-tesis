@@ -94,10 +94,10 @@ export async function darDeBajaRollo(
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
+  if (profile?.role !== 'admin' && profile?.role !== 'operario') {
     return {
       ok: false,
-      error: 'Solo el administrador puede dar de baja rollos.',
+      error: 'No tenés permiso para dar de baja rollos.',
     }
   }
 
