@@ -21,7 +21,12 @@ export async function GET(request: NextRequest) {
     | 'recovery'
     | 'email_change'
     | null
-  const next = url.searchParams.get('next') ?? '/auth/setup'
+  // Solo aceptamos rutas internas en `next` (debe empezar con "/" seguido de
+  // un caracter que no sea "/" ni "\"). Esto evita un open redirect del tipo
+  // ?next=https://sitio-malo.com o ?next=//sitio-malo.com — que además de ser
+  // un agujero de seguridad, es una señal típica de phishing para los scanners.
+  const rawNext = url.searchParams.get('next') ?? '/auth/setup'
+  const next = /^\/[^/\\]/.test(rawNext) ? rawNext : '/auth/setup'
 
   if (!token_hash || !type) {
     return NextResponse.redirect(new URL('/login?error=invalid_link', request.url))
