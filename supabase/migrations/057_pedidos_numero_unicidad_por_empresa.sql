@@ -7,6 +7,7 @@
 
 ALTER TABLE public.pedidos DROP CONSTRAINT IF EXISTS ordenes_numero_orden_key;
 ALTER TABLE public.pedidos DROP CONSTRAINT IF EXISTS pedidos_numero_pedido_key;
+ALTER TABLE public.pedidos DROP CONSTRAINT IF EXISTS pedidos_empresa_numero_pedido_key;
 
 ALTER TABLE public.pedidos
   ADD CONSTRAINT pedidos_empresa_numero_pedido_key UNIQUE (empresa_id, numero_pedido);
