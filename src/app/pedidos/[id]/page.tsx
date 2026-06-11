@@ -6,6 +6,9 @@ import PedidoActions from './PedidoActions'
 import AgregarRollosPedido, {
   type PartidaParaAgregar,
 } from './AgregarRollosPedido'
+import RollosPickeadosTable, {
+  type RolloPickeadoRow,
+} from './RollosPickeadosTable'
 import { estadoPedidoBadge } from '@/lib/estadoPedido'
 
 type PedidoPartidaRaw = {
@@ -98,7 +101,7 @@ export default async function PedidoDetailPage({
     .select('role')
     .eq('id', user!.id)
     .single()
-  const role = profile?.role as 'ventas' | 'admin' | undefined
+  const role = profile?.role as 'ventas' | 'admin' | 'operario' | undefined
 
   const { data: pedido } = await supabase
     .from('pedidos')
@@ -189,6 +192,9 @@ export default async function PedidoDetailPage({
   const partidasParaAgregar = puedeAgregarRollos
     ? await cargarPartidasParaAgregar(supabase, colorById)
     : []
+  const puedeQuitarRollo =
+    (role === 'operario' || role === 'admin') &&
+    ['pendiente', 'en_preparacion', 'lista'].includes(pedido.estado)
 
   const partidas = ((partidasRaw ?? []) as unknown as PedidoPartidaRaw[]).map((p) => ({
     ...p,
@@ -220,6 +226,20 @@ export default async function PedidoDetailPage({
         },
       }
     })
+
+  const rollosRows: RolloPickeadoRow[] = rollos.map((r) => ({
+    pedidoRolloId: r.id,
+    pedidoPartidaId: r.pedido_partida_id,
+    numeroPieza: r.rollos.numero_pieza,
+    articulo: r.rollos.articulos?.nombre ?? null,
+    color: r.rollos.colorNombre,
+    kilos: r.rollos.kilos,
+    ubicacion: r.rollos.ubicacion,
+    pickeadoAt: r.pickeado_at,
+    partidaRealLote: r.partidaRealLote,
+    partidaSolicitadaLote: r.partidaSolicitadaLote,
+    esSustitucionPartida: r.esSustitucionPartida,
+  }))
 
   const totalSolicitado = partidas.reduce(
     (acc, p) => acc + Number(p.rollos_solicitados ?? 0),
@@ -401,65 +421,11 @@ export default async function PedidoDetailPage({
             Rollos reales pickeados ({rollos.length})
           </h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b text-left">
-              <tr>
-                <th className="px-4 py-2 font-medium">Pieza</th>
-                <th className="px-4 py-2 font-medium">Articulo</th>
-                <th className="px-4 py-2 font-medium">Color</th>
-                <th className="px-4 py-2 font-medium">Kilos</th>
-                <th className="px-4 py-2 font-medium">Partida real</th>
-                <th className="px-4 py-2 font-medium">Ubicacion</th>
-                <th className="px-4 py-2 font-medium">Picking</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rollos.length > 0 ? (
-                rollos.map((r) => (
-                  <tr key={r.id} className="border-b last:border-0">
-                    <td className="px-4 py-2 font-medium">
-                      {r.rollos.numero_pieza}
-                    </td>
-                    <td className="px-4 py-2">
-                      {r.rollos.articulos?.nombre ?? '-'}
-                    </td>
-                    <td className="px-4 py-2">{r.rollos.colorNombre}</td>
-                    <td className="px-4 py-2 tabular-nums">
-                      {r.rollos.kilos != null ? Number(r.rollos.kilos).toFixed(2) : '-'}
-                    </td>
-                    <td className="px-4 py-2 text-xs">
-                      <span className={r.esSustitucionPartida ? 'text-warning' : ''}>
-                        {r.partidaRealLote ?? '-'}
-                      </span>
-                      {r.esSustitucionPartida && (
-                        <span className="block text-[11px] text-muted-foreground">
-                          Solicitada: {r.partidaSolicitadaLote ?? '-'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {r.rollos.ubicacion ?? '-'}
-                    </td>
-                    <td className="px-4 py-2 text-xs">
-                      {r.pickeado_at ? (
-                        <span className="text-success">Pickeado</span>
-                      ) : (
-                        <span className="text-muted-foreground">Pendiente</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    Deposito todavia no pickeo rollos para este pedido.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <RollosPickeadosTable
+          pedidoId={pedido.id}
+          rollos={rollosRows}
+          puedeQuitar={puedeQuitarRollo}
+        />
       </section>
     </div>
   )

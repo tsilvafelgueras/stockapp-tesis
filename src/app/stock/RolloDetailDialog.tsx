@@ -14,6 +14,7 @@ import {
   editarRollo,
   type RolloFotoConUrl,
 } from './actions'
+import { actualizarOtIngreso } from '@/app/ingresos/otActions'
 import {
   FALLA_CATEGORIAS,
   FALLA_CATEGORIA_LABEL,
@@ -57,6 +58,12 @@ export default function RolloDetailDialog({
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
   const [pending, startTransition] = useTransition()
+
+  // OT (partida de tintorería) — editable inline desde stock. Es del ingreso,
+  // así que el cambio aplica a toda la partida.
+  const [editandoOt, setEditandoOt] = useState(false)
+  const [otValue, setOtValue] = useState(rollo.ingresos?.ot ?? '')
+  const [otActual, setOtActual] = useState<string | null>(rollo.ingresos?.ot ?? null)
   const ubicacionOptions = ubicacionesToOptions(ubicaciones)
 
   // Formulario de "segunda"
@@ -142,10 +149,34 @@ export default function RolloDetailDialog({
   const puedeSegunda =
     esOperarioOAdmin &&
     (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
-  const puedeBaja = role === 'admin' && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+  const puedeBaja =
+    esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
   const puedeConfirmar = esOperarioOAdmin && rollo.estado === 'pendiente'
   const puedeEditar =
     esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+
+  function handleGuardarOt() {
+    const ingresoId = rollo.ingresos?.id
+    if (!ingresoId) return
+    startTransition(async () => {
+      try {
+        const res = await actualizarOtIngreso(ingresoId, otValue)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        const nueva = otValue.trim() || null
+        setOtActual(nueva)
+        setEditandoOt(false)
+        toast.success(
+          nueva ? `OT actualizada a ${nueva}.` : 'OT borrada.'
+        )
+      } catch (e) {
+        console.error('[handleGuardarOt] error inesperado', e)
+        toast.error('No se pudo actualizar la OT.')
+      }
+    })
+  }
 
   function handleMover() {
     startTransition(async () => {
@@ -233,6 +264,11 @@ export default function RolloDetailDialog({
   function handleEditarGuardar() {
     if (!editForm.numero_pieza.trim()) {
       toast.error('El número de pieza no puede estar vacío.')
+      return
+    }
+    const kilos = parseNumOpt(editForm.kilos)
+    if (kilos == null || kilos <= 0) {
+      toast.error('Los kilos son obligatorios y deben ser mayores a cero.')
       return
     }
     startTransition(async () => {
@@ -367,24 +403,17 @@ export default function RolloDetailDialog({
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Foto / placeholder */}
-          <div className="aspect-video w-full overflow-hidden rounded-lg bg-zinc-100 flex items-center justify-center">
-            {rollo.foto_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
+          {/* Foto: solo si el rollo tiene una. Sin placeholder cuando no hay. */}
+          {rollo.foto_url && (
+            <div className="aspect-video w-full overflow-hidden rounded-lg bg-zinc-100 flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={rollo.foto_url}
                 alt={`Rollo ${rollo.numero_pieza}`}
                 className="w-full h-full object-cover"
               />
-            ) : (
-              <div className="text-center text-muted-foreground">
-                <p className="text-3xl font-bold tracking-wider">
-                  {(rollo.colores?.nombre ?? '—').slice(0, 3).toUpperCase()}
-                </p>
-                <p className="text-xs mt-1">Sin foto</p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Metadata */}
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
@@ -433,12 +462,58 @@ export default function RolloDetailDialog({
                 {rollo.ingresos.numero_remito}
               </p>
             )}
-            {rollo.ingresos?.ot && (
-              <p>
-                <span className="text-muted-foreground">OT: </span>
-                {rollo.ingresos.ot}
-              </p>
-            )}
+            {/* OT (partida tintorería) — editable inline por operario/admin.
+                Aplica a toda la partida. */}
+            <div className="flex items-start gap-2">
+              <span className="text-muted-foreground">OT (partida): </span>
+              {editandoOt ? (
+                <span className="flex flex-1 items-center gap-1">
+                  <input
+                    type="text"
+                    value={otValue}
+                    onChange={(e) => setOtValue(e.target.value)}
+                    placeholder="Orden de trabajo"
+                    autoFocus
+                    className="min-w-0 flex-1 rounded border border-input bg-white px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGuardarOt}
+                    disabled={pending}
+                    className="rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtValue(otActual ?? '')
+                      setEditandoOt(false)
+                    }}
+                    disabled={pending}
+                    className="rounded border px-2 py-1 text-[11px] disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </span>
+              ) : (
+                <span className="flex flex-1 items-center justify-between gap-2">
+                  <span className="text-foreground">{otActual ?? '—'}</span>
+                  {esOperarioOAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtValue(otActual ?? '')
+                        setEditandoOt(true)
+                      }}
+                      className="shrink-0 text-[11px] font-medium text-action hover:underline"
+                    >
+                      {otActual ? 'Editar' : 'Agregar'}
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
             {rollo.ingresos?.referencia && (
               <p>
                 <span className="text-muted-foreground">Referencia: </span>
@@ -647,6 +722,7 @@ export default function RolloDetailDialog({
                     setEditForm((prev) => ({ ...prev, kilos: v }))
                   }
                   type="number"
+                  required
                 />
                 <EditField
                   label="Metros"

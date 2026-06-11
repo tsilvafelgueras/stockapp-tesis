@@ -426,7 +426,8 @@ CREATE TABLE IF NOT EXISTS pedidos (
   confirmada_egreso_at     TIMESTAMPTZ,
   confirmada_egreso_por    UUID REFERENCES auth.users(id),
   created_by               UUID REFERENCES profiles(id),
-  created_at               TIMESTAMPTZ DEFAULT NOW()
+  created_at               TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT pedidos_empresa_numero_pedido_key UNIQUE (empresa_id, numero_pedido)
 );
 
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;

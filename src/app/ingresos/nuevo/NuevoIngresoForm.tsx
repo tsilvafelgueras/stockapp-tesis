@@ -1,9 +1,9 @@
 ﻿'use client'
 
-import { Fragment, useMemo, useRef, useState, useTransition } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Camera, QrCode, Barcode, X } from 'lucide-react'
+import { Camera, QrCode, Barcode, X, RefreshCw } from 'lucide-react'
 import {
   crearIngreso,
   procesarPlanillaConIA,
@@ -11,6 +11,7 @@ import {
   type RolloInput,
 } from './actions'
 import { createColor, solicitarColor } from '@/app/admin/colores/actions'
+import { createClient } from '@/lib/supabase/client'
 import {
   UMBRAL_BAJA_CONFIANZA,
   type IngresoExtraido,
@@ -208,8 +209,9 @@ export default function NuevoIngresoForm({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const tintorerias = initialTintorerias
-  const [articulos] = useState(initialArticulos)
+  const [articulos, setArticulos] = useState(initialArticulos)
   const [colores, setColores] = useState(initialColores)
+  const [refrescandoColores, setRefrescandoColores] = useState(false)
 
   const [modo, setModo] = useState<Modo>('manual')
 
@@ -229,6 +231,7 @@ export default function NuevoIngresoForm({
   const [referencia, setReferencia] = useState('')
   const [totalRollosDeclarado, setTotalRollosDeclarado] = useState('')
   const [totalKilosDeclarado, setTotalKilosDeclarado] = useState('')
+  const [comentario, setComentario] = useState('')
 
   const [rollos, setRollos] = useState<RolloInput[]>([emptyRollo()])
   const [fotosFalla, setFotosFalla] = useState<Record<number, FotoPendiente>>({})
@@ -244,6 +247,16 @@ export default function NuevoIngresoForm({
     () => ubicacionesToOptions(ubicaciones),
     [ubicaciones]
   )
+
+  // Anti-rebote del scanner: la cámara re-detecta el mismo QR muchas veces por
+  // segundo mientras está en cuadro. Guardamos la última lectura para ignorar
+  // repeticiones inmediatas (cooldown).
+  const lastScanRef = useRef<{ code: string; at: number }>({ code: '', at: 0 })
+  // Espejo siempre-actualizado de `rollos` para chequear duplicados sin races.
+  const rollosRef = useRef(rollos)
+  useEffect(() => {
+    rollosRef.current = rollos
+  }, [rollos])
 
   function updateRollo<K extends keyof RolloInput>(
     idx: number,
@@ -277,8 +290,76 @@ export default function NuevoIngresoForm({
     )
   }
 
+  // Rollo nuevo que hereda los valores elegidos arriba ("Asignar a todos los
+  // rollos"): artículo, color y ubicación. Así lo que se carga/escanea nuevo
+  // ya viene con esos defaults, sin tener que apretar "Aplicar" cada vez.
+  function rolloConDefaults(): RolloInput {
+    const base = emptyRollo()
+    if (bulkArticuloId) base.articulo_id = bulkArticuloId
+    if (bulkColorId) {
+      const art = articulos.find((a) => a.id === (base.articulo_id ?? ''))
+      if (art?.colores.some((c) => c.id === bulkColorId)) base.color_id = bulkColorId
+    }
+    if (bulkUbicacion.trim()) base.ubicacion = bulkUbicacion.trim()
+    return base
+  }
+
   function addRow() {
-    setRollos([...rollos, emptyRollo()])
+    setRollos([...rollos, rolloConDefaults()])
+  }
+
+  // Re-consulta el catálogo de colores y los colores por artículo SIN recargar
+  // la página, así un color recién creado/aprobado aparece sin perder lo que ya
+  // se cargó en el formulario.
+  async function refrescarCatalogos() {
+    setRefrescandoColores(true)
+    try {
+      const supabase = createClient()
+      const [{ data: coloresData }, { data: articulosData }] = await Promise.all([
+        supabase.from('colores').select('id, nombre').eq('activo', true).order('nombre'),
+        supabase
+          .from('articulos')
+          .select('id, nombre, articulo_colores(fijado, colores(id, nombre))')
+          .eq('activo', true)
+          .order('nombre'),
+      ])
+      if (coloresData) setColores(coloresData as Catalog[])
+      if (articulosData) {
+        type ACRow = {
+          fijado: boolean | null
+          colores: { id: string; nombre: string } | { id: string; nombre: string }[] | null
+        }
+        const arts: ArticuloCatalog[] = (
+          articulosData as unknown as {
+            id: string
+            nombre: string
+            articulo_colores: ACRow[] | null
+          }[]
+        ).map((a) => {
+          const cols = (a.articulo_colores ?? [])
+            .map((ac) => {
+              const color = Array.isArray(ac.colores) ? ac.colores[0] : ac.colores
+              return color ? { ...color, fijado: ac.fijado ?? false } : null
+            })
+            .filter((c): c is { id: string; nombre: string; fijado: boolean } => !!c)
+            .sort((x, y) =>
+              x.fijado !== y.fijado
+                ? x.fijado
+                  ? -1
+                  : 1
+                : x.nombre.localeCompare(y.nombre, 'es')
+            )
+            .map(({ id, nombre }) => ({ id, nombre }))
+          return { id: a.id, nombre: a.nombre, colores: cols }
+        })
+        setArticulos(arts)
+      }
+      toast.success('Colores actualizados.')
+    } catch {
+      toast.error('No se pudieron actualizar los colores.')
+    } finally {
+      setRefrescandoColores(false)
+    }
   }
 
   function removeRow(idx: number) {
@@ -342,16 +423,18 @@ export default function NuevoIngresoForm({
 
   function applyBulkUbicacion() {
     if (!bulkUbicacion.trim()) return
-    setRollos((prev) =>
-      prev.map((r) => ({ ...r, ubicacion: bulkUbicacion.trim() }))
+    const ubic = bulkUbicacion.trim()
+    setRollos((prev) => prev.map((r) => ({ ...r, ubicacion: ubic })))
+    toast.success(
+      `Ubicación ${ubic} asignada a ${rollos.length} ${rollos.length === 1 ? 'rollo' : 'rollos'}.`
     )
   }
 
   function applyBulkArticulo() {
     if (!bulkArticuloId) return
+    const articulo = articulos.find((a) => a.id === bulkArticuloId)
     setRollos((prev) =>
       prev.map((r) => {
-        const articulo = articulos.find((a) => a.id === bulkArticuloId)
         const colorSigueValido = articulo?.colores.some(
           (c) => c.id === r.color_id
         )
@@ -362,10 +445,15 @@ export default function NuevoIngresoForm({
         }
       })
     )
+    toast.success(
+      `Artículo "${articulo?.nombre ?? ''}" asignado a ${rollos.length} ${rollos.length === 1 ? 'rollo' : 'rollos'}.`
+    )
   }
 
   function applyBulkColor() {
     if (!bulkColorId) return
+    const colorNombre = colores.find((c) => c.id === bulkColorId)?.nombre ?? ''
+    let aplicados = 0
     setRollos((prev) =>
       prev.map((r) => {
         const articulo = articulos.find((a) => a.id === r.articulo_id)
@@ -373,9 +461,17 @@ export default function NuevoIngresoForm({
           (c) => c.id === bulkColorId
         )
         if (!colorPertenece) return r
+        aplicados++
         return { ...r, color_id: bulkColorId }
       })
     )
+    if (aplicados > 0) {
+      toast.success(
+        `Color "${colorNombre}" asignado a ${aplicados} ${aplicados === 1 ? 'rollo' : 'rollos'}.`
+      )
+    } else {
+      toast.info('Ningún rollo tiene un artículo que admita ese color.')
+    }
   }
 
   function resetIA() {
@@ -589,6 +685,9 @@ export default function NuevoIngresoForm({
     const totalRollosNum = parseInt(totalRollosDeclarado) || null
     const totalKilosNum = parseDecimalInput(totalKilosDeclarado)
 
+    // El total de rollos declarado es obligatorio (debe ser un entero > 0).
+    const totalRollosVacio = totalRollosNum === null
+
     const cantidadCoincide =
       totalRollosNum === null || totalRollosNum === cantidadRollos
     // Tolerancia: las planillas OCR (y a veces el propio total impreso) tienen
@@ -612,7 +711,7 @@ export default function NuevoIngresoForm({
     ).length
     const rollosKilosInvalidos = rollosConPieza.filter((r) => {
       const kilos = parseDecimalInput(r.kilos)
-      return Number.isNaN(kilos) || (kilos != null && kilos < 0)
+      return kilos == null || Number.isNaN(kilos) || kilos <= 0
     }).length
 
     // Cross-check Kilos vs Metros/Rdto. En la planilla Rdto = Metros / Kilos,
@@ -655,6 +754,7 @@ export default function NuevoIngresoForm({
       sumaKilos,
       cantidadRollos,
       duplicados,
+      totalRollosVacio,
       cantidadCoincide,
       kilosCoinciden,
       rollosSinArticulo,
@@ -670,13 +770,29 @@ export default function NuevoIngresoForm({
     const raw = result.texto.trim()
     if (!raw) return
 
+    // Cooldown: ignorar en silencio la misma lectura repetida en una ventana
+    // corta (mientras el QR sigue en cuadro la cámara dispara muchas veces).
+    const ahora = Date.now()
+    if (
+      lastScanRef.current.code === raw &&
+      ahora - lastScanRef.current.at < 2500
+    ) {
+      return
+    }
+    lastScanRef.current = { code: raw, at: ahora }
+
     // 1. Extraer numero_pieza usando patrones de la tintorería seleccionada
     const patronesFiltrados = patrones.filter(
       (p) => p.tintoreria_id === tintoreriaId || p.tintoreria_id === null
     )
     let numeroPieza = extraerCodigoCandidato(raw, patronesFiltrados) ?? ''
     if (!numeroPieza) {
-      numeroPieza = /^\d+$/.test(raw) ? raw.replace(/^0+/, '') || raw : raw
+      // Sin patrón configurado para esta tintorería (ej. Lecotex, cuyo QR trae
+      // "204024331 MORLEY POL C/LY NEGRO 9001 21.00"): el número de pieza es el
+      // PRIMER número del payload. Lo demás (color/artículo por nombre, kilos
+      // por el decimal) se extrae aparte y va a sus campos correspondientes.
+      const primero = raw.match(/\d+/)?.[0] ?? ''
+      numeroPieza = primero ? primero.replace(/^0+/, '') || primero : raw
     }
 
     // 2. Extraer kilos: último número decimal en el payload
@@ -703,17 +819,41 @@ export default function NuevoIngresoForm({
     })
     const articuloId = articuloEncontrado?.id ?? null
 
-    // 5. Color válido solo si el artículo lo tiene en su pivot
-    const colorValidoParaArticulo = articuloEncontrado
-      ? articuloEncontrado.colores.some((c) => c.id === colorId)
-      : true
+    // Base con los defaults elegidos arriba; lo escaneado pisa lo que detecta.
+    const base = rolloConDefaults()
+    const articuloFinal = articuloId ?? base.articulo_id
+    const articuloFinalObj = articulos.find((a) => a.id === articuloFinal)
+    const colorFinal = (() => {
+      // Color escaneado tiene prioridad si es válido para el artículo final.
+      if (colorId && articuloFinalObj?.colores.some((c) => c.id === colorId)) {
+        return colorId
+      }
+      // Si no, mantener el color default si sigue siendo válido.
+      if (
+        base.color_id &&
+        articuloFinalObj?.colores.some((c) => c.id === base.color_id)
+      ) {
+        return base.color_id
+      }
+      return null
+    })()
 
     const nuevoRollo: RolloInput = {
-      ...emptyRollo(),
+      ...base,
       numero_pieza: numeroPieza,
-      kilos: kilosStr,
-      articulo_id: articuloId,
-      color_id: colorValidoParaArticulo ? colorId : null,
+      kilos: kilosStr || base.kilos,
+      articulo_id: articuloFinal,
+      color_id: colorFinal,
+    }
+
+    // Duplicado: si ese número de pieza ya está cargado, avisamos y NO
+    // generamos otra fila (rollosRef tiene el estado actual, sin races).
+    if (
+      numeroPieza &&
+      rollosRef.current.some((r) => r.numero_pieza.trim() === numeroPieza)
+    ) {
+      toast.warning(`El código ${numeroPieza} ya fue ingresado.`)
+      return
     }
 
     setRollos((prev) => {
@@ -726,8 +866,8 @@ export default function NuevoIngresoForm({
     const extraidos = [
       numeroPieza && 'N° pieza',
       kilosStr && 'kilos',
-      articuloId && 'artículo',
-      colorValidoParaArticulo && colorId && 'color',
+      articuloFinal && 'artículo',
+      colorFinal && 'color',
     ].filter(Boolean)
     toast.success(
       `Rollo escaneado${extraidos.length ? ` — ${extraidos.join(', ')}` : ''}. Verificá los datos.`
@@ -772,6 +912,7 @@ export default function NuevoIngresoForm({
       ot,
       rem_tejeduria: remTejeduria,
       referencia,
+      comentario,
       total_rollos_declarado: totalRollosDeclarado,
       total_kilos_declarado: totalKilosDeclarado,
       imagen_path: imagenPath ?? undefined,
@@ -797,6 +938,7 @@ export default function NuevoIngresoForm({
     validations.rollosSinUbicacion > 0 ||
     validations.rollosSegundaSinCategoria > 0 ||
     validations.rollosKilosInvalidos > 0 ||
+    validations.totalRollosVacio ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
 
@@ -1024,17 +1166,27 @@ export default function NuevoIngresoForm({
 
           <div className="space-y-1">
             <label className="text-sm font-medium">
-              Total de rollos declarado
+              Total de rollos declarado *
             </label>
             <input
               type="number"
-              min="0"
+              min="1"
+              required
               inputMode="numeric"
               value={totalRollosDeclarado}
               onChange={(e) => setTotalRollosDeclarado(e.target.value)}
               placeholder="Ej: 24"
-              className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.total_rollos_declarado)}`}
+              className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                validations.totalRollosVacio
+                  ? 'border-destructive'
+                  : celdaCls(confianzas?.total_rollos_declarado)
+              }`}
             />
+            {validations.totalRollosVacio && (
+              <p className="text-xs text-destructive">
+                Ingresá el total de rollos declarado.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -1084,14 +1236,27 @@ export default function NuevoIngresoForm({
             />
           </div>
         </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Comentario</label>
+          <textarea
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            rows={2}
+            placeholder="Opcional. Ej: faltó un rollo, se reclama a la tintorería. Lo podés editar o borrar después."
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
       </div>
 
       {/* Atajos bulk */}
       <div className="rounded-lg border bg-white p-4 sm:p-5 shadow-sm space-y-3">
         <div>
-          <h2 className="font-semibold">Asignar a todos los rollos</h2>
+          <h2 className="font-semibold">Artículo, color y ubicación por defecto</h2>
           <p className="text-xs text-muted-foreground">
-            Atajo opcional. Lo que pongas acá se copia a todos los rollos.
+            Lo que elijas acá se aplica automáticamente a cada rollo nuevo que
+            cargues o escanees. Con &quot;Aplicar&quot; también se lo asignás a
+            los rollos ya cargados.
           </p>
         </div>
 
@@ -1156,15 +1321,29 @@ export default function NuevoIngresoForm({
             <p className="text-xs text-muted-foreground">
               Solo se aplica a los rollos cuyo artículo ya incluye ese color.
             </p>
-            <SolicitarColorButton
-              role={role}
-              onCreated={(c) => {
-                if (!colores.find((x) => x.id === c.id)) {
-                  setColores((prev) => [...prev, c])
-                }
-                setBulkColorId(c.id)
-              }}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <SolicitarColorButton
+                role={role}
+                onCreated={(c) => {
+                  if (!colores.find((x) => x.id === c.id)) {
+                    setColores((prev) => [...prev, c])
+                  }
+                  setBulkColorId(c.id)
+                }}
+              />
+              <button
+                type="button"
+                onClick={refrescarCatalogos}
+                disabled={refrescandoColores}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                title="Volver a cargar la lista de colores sin perder lo que cargaste"
+              >
+                <RefreshCw
+                  className={`size-3.5 ${refrescandoColores ? 'animate-spin' : ''}`}
+                />
+                {refrescandoColores ? 'Actualizando…' : 'Actualizar colores'}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -1254,8 +1433,7 @@ export default function NuevoIngresoForm({
                 readerType={scannerTipo}
                 onRead={handleScanIngreso}
                 title={scannerTipo === 'qr' ? 'Escanear código QR' : 'Escanear código de barras'}
-                manualLabel="Código manual"
-                manualPlaceholder="Ingresá el código a mano"
+                hideManualInput
               />
             )}
           </div>
@@ -1294,7 +1472,7 @@ export default function NuevoIngresoForm({
                 <th className="px-3 py-2 font-medium">N° Pieza *</th>
                 <th className="px-3 py-2 font-medium w-40">Artículo *</th>
                 <th className="px-3 py-2 font-medium w-32">Color *</th>
-                <th className="px-3 py-2 font-medium w-24">Kilos</th>
+                <th className="px-3 py-2 font-medium w-24">Kilos *</th>
                 <th className="px-3 py-2 font-medium w-24">Metros</th>
                 <th className="px-3 py-2 font-medium w-20">Rinde</th>
                 <th className="px-3 py-2 font-medium w-20">Gramaje</th>
@@ -1386,7 +1564,15 @@ export default function NuevoIngresoForm({
                           value={r.kilos}
                           onChange={(e) => updateRollo(i, 'kilos', e.target.value)}
                           placeholder="20.5 o 20,5"
-                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.kilos)}`}
+                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+                            r.numero_pieza.trim() &&
+                            (() => {
+                              const k = parseDecimalInput(r.kilos)
+                              return k == null || Number.isNaN(k) || k <= 0
+                            })()
+                              ? 'border-destructive'
+                              : celdaCls(conf?.kilos)
+                          }`}
                         />
                       </td>
                       <td className="px-3 py-1">
@@ -1822,14 +2008,24 @@ function RolloCardMobile({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-foreground">Kilos</label>
+          <label className="text-xs font-semibold text-foreground">
+            Kilos <span className="text-destructive">*</span>
+          </label>
           <input
             type="text"
             inputMode="decimal"
             value={rollo.kilos}
             onChange={(e) => onUpdate('kilos', e.target.value)}
             placeholder="20.5 o 20,5"
-            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.kilos)}`}
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+              rollo.numero_pieza.trim() &&
+              (() => {
+                const k = parseDecimalInput(rollo.kilos)
+                return k == null || Number.isNaN(k) || k <= 0
+              })()
+                ? 'border-destructive'
+                : celdaCls(confianzas?.kilos)
+            }`}
           />
         </div>
         <div className="space-y-1">

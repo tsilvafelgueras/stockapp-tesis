@@ -24,6 +24,9 @@ type Props = {
   totalDeclarado: number | null
   ubicaciones: UbicacionOption[]
   ubicacionPrevia?: string
+  /** true si TODOS los rollos pendientes ya tienen ubicación cargada (no hace
+      falta volver a pedirla; la action mantiene la existente). */
+  todosTienenUbicacion?: boolean
 }
 
 type Override = { ubicacion: string; comentario: string }
@@ -34,6 +37,7 @@ export default function ConfirmarPartidaForm({
   totalDeclarado,
   ubicaciones,
   ubicacionPrevia,
+  todosTienenUbicacion = false,
 }: Props) {
   const router = useRouter()
   const filas = rollos.length
@@ -218,25 +222,40 @@ export default function ConfirmarPartidaForm({
         </div>
       )}
 
-      <div className="space-y-1 rounded-lg border bg-white p-4 shadow-sm">
-        <label className="text-sm font-medium">Ubicación de la partida</label>
-        <p className="text-xs text-muted-foreground">
-          Se asigna a todos los rollos. Podés sobrescribirla por rollo abajo.
-        </p>
-        <SearchableCombobox
-          value={ubicacionGeneral}
-          onChange={setUbicacionGeneral}
-          options={ubicacionOptions}
-          placeholder="Sin ubicacion"
-          searchPlaceholder="Buscar ubicacion..."
-          emptyLabel="No hay ubicaciones"
-        />
-        {ubicacionPrevia && ubicacionGeneral === ubicacionPrevia && (
+      {todosTienenUbicacion ? (
+        <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          ✓ Ubicación ya cargada desde el ingreso
+          {ubicacionPrevia ? (
+            <>
+              {' '}(<strong>{ubicacionPrevia}</strong>)
+            </>
+          ) : (
+            ' por rollo'
+          )}
+          . No hace falta volver a ingresarla; podés ajustarla por rollo abajo si
+          hace falta.
+        </div>
+      ) : (
+        <div className="space-y-1 rounded-lg border bg-white p-4 shadow-sm">
+          <label className="text-sm font-medium">Ubicación de la partida</label>
           <p className="text-xs text-muted-foreground">
-            Pre-cargada desde el ingreso — cambiala si es necesario.
+            Se asigna a todos los rollos. Podés sobrescribirla por rollo abajo.
           </p>
-        )}
-      </div>
+          <SearchableCombobox
+            value={ubicacionGeneral}
+            onChange={setUbicacionGeneral}
+            options={ubicacionOptions}
+            placeholder="Sin ubicacion"
+            searchPlaceholder="Buscar ubicacion..."
+            emptyLabel="No hay ubicaciones"
+          />
+          {ubicacionPrevia && ubicacionGeneral === ubicacionPrevia && (
+            <p className="text-xs text-muted-foreground">
+              Pre-cargada desde el ingreso — cambiala si es necesario.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="border-b px-4 py-3">

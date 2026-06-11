@@ -94,10 +94,10 @@ export async function darDeBajaRollo(
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
+  if (profile?.role !== 'admin' && profile?.role !== 'operario') {
     return {
       ok: false,
-      error: 'Solo el administrador puede dar de baja rollos.',
+      error: 'No tenés permiso para dar de baja rollos.',
     }
   }
 
@@ -299,6 +299,15 @@ export async function editarRollo(
         return {
           ok: false,
           error: `Estado inválido: "${cambios.estado}".`,
+        }
+      }
+    }
+
+    if (cambios.kilos !== undefined) {
+      if (cambios.kilos == null || !Number.isFinite(cambios.kilos) || cambios.kilos <= 0) {
+        return {
+          ok: false,
+          error: 'Los kilos son obligatorios y deben ser mayores a cero.',
         }
       }
     }

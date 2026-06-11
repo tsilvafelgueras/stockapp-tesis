@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 
 export type SearchableOption = {
@@ -31,7 +31,6 @@ export default function SearchableCombobox({
   className?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const touchingListRef = useRef(false)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
@@ -49,17 +48,23 @@ export default function SearchableCombobox({
     setQuery('')
   }
 
+  // Cierre por "click afuera" (pointerdown a nivel documento). Reemplaza al
+  // onBlur + flag de touch: así las opciones se seleccionan con un onClick
+  // simple y la lista se puede SCROLLEAR con el dedo en mobile (no hay
+  // preventDefault en pointerdown que bloquee el scroll nativo).
+  useEffect(() => {
+    if (!open) return
+    function onDocPointerDown(e: PointerEvent) {
+      const target = e.target as Node | null
+      if (target && rootRef.current?.contains(target)) return
+      close()
+    }
+    document.addEventListener('pointerdown', onDocPointerDown)
+    return () => document.removeEventListener('pointerdown', onDocPointerDown)
+  }, [open])
+
   return (
-    <div
-      ref={rootRef}
-      className={`relative ${className}`}
-      onBlur={(e) => {
-        const next = e.relatedTarget
-        if (next instanceof Node && rootRef.current?.contains(next)) return
-        if (touchingListRef.current) return
-        close()
-      }}
-    >
+    <div ref={rootRef} className={`relative ${className}`}>
       <div className="flex min-h-10 items-center rounded-md border bg-white text-sm focus-within:ring-2 focus-within:ring-ring">
         <button
           type="button"
@@ -107,10 +112,7 @@ export default function SearchableCombobox({
             />
           </div>
           <div
-            className="max-h-56 overflow-y-auto py-1"
-            onTouchStart={() => { touchingListRef.current = true }}
-            onTouchEnd={() => { touchingListRef.current = false }}
-            onTouchCancel={() => { touchingListRef.current = false }}
+            className="max-h-56 overflow-y-auto py-1 [touch-action:pan-y] [overscroll-behavior:contain]"
           >
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-sm text-muted-foreground">
@@ -123,11 +125,7 @@ export default function SearchableCombobox({
                   <button
                     key={option.value}
                     type="button"
-                    onPointerDown={(e) => {
-                      e.preventDefault()
-                      onChange(option.value)
-                      close()
-                    }}
+                    data-no-ripple
                     onClick={() => {
                       onChange(option.value)
                       close()

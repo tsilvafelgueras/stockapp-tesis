@@ -51,6 +51,7 @@ export default async function IngresosPage({
         <nav className="flex gap-2 -mb-px">
           <Link
             href="/ingresos?vista=ingresos"
+            data-ripple
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               vista === 'ingresos'
                 ? 'border-primary text-primary'
@@ -61,6 +62,7 @@ export default async function IngresosPage({
           </Link>
           <Link
             href="/ingresos?vista=rollos"
+            data-ripple
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               vista === 'rollos'
                 ? 'border-primary text-primary'

@@ -42,6 +42,7 @@ export type IngresoInput = {
   ot?: string
   rem_tejeduria?: string
   referencia?: string
+  comentario?: string
   total_rollos_declarado: string
   total_kilos_declarado: string
   /** Path en Storage (bucket planillas) si vino por flow IA. */
@@ -320,9 +321,9 @@ export async function crearIngreso(input: IngresoInput) {
       return { error: `El rollo "${r.numero_pieza.trim()}" no tiene color asignado.` }
     }
     const kilos = parseDecimal(r.kilos)
-    if (Number.isNaN(kilos) || (kilos != null && kilos < 0)) {
+    if (kilos == null || Number.isNaN(kilos) || kilos <= 0) {
       return {
-        error: `El rollo "${r.numero_pieza.trim()}" tiene kilos invalidos.`,
+        error: `El rollo "${r.numero_pieza.trim()}" debe tener un peso en kilos mayor a cero.`,
       }
     }
     if (origen === 'manual' && !r.ubicacion.trim()) {
@@ -357,20 +358,13 @@ export async function crearIngreso(input: IngresoInput) {
   if (!user) return { error: 'Sesión expirada — volvé a iniciar sesión.' }
 
   // Estado del ingreso derivado del origen:
-  // - planilla_ia → siempre `auditado` (rollos quedan `pendiente`, esperan
-  //   scanner físico en la auditoría posterior).
-  // - manual: si todos los rollos están en_stock → `confirmado`, si alguno
-  //   está pendiente → `borrador`. Si hay segundas, también va a `borrador`
-  //   para forzar a admin a revisar antes de confirmar.
-  let ingresoEstado: 'borrador' | 'auditado' | 'confirmado'
-  if (origen === 'planilla_ia') {
-    ingresoEstado = 'auditado'
-  } else {
-    const necesitaRevision = input.rollos.some(
-      (r) => r.estado === 'pendiente' || r.segunda
-    )
-    ingresoEstado = necesitaRevision ? 'borrador' : 'confirmado'
-  }
+  // - planilla_ia → `auditado` (rollos quedan `pendiente`, se confirman por
+  //   conteo físico en depósito, en /confirmar).
+  // - manual → `confirmado` directo: el operario ya está recibiendo la
+  //   mercadería a mano, así que los rollos entran como `en_stock` al toque
+  //   (los de segunda quedan `segunda`). No requiere segundo paso de conteo.
+  const ingresoEstado: 'auditado' | 'confirmado' =
+    origen === 'planilla_ia' ? 'auditado' : 'confirmado'
 
   const { data: ingreso, error: iError } = await supabase
     .from('ingresos')
@@ -381,6 +375,7 @@ export async function crearIngreso(input: IngresoInput) {
       ot: input.ot?.trim() || null,
       rem_tejeduria: input.rem_tejeduria?.trim() || null,
       referencia: input.referencia?.trim() || null,
+      comentario: input.comentario?.trim() || null,
       total_rollos_declarado: input.total_rollos_declarado
         ? parseInt(input.total_rollos_declarado)
         : null,
@@ -412,7 +407,13 @@ export async function crearIngreso(input: IngresoInput) {
       ? parseFloat(r.gramaje_planilla)
       : null,
     ubicacion: r.ubicacion.trim() || null,
-    estado: r.segunda ? ('segunda' as const) : r.estado,
+    // Manual → el rollo entra directo a stock (ya se recibió a mano).
+    // Planilla IA → mantiene su estado (pendiente, espera confirmación).
+    estado: r.segunda
+      ? ('segunda' as const)
+      : origen === 'manual'
+        ? ('en_stock' as const)
+        : r.estado,
     falla_categoria: r.segunda ? r.falla_categoria : null,
     falla_descripcion: r.segunda
       ? r.falla_descripcion?.trim() || null
@@ -487,6 +488,7 @@ export type EditarIngresoInput = {
   ot: string
   rem_tejeduria: string
   referencia: string
+  comentario: string
   total_rollos_declarado: string
   total_kilos_declarado: string
 }
@@ -526,6 +528,7 @@ export async function editarIngreso(input: EditarIngresoInput) {
       ot: input.ot.trim() || null,
       rem_tejeduria: input.rem_tejeduria.trim() || null,
       referencia: input.referencia.trim() || null,
+      comentario: input.comentario.trim() || null,
       total_rollos_declarado: input.total_rollos_declarado
         ? parseInt(input.total_rollos_declarado)
         : null,

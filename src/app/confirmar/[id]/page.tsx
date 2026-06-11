@@ -86,6 +86,11 @@ export default async function ConfirmarIngresoPage({
   ]
   const ubicacionComun = ubicacionesUnicas.length === 1 ? ubicacionesUnicas[0] : undefined
 
+  // Si TODOS los rollos pendientes ya tienen ubicación (caso típico de ingreso
+  // cargado a mano), no hace falta volver a pedirla al confirmar.
+  const todosTienenUbicacion =
+    rollos.length > 0 && rollos.every((r) => Boolean(r.ubicacion))
+
   const pendientes = rollos.length
 
   return (
@@ -119,6 +124,7 @@ export default async function ConfirmarIngresoPage({
           totalDeclarado={ingreso.total_rollos_declarado}
           ubicaciones={ubicaciones}
           ubicacionPrevia={ubicacionComun}
+          todosTienenUbicacion={todosTienenUbicacion}
         />
       )}
     </div>

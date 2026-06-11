@@ -3,6 +3,7 @@ import BackButton from '@/components/BackButton'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import MermaPartidaCard from './MermaPartidaCard'
+import EditarOtInline from './EditarOtInline'
 
 const ESTADO_INGRESO: Record<string, { text: string; className: string }> = {
   borrador: { text: 'Borrador', className: 'bg-zinc-100 text-zinc-700' },
@@ -224,7 +225,11 @@ export default async function IngresoDetailPage({
           label={coloresResumen.length === 1 ? 'Color' : 'Colores'}
           value={coloresResumen.length ? coloresResumen.join(', ') : '—'}
         />
-        {ingreso.ot && <Field label="OT (partida tintorería)" value={ingreso.ot} />}
+        <EditarOtInline
+          ingresoId={id}
+          otInicial={ingreso.ot}
+          puedeEditar={esOperarioOAdmin}
+        />
         {ingreso.rem_tejeduria && (
           <Field label="Rem. tejeduría" value={ingreso.rem_tejeduria} />
         )}
@@ -232,6 +237,13 @@ export default async function IngresoDetailPage({
           <Field label="Referencia" value={ingreso.referencia} />
         )}
       </div>
+
+      {ingreso.comentario && (
+        <div className="rounded-lg border bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-muted-foreground">Comentario</p>
+          <p className="mt-1 text-sm whitespace-pre-wrap">{ingreso.comentario}</p>
+        </div>
+      )}
 
       <MermaPartidaCard
         ingresoId={id}
