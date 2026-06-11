@@ -122,6 +122,59 @@ export async function reemplazarRolloEnPicking(input: {
   return mapReemplazo(data, input.pedidoId)
 }
 
+// ── Quitar rollo ya pickeado ────────────────────────────────
+
+export type QuitarRolloResult =
+  | {
+      ok: true
+      pedidoRolloId: string
+      rolloId: string
+      numeroPieza: string
+      pedidoPartidaId: string | null
+      pendientes: number
+      total: number
+    }
+  | { ok: false; error: string }
+
+export async function quitarRolloDePicking(input: {
+  pedidoId: string
+  pedidoRolloId: string
+  motivo?: string
+}): Promise<QuitarRolloResult> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('quitar_rollo_picking', {
+    p_pedido_id: input.pedidoId,
+    p_pedido_rollo_id: input.pedidoRolloId,
+    p_motivo: input.motivo?.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  const json = data as {
+    pedido_rollo_id: string
+    rollo_id: string
+    numero_pieza: string
+    pedido_partida_id: string | null
+    pendientes: number
+    total: number
+  }
+
+  revalidatePath(`/picking/${input.pedidoId}`)
+  revalidatePath('/picking')
+  revalidatePath(`/pedidos/${input.pedidoId}`)
+  revalidatePath('/pedidos')
+
+  return {
+    ok: true,
+    pedidoRolloId: json.pedido_rollo_id,
+    rolloId: json.rollo_id,
+    numeroPieza: json.numero_pieza,
+    pedidoPartidaId: json.pedido_partida_id,
+    pendientes: json.pendientes,
+    total: json.total,
+  }
+}
+
 function mapReemplazo(data: unknown, pedidoId: string): ReemplazoResult {
   const json = data as {
     pedido_rollo_id: string

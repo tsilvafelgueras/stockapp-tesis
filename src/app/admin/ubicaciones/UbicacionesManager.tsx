@@ -3,11 +3,9 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import {
-  actualizarUbicacion,
-  crearUbicacion,
-  toggleUbicacion,
-} from './actions'
+import { crearUbicacion } from './actions'
+import UbicacionRow from './UbicacionRow'
+import { TIPOS, Field } from './shared'
 
 export type UbicacionAdminRow = {
   id: string
@@ -21,15 +19,6 @@ export type UbicacionAdminRow = {
   rollos: number
   kilos: number
 }
-
-const TIPOS = [
-  { value: 'general', label: 'General' },
-  { value: 'rack', label: 'Rack' },
-  { value: 'piso', label: 'Piso' },
-  { value: 'preparacion', label: 'Preparacion' },
-  { value: 'devolucion', label: 'Devolucion' },
-  { value: 'otro', label: 'Otro' },
-]
 
 const EMPTY_FORM = {
   codigo: '',
@@ -48,59 +37,21 @@ export default function UbicacionesManager({
 }) {
   const router = useRouter()
   const [form, setForm] = useState(EMPTY_FORM)
-  const [editId, setEditId] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-
-  const editando = editId
-    ? ubicaciones.find((u) => u.id === editId) ?? null
-    : null
 
   function setField(field: keyof typeof form, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  function startEdit(row: UbicacionAdminRow) {
-    setEditId(row.id)
-    setForm({
-      codigo: row.codigo,
-      descripcion: row.descripcion ?? '',
-      tipo: row.tipo,
-      capacidadRollos: row.capacidad_rollos?.toString() ?? '',
-      capacidadKg: row.capacidad_kg?.toString() ?? '',
-      orden: row.orden.toString(),
-      activa: row.activa,
-    })
-  }
-
-  function reset() {
-    setEditId(null)
-    setForm(EMPTY_FORM)
-  }
-
   function submit() {
     startTransition(async () => {
-      const action = editId
-        ? actualizarUbicacion(editId, form)
-        : crearUbicacion(form)
-      const res = await action
+      const res = await crearUbicacion(form)
       if (!res.ok) {
         toast.error(res.error)
         return
       }
-      toast.success(editId ? 'Ubicacion actualizada.' : 'Ubicacion creada.')
-      reset()
-      router.refresh()
-    })
-  }
-
-  function toggle(row: UbicacionAdminRow) {
-    startTransition(async () => {
-      const res = await toggleUbicacion(row.id, !row.activa)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
-      }
-      toast.success(row.activa ? 'Ubicacion desactivada.' : 'Ubicacion activada.')
+      toast.success('Ubicacion creada.')
+      setForm(EMPTY_FORM)
       router.refresh()
     })
   }
@@ -108,9 +59,7 @@ export default function UbicacionesManager({
   return (
     <div className="space-y-4">
       <section className="rounded-lg border bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold">
-          {editando ? `Editar ${editando.codigo}` : 'Nueva ubicacion'}
-        </h2>
+        <h2 className="text-sm font-semibold">Nueva ubicación</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Codigo *">
             <input
@@ -150,12 +99,12 @@ export default function UbicacionesManager({
             />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Descripcion">
+            <Field label="Descripción">
               <input
                 value={form.descripcion}
                 onChange={(e) => setField('descripcion', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="Que contiene o para que se usa"
+                placeholder="Qué contiene o para qué se usa"
               />
             </Field>
           </div>
@@ -177,23 +126,13 @@ export default function UbicacionesManager({
           </label>
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          {editId && (
-            <button
-              type="button"
-              onClick={reset}
-              disabled={pending}
-              className="rounded-md border px-3 py-2 text-sm"
-            >
-              Cancelar
-            </button>
-          )}
           <button
             type="button"
             onClick={submit}
             disabled={pending || !form.codigo.trim()}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            {pending ? 'Guardando...' : editId ? 'Guardar cambios' : 'Crear'}
+            {pending ? 'Guardando...' : 'Crear'}
           </button>
         </div>
       </section>
@@ -208,10 +147,10 @@ export default function UbicacionesManager({
           <table className="w-full min-w-[900px] text-sm">
             <thead className="border-b text-left">
               <tr>
-                <th className="px-4 py-2 font-medium">Codigo</th>
-                <th className="px-4 py-2 font-medium">Descripcion</th>
+                <th className="px-4 py-2 font-medium">Código</th>
+                <th className="px-4 py-2 font-medium">Descripción</th>
                 <th className="px-4 py-2 font-medium">Tipo</th>
-                <th className="px-4 py-2 text-right font-medium">Ocupacion</th>
+                <th className="px-4 py-2 text-right font-medium">Ocupación</th>
                 <th className="px-4 py-2 text-right font-medium">Kg</th>
                 <th className="px-4 py-2 font-medium">Estado</th>
                 <th className="px-4 py-2 text-right font-medium"></th>
@@ -219,58 +158,7 @@ export default function UbicacionesManager({
             </thead>
             <tbody>
               {ubicaciones.map((u) => (
-                <tr key={u.id} className="border-b last:border-0">
-                  <td className="px-4 py-2 font-mono font-medium">{u.codigo}</td>
-                  <td className="px-4 py-2 text-muted-foreground">
-                    {u.descripcion ?? '-'}
-                  </td>
-                  <td className="px-4 py-2">{tipoLabel(u.tipo)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">
-                    <OcupacionValue
-                      current={u.rollos}
-                      capacity={u.capacidad_rollos}
-                      unit="rollos"
-                    />
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">
-                    <OcupacionValue
-                      current={u.kilos}
-                      capacity={u.capacidad_kg}
-                      unit="kg"
-                      decimals={2}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        u.activa
-                          ? 'bg-success/15 text-success'
-                          : 'bg-zinc-100 text-muted-foreground'
-                      }`}
-                    >
-                      {u.activa ? 'Activa' : 'Inactiva'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(u)}
-                        className="rounded-md border px-2.5 py-1 text-xs hover:bg-zinc-50"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggle(u)}
-                        disabled={pending}
-                        className="rounded-md border px-2.5 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50"
-                      >
-                        {u.activa ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <UbicacionRow key={u.id} ubicacion={u} />
               ))}
             </tbody>
           </table>
@@ -278,66 +166,4 @@ export default function UbicacionesManager({
       </section>
     </div>
   )
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function OcupacionValue({
-  current,
-  capacity,
-  unit,
-  decimals = 0,
-}: {
-  current: number
-  capacity: number | null
-  unit: string
-  decimals?: number
-}) {
-  const value = decimals > 0 ? current.toFixed(decimals) : current.toString()
-  const cap =
-    capacity == null
-      ? null
-      : decimals > 0
-        ? Number(capacity).toFixed(decimals)
-        : capacity.toString()
-  const pct =
-    capacity && capacity > 0
-      ? Math.min(100, Math.round((Number(current) / Number(capacity)) * 100))
-      : null
-
-  return (
-    <div className="space-y-1">
-      <div>
-        {value}
-        {cap ? ` / ${cap}` : ''} <span className="text-xs text-muted-foreground">{unit}</span>
-      </div>
-      {pct != null && (
-        <div className="ml-auto h-1.5 w-24 rounded-full bg-zinc-100">
-          <div
-            className={`h-1.5 rounded-full ${
-              pct >= 90 ? 'bg-destructive' : pct >= 70 ? 'bg-warning' : 'bg-success'
-            }`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function tipoLabel(tipo: string) {
-  return TIPOS.find((t) => t.value === tipo)?.label ?? tipo
 }

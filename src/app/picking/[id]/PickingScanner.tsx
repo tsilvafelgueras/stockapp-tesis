@@ -8,7 +8,12 @@ import ScannerByReaderType, {
   type ReaderType,
 } from '@/components/ScannerByReaderType'
 import { extraerCodigoCandidato, type PatronCodigo } from '@/lib/scanner'
-import { pickearRollo, reemplazarRolloEnPicking } from './actions'
+import type { ReemplazoSugerido } from '@/lib/picking'
+import {
+  pickearRollo,
+  reemplazarRolloEnPicking,
+  quitarRolloDePicking,
+} from './actions'
 
 export type PickPartida = {
   id: string
@@ -21,6 +26,7 @@ export type PickPartida = {
   rollosSolicitados: number
   rollosAsignados: number
   ubicacionesSugeridas: string[]
+  reemplazosSugeridos: ReemplazoSugerido[]
 }
 
 export type PickRollo = {
@@ -78,6 +84,8 @@ export default function PickingScanner({
   const [reemplazoTarget, setReemplazoTarget] = useState<PickRollo | null>(null)
   const [numeroReemplazo, setNumeroReemplazo] = useState('')
   const [motivoReemplazo, setMotivoReemplazo] = useState('')
+  const [quitarTarget, setQuitarTarget] = useState<PickRollo | null>(null)
+  const [quitando, setQuitando] = useState(false)
   const [mostrarPartidas, setMostrarPartidas] = useState(true)
   const [mostrarPickeados, setMostrarPickeados] = useState(true)
 
@@ -242,6 +250,39 @@ export default function PickingScanner({
     router.refresh()
   }
 
+  async function ejecutarQuitar() {
+    if (!quitarTarget) return
+
+    setQuitando(true)
+    const res = await quitarRolloDePicking({
+      pedidoId,
+      pedidoRolloId: quitarTarget.pedido_rollo_id,
+    })
+    setQuitando(false)
+
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+
+    setItemsLocales((prev) =>
+      prev.filter((item) => item.pedido_rollo_id !== quitarTarget.pedido_rollo_id)
+    )
+    if (quitarTarget.pedido_partida_id) {
+      setPartidasLocales((prev) =>
+        prev.map((p) =>
+          p.id === quitarTarget.pedido_partida_id
+            ? { ...p, rollosAsignados: Math.max(0, p.rollosAsignados - 1) }
+            : p
+        )
+      )
+    }
+
+    toast.success(`Rollo ${quitarTarget.numero_pieza} quitado del pedido.`)
+    setQuitarTarget(null)
+    router.refresh()
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="space-y-2 rounded-lg border bg-white p-4 shadow-sm">
@@ -308,6 +349,18 @@ export default function PickingScanner({
                       Buscar en:{' '}
                       <span className="font-medium text-foreground">
                         {p.ubicacionesSugeridas.join(', ')}
+                      </span>
+                    </p>
+                  )}
+                  {p.reemplazosSugeridos.length > 0 && faltan > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Reemplazo sugerido:{' '}
+                      <span className="font-medium text-foreground">
+                        {p.reemplazosSugeridos
+                          .map((r) =>
+                            r.lote ? `${r.ubicacion} (${r.lote})` : r.ubicacion
+                          )
+                          .join(', ')}
                       </span>
                     </p>
                   )}
@@ -395,17 +448,26 @@ export default function PickingScanner({
                         {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
                       </td>
                       <td className="py-2 pl-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReemplazoTarget(r)
-                            setNumeroReemplazo('')
-                            setMotivoReemplazo('')
-                          }}
-                          className="rounded-md border px-2 py-1 text-xs hover:bg-zinc-50"
-                        >
-                          Reemplazar
-                        </button>
+                        <div className="flex justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReemplazoTarget(r)
+                              setNumeroReemplazo('')
+                              setMotivoReemplazo('')
+                            }}
+                            className="rounded-md border px-2 py-1 text-xs hover:bg-zinc-50"
+                          >
+                            Reemplazar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setQuitarTarget(r)}
+                            className="rounded-md border border-destructive/30 px-2 py-1 text-xs text-destructive hover:bg-destructive/5"
+                          >
+                            Quitar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -508,6 +570,42 @@ export default function PickingScanner({
                 className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 {reemplazando ? 'Reemplazando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {quitarTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
+          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Quitar rollo del pedido
+              </p>
+              <p className="mt-1 text-sm">
+                El rollo{' '}
+                <strong className="font-mono">{quitarTarget.numero_pieza}</strong>{' '}
+                vuelve a stock disponible y deja de contar para este pedido.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setQuitarTarget(null)}
+                disabled={quitando}
+                className="flex-1 rounded-md border px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={ejecutarQuitar}
+                disabled={quitando}
+                className="flex-1 rounded-md bg-destructive px-4 py-2.5 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {quitando ? 'Quitando...' : 'Quitar'}
               </button>
             </div>
           </div>
