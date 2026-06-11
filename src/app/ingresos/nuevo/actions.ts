@@ -321,9 +321,9 @@ export async function crearIngreso(input: IngresoInput) {
       return { error: `El rollo "${r.numero_pieza.trim()}" no tiene color asignado.` }
     }
     const kilos = parseDecimal(r.kilos)
-    if (Number.isNaN(kilos) || (kilos != null && kilos < 0)) {
+    if (kilos == null || Number.isNaN(kilos) || kilos <= 0) {
       return {
-        error: `El rollo "${r.numero_pieza.trim()}" tiene kilos invalidos.`,
+        error: `El rollo "${r.numero_pieza.trim()}" debe tener un peso en kilos mayor a cero.`,
       }
     }
     if (origen === 'manual' && !r.ubicacion.trim()) {

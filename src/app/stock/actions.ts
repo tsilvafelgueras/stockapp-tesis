@@ -303,6 +303,15 @@ export async function editarRollo(
       }
     }
 
+    if (cambios.kilos !== undefined) {
+      if (cambios.kilos == null || !Number.isFinite(cambios.kilos) || cambios.kilos <= 0) {
+        return {
+          ok: false,
+          error: 'Los kilos son obligatorios y deben ser mayores a cero.',
+        }
+      }
+    }
+
     const update: Record<string, unknown> = {}
     if (cambios.numero_pieza !== undefined) {
       update.numero_pieza = cambios.numero_pieza.trim()

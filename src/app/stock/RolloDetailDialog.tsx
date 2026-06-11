@@ -266,6 +266,11 @@ export default function RolloDetailDialog({
       toast.error('El número de pieza no puede estar vacío.')
       return
     }
+    const kilos = parseNumOpt(editForm.kilos)
+    if (kilos == null || kilos <= 0) {
+      toast.error('Los kilos son obligatorios y deben ser mayores a cero.')
+      return
+    }
     startTransition(async () => {
       try {
         const res = await editarRollo(rollo.id, {
@@ -717,6 +722,7 @@ export default function RolloDetailDialog({
                     setEditForm((prev) => ({ ...prev, kilos: v }))
                   }
                   type="number"
+                  required
                 />
                 <EditField
                   label="Metros"

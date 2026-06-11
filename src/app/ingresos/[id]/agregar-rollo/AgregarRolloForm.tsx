@@ -71,13 +71,19 @@ export default function AgregarRolloForm({
       return
     }
 
+    const kilos = kilosStr ? parseFloat(kilosStr) : NaN
+    if (!Number.isFinite(kilos) || kilos <= 0) {
+      toast.error('Los kilos son obligatorios y deben ser mayores a cero.')
+      return
+    }
+
     setGuardando(true)
     try {
       const result = await agregarRolloAIngreso(ingresoId, {
         numero_pieza: pieza,
         articulo_id: articuloId || null,
         color_id: colorId || null,
-        kilos: kilosStr ? parseFloat(kilosStr) : null,
+        kilos,
         metros: metrosStr ? parseFloat(metrosStr) : null,
         ubicacion: ubicacion || null,
       })
@@ -178,12 +184,14 @@ export default function AgregarRolloForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-sm font-medium">Kilos</label>
+            <label className="text-sm font-medium">
+              Kilos <span className="text-destructive">*</span>
+            </label>
             <input
               type="number"
               inputMode="decimal"
               step="0.01"
-              min={0}
+              min={0.01}
               value={kilosStr}
               onChange={(e) => setKilosStr(e.target.value)}
               placeholder="Ej: 12.50"

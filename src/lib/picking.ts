@@ -17,6 +17,26 @@ export type ReemplazoSugerido = {
   lote: string | null
 }
 
+export type PartidaParaMatch = {
+  id: string
+  articuloId: string
+  colorId: string
+  ingresoId: string | null
+  rollosSolicitados: number
+  rollosAsignados: number
+}
+
+export type RolloParaMatch = {
+  articuloId: string
+  colorId: string
+  ingresoId: string | null
+}
+
+export type MatchPartidaResult = {
+  partidaId: string
+  esSustitucionPartida: boolean
+}
+
 export type UbicacionesSugeridas = {
   ubicaciones: string[]
   reemplazos: ReemplazoSugerido[]
@@ -65,4 +85,35 @@ export function buildUbicacionesSugeridas(
   }
 
   return { ubicaciones, reemplazos }
+}
+
+// Previsualizacion del matching de partida para un rollo escaneado, replicando
+// la logica de la RPC aplicar_picking_pedido (preferencia por mismo ingreso,
+// primera partida con cupo). `asignadosBorrador` suma lo ya puesto en el
+// borrador local (todavia no persistido) por partida, para no ofrecer cupo
+// que ya esta tomado dentro de la misma sesion.
+export function matchPartidaParaRollo(
+  rollo: RolloParaMatch,
+  partidas: PartidaParaMatch[],
+  asignadosBorrador: Record<string, number> = {}
+): MatchPartidaResult | null {
+  const candidatas = partidas.filter(
+    (p) =>
+      p.articuloId === rollo.articuloId &&
+      p.colorId === rollo.colorId &&
+      p.rollosAsignados + (asignadosBorrador[p.id] ?? 0) < p.rollosSolicitados
+  )
+
+  if (candidatas.length === 0) return null
+
+  const [elegida] = [...candidatas].sort((a, b) => {
+    const aMatch = a.ingresoId === rollo.ingresoId ? 0 : 1
+    const bMatch = b.ingresoId === rollo.ingresoId ? 0 : 1
+    return aMatch - bMatch
+  })
+
+  return {
+    partidaId: elegida.id,
+    esSustitucionPartida: elegida.ingresoId !== rollo.ingresoId,
+  }
 }

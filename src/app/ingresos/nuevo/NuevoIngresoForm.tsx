@@ -711,7 +711,7 @@ export default function NuevoIngresoForm({
     ).length
     const rollosKilosInvalidos = rollosConPieza.filter((r) => {
       const kilos = parseDecimalInput(r.kilos)
-      return Number.isNaN(kilos) || (kilos != null && kilos < 0)
+      return kilos == null || Number.isNaN(kilos) || kilos <= 0
     }).length
 
     // Cross-check Kilos vs Metros/Rdto. En la planilla Rdto = Metros / Kilos,
@@ -1472,7 +1472,7 @@ export default function NuevoIngresoForm({
                 <th className="px-3 py-2 font-medium">N° Pieza *</th>
                 <th className="px-3 py-2 font-medium w-40">Artículo *</th>
                 <th className="px-3 py-2 font-medium w-32">Color *</th>
-                <th className="px-3 py-2 font-medium w-24">Kilos</th>
+                <th className="px-3 py-2 font-medium w-24">Kilos *</th>
                 <th className="px-3 py-2 font-medium w-24">Metros</th>
                 <th className="px-3 py-2 font-medium w-20">Rinde</th>
                 <th className="px-3 py-2 font-medium w-20">Gramaje</th>
@@ -1564,7 +1564,15 @@ export default function NuevoIngresoForm({
                           value={r.kilos}
                           onChange={(e) => updateRollo(i, 'kilos', e.target.value)}
                           placeholder="20.5 o 20,5"
-                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(conf?.kilos)}`}
+                          className={`w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+                            r.numero_pieza.trim() &&
+                            (() => {
+                              const k = parseDecimalInput(r.kilos)
+                              return k == null || Number.isNaN(k) || k <= 0
+                            })()
+                              ? 'border-destructive'
+                              : celdaCls(conf?.kilos)
+                          }`}
                         />
                       </td>
                       <td className="px-3 py-1">
@@ -2000,14 +2008,24 @@ function RolloCardMobile({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-foreground">Kilos</label>
+          <label className="text-xs font-semibold text-foreground">
+            Kilos <span className="text-destructive">*</span>
+          </label>
           <input
             type="text"
             inputMode="decimal"
             value={rollo.kilos}
             onChange={(e) => onUpdate('kilos', e.target.value)}
             placeholder="20.5 o 20,5"
-            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.kilos)}`}
+            className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+              rollo.numero_pieza.trim() &&
+              (() => {
+                const k = parseDecimalInput(rollo.kilos)
+                return k == null || Number.isNaN(k) || k <= 0
+              })()
+                ? 'border-destructive'
+                : celdaCls(confianzas?.kilos)
+            }`}
           />
         </div>
         <div className="space-y-1">

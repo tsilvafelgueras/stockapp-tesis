@@ -139,6 +139,7 @@ export default async function PickingDetailPage({
       return {
         id: p.id,
         numeroLote: p.ingresos?.numero_lote ?? null,
+        ingresoId: p.ingreso_id,
         articuloId: p.articulo_id,
         colorId: p.color_id,
         articulo: p.articulos?.nombre ?? 'Articulo',

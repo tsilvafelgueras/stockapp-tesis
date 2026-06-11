@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { buildUbicacionesSugeridas, type StockOrientacionRaw } from './picking'
+import {
+  buildUbicacionesSugeridas,
+  matchPartidaParaRollo,
+  type StockOrientacionRaw,
+  type PartidaParaMatch,
+} from './picking'
 
 const partida = {
   articulo_id: 'articulo-1',
@@ -79,6 +84,76 @@ describe('buildUbicacionesSugeridas', () => {
     expect(buildUbicacionesSugeridas(partida, stock)).toEqual({
       ubicaciones: [],
       reemplazos: [],
+    })
+  })
+})
+
+function partidaMatch(overrides: Partial<PartidaParaMatch> = {}): PartidaParaMatch {
+  return {
+    id: 'partida-1',
+    articuloId: 'articulo-1',
+    colorId: 'color-1',
+    ingresoId: 'ingreso-1',
+    rollosSolicitados: 2,
+    rollosAsignados: 0,
+    ...overrides,
+  }
+}
+
+const rollo = {
+  articuloId: 'articulo-1',
+  colorId: 'color-1',
+  ingresoId: 'ingreso-1',
+}
+
+describe('matchPartidaParaRollo', () => {
+  it('matchea la partida del mismo articulo/color con cupo', () => {
+    const partidas = [partidaMatch()]
+
+    expect(matchPartidaParaRollo(rollo, partidas)).toEqual({
+      partidaId: 'partida-1',
+      esSustitucionPartida: false,
+    })
+  })
+
+  it('devuelve null si no hay partida con articulo/color que matchee', () => {
+    const partidas = [partidaMatch({ articuloId: 'articulo-OTRO' })]
+
+    expect(matchPartidaParaRollo(rollo, partidas)).toBeNull()
+  })
+
+  it('devuelve null si la partida ya esta completa', () => {
+    const partidas = [partidaMatch({ rollosSolicitados: 1, rollosAsignados: 1 })]
+
+    expect(matchPartidaParaRollo(rollo, partidas)).toBeNull()
+  })
+
+  it('descuenta el cupo ya usado por items del borrador', () => {
+    const partidas = [partidaMatch({ rollosSolicitados: 1, rollosAsignados: 0 })]
+
+    expect(
+      matchPartidaParaRollo(rollo, partidas, { 'partida-1': 1 })
+    ).toBeNull()
+  })
+
+  it('prefiere la partida con el mismo ingreso (sin sustitucion)', () => {
+    const partidas = [
+      partidaMatch({ id: 'partida-otro-lote', ingresoId: 'ingreso-OTRO' }),
+      partidaMatch({ id: 'partida-mismo-lote', ingresoId: 'ingreso-1' }),
+    ]
+
+    expect(matchPartidaParaRollo(rollo, partidas)).toEqual({
+      partidaId: 'partida-mismo-lote',
+      esSustitucionPartida: false,
+    })
+  })
+
+  it('si solo hay partidas de otro ingreso, marca sustitucion de partida', () => {
+    const partidas = [partidaMatch({ ingresoId: 'ingreso-OTRO' })]
+
+    expect(matchPartidaParaRollo(rollo, partidas)).toEqual({
+      partidaId: 'partida-1',
+      esSustitucionPartida: true,
     })
   })
 })
