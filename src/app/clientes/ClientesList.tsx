@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import ClienteForm, { type VendedorOption } from './ClienteForm'
 import { eliminarCliente } from './actions'
@@ -34,13 +34,11 @@ export default function ClientesList({
   clientes: ClienteRow[]
   vendedores: VendedorOption[]
 }) {
-  const router = useRouter()
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [showInactivos, setShowInactivos] = useState(false)
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [isDeleting, startDelete] = useTransition()
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -58,19 +56,29 @@ export default function ClientesList({
     })
   }, [clientes, deletedIds, search, showInactivos])
 
-  function handleEliminar(cliente: ClienteRow) {
-    if (!window.confirm(`Eliminar cliente "${cliente.nombre}"?`)) return
-    setPendingDeleteId(cliente.id)
-    startDelete(async () => {
-      const res = await eliminarCliente(cliente.id)
-      setPendingDeleteId(null)
-      if (!res.ok) {
-        toast.error(res.error)
-        return
-      }
-      setDeletedIds((prev) => new Set(prev).add(cliente.id))
-      toast.success('Cliente eliminado.')
-      router.refresh()
+  const allExpanded =
+    filtered.length > 0 && filtered.every((c) => expandedIds.has(c.id))
+
+  function toggleOne(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setExpandedIds(allExpanded ? new Set() : new Set(filtered.map((c) => c.id)))
+  }
+
+  function handleDeleted(id: string) {
+    setDeletedIds((prev) => new Set(prev).add(id))
+    setExpandedIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
     })
   }
 
@@ -108,26 +116,49 @@ export default function ClientesList({
         />
       )}
 
-      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b bg-zinc-50 px-4 py-3">
+          <p className="text-sm font-medium text-muted-foreground">
+            {filtered.length}{' '}
+            {filtered.length === 1 ? 'cliente' : 'clientes'}
+          </p>
+          {filtered.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="inline-flex items-center gap-1.5 rounded-md border border-action/40 px-3 py-1.5 text-xs font-medium text-action transition-colors hover:bg-action/5"
+            >
+              {allExpanded ? (
+                <>
+                  <ChevronDown className="size-3.5" />
+                  Contraer todo
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="size-3.5" />
+                  Expandir todo
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
-            <thead className="bg-zinc-50 border-b">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead className="border-b bg-zinc-50 text-muted-foreground">
               <tr className="text-left">
+                <th className="w-10 px-4 py-3 font-medium"></th>
                 <th className="px-4 py-3 font-medium">Cliente</th>
-                <th className="px-4 py-3 font-medium">Contacto</th>
-                <th className="px-4 py-3 font-medium">Pago / precio</th>
-                <th className="px-4 py-3 font-medium">Vendedor</th>
-                <th className="px-4 py-3 font-medium">Mas pedidos</th>
-                <th className="px-4 py-3 font-medium">Pedidos</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3 font-medium text-right">Acciones</th>
+                <th className="px-4 py-3 text-right font-medium">Pedidos</th>
+                <th className="px-4 py-3 text-right font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={5}
                     className="px-4 py-10 text-center text-sm text-muted-foreground"
                   >
                     {clientes.length === deletedIds.size
@@ -136,77 +167,246 @@ export default function ClientesList({
                   </td>
                 </tr>
               ) : (
-                filtered.map((c) => {
-                  const dias = diasDesde(c.created_at)
-                  return (
-                    <tr
-                      key={c.id}
-                      className="border-b last:border-0 hover:bg-zinc-50"
-                    >
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/clientes/${c.id}`}
-                          className="font-medium hover:underline"
-                        >
-                          {c.nombre}
-                        </Link>
-                        {c.direccion && (
-                          <p className="text-xs text-muted-foreground truncate max-w-[260px]">
-                            {c.direccion}
-                          </p>
-                        )}
-                        {c.cuit_cuil && (
-                          <p className="text-xs text-muted-foreground">
-                            CUIT/CUIL {c.cuit_cuil}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        <div>{c.contacto ?? '-'}</div>
-                        <div>{c.email ?? '-'}</div>
-                        <div>{c.telefono ?? '-'}</div>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        <div>{condicionPagoLabel(c.condicion_pago)}</div>
-                        <div>{categoriaPrecioLabel(c.categoria_precio)}</div>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {c.vendedor_asignado ?? '-'}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {c.top_articulos.length > 0
-                          ? c.top_articulos.join(', ')
-                          : '-'}
-                      </td>
-                      <td className="px-4 py-3 tabular-nums">
-                        {c.pedidos_count}
-                      </td>
-                      <td className="px-4 py-3">
-                        <EstadoClienteBadge estado={c.estado_cliente} />
-                        <p className="mt-1 text-[10px] text-muted-foreground tabular-nums">
-                          {dias} {dias === 1 ? 'dia' : 'dias'}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleEliminar(c)}
-                          disabled={isDeleting && pendingDeleteId === c.id}
-                          className="inline-flex size-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                          aria-label={`Eliminar ${c.nombre}`}
-                          title="Eliminar"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })
+                filtered.map((c) => (
+                  <ClienteRowItem
+                    key={c.id}
+                    cliente={c}
+                    vendedores={vendedores}
+                    expanded={expandedIds.has(c.id)}
+                    onToggle={() => toggleOne(c.id)}
+                    onDeleted={handleDeleted}
+                  />
+                ))
               )}
             </tbody>
           </table>
         </div>
       </div>
+    </div>
+  )
+}
+
+function ClienteRowItem({
+  cliente: c,
+  vendedores,
+  expanded,
+  onToggle,
+  onDeleted,
+}: {
+  cliente: ClienteRow
+  vendedores: VendedorOption[]
+  expanded: boolean
+  onToggle: () => void
+  onDeleted: (id: string) => void
+}) {
+  const router = useRouter()
+  const [editing, setEditing] = useState(false)
+  const [deleting, startDelete] = useTransition()
+
+  function handleEliminar() {
+    if (!window.confirm(`Eliminar cliente "${c.nombre}"?`)) return
+    startDelete(async () => {
+      const res = await eliminarCliente(c.id)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Cliente eliminado.')
+      onDeleted(c.id)
+      router.refresh()
+    })
+  }
+
+  const dias = diasDesde(c.created_at)
+
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        className="cursor-pointer border-b hover:bg-zinc-50"
+      >
+        <td className="w-10 px-4 py-3">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle()
+            }}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-zinc-100"
+            aria-label={expanded ? 'Contraer cliente' : 'Expandir cliente'}
+            title={expanded ? 'Contraer' : 'Expandir'}
+          >
+            {expanded ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+          </button>
+        </td>
+        <td className="px-4 py-3">
+          <span className="font-medium">{c.nombre}</span>
+          {!c.activo && (
+            <span className="ml-2 text-xs text-muted-foreground">(inactivo)</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <EstadoClienteBadge estado={c.estado_cliente} />
+        </td>
+        <td className="px-4 py-3 text-right tabular-nums">{c.pedidos_count}</td>
+        <td className="px-4 py-3 text-right">
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditing((v) => !v)
+              }}
+              className="rounded-md border px-3 py-1.5 text-xs transition-colors hover:bg-zinc-100"
+            >
+              {editing ? 'Cerrar' : 'Editar'}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEliminar()
+              }}
+              disabled={deleting}
+              className="inline-flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+              aria-label={`Eliminar ${c.nombre}`}
+              title="Eliminar"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {expanded && !editing && (
+        <tr className="border-b bg-zinc-50/60">
+          <td colSpan={5} className="pb-4 pl-14 pr-4 pt-2">
+            <div className="space-y-4 text-sm">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <DetailGroup title="Contacto">
+                  <DetailLine label="Contacto" value={c.contacto} />
+                  <DetailLine label="Email" value={c.email} />
+                  <DetailLine label="Teléfono" value={c.telefono} />
+                  <DetailLine label="Dirección" value={c.direccion} />
+                  <DetailLine label="CUIT/CUIL" value={c.cuit_cuil} />
+                </DetailGroup>
+
+                <DetailGroup title="Comercial">
+                  <DetailLine
+                    label="Condición de pago"
+                    value={condicionPagoLabel(c.condicion_pago)}
+                  />
+                  <DetailLine
+                    label="Categoría de precio"
+                    value={categoriaPrecioLabel(c.categoria_precio)}
+                  />
+                  <DetailLine label="Vendedor" value={c.vendedor_asignado} />
+                  <DetailLine
+                    label="Antigüedad"
+                    value={`${dias} ${dias === 1 ? 'día' : 'días'}`}
+                  />
+                </DetailGroup>
+
+                <DetailGroup title="Artículos más pedidos">
+                  {c.top_articulos.length > 0 ? (
+                    <ul className="space-y-1">
+                      {c.top_articulos.map((art) => (
+                        <li key={art} className="text-foreground">
+                          {art}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground">Sin pedidos todavía.</p>
+                  )}
+                </DetailGroup>
+              </div>
+
+              {c.notas && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Notas
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-foreground">
+                    {c.notas}
+                  </p>
+                </div>
+              )}
+
+              <Link
+                href={`/clientes/${c.id}`}
+                className="inline-flex items-center gap-1 text-xs font-medium text-action hover:underline"
+              >
+                Ver ficha completa e historial de pedidos →
+              </Link>
+            </div>
+          </td>
+        </tr>
+      )}
+
+      {editing && (
+        <tr className="border-b bg-zinc-50/60">
+          <td />
+          <td colSpan={4} className="px-4 py-4">
+            <ClienteForm
+              cliente={{
+                id: c.id,
+                nombre: c.nombre,
+                cuit_cuil: c.cuit_cuil,
+                contacto: c.contacto,
+                email: c.email,
+                telefono: c.telefono,
+                direccion: c.direccion,
+                condicion_pago: c.condicion_pago,
+                categoria_precio: c.categoria_precio,
+                estado_cliente: c.estado_cliente,
+                vendedor_asignado: c.vendedor_asignado,
+                notas: c.notas,
+              }}
+              vendedores={vendedores}
+              onDone={() => setEditing(false)}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+function DetailGroup({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      <div className="space-y-1">{children}</div>
+    </div>
+  )
+}
+
+function DetailLine({
+  label,
+  value,
+}: {
+  label: string
+  value: string | null
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-right text-foreground">
+        {value && value.trim() ? value : '—'}
+      </span>
     </div>
   )
 }
