@@ -3,9 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import Landing from '@/components/landing/Landing'
 
 export const metadata = {
-  title: 'NUDO · Gestión de stock textil para PyMEs',
+  title: 'NUDO · Tu depósito bajo control total',
   description:
-    'Cargá planillas con IA, confirmá rollos con scanner QR, armá pedidos sin equivocarte. NUDO es el software de depósito pensado para fábricas textiles argentinas.',
+    'NUDO es el software de gestión de rollos para PyMEs textiles. Trazá cada pieza desde la tintorería hasta el despacho, con escaneo en mano y reportes en tiempo real.',
 }
 
 export default async function Home() {
