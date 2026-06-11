@@ -284,54 +284,50 @@ function ClienteRowItem({
 
       {expanded && !editing && (
         <tr className="border-b bg-zinc-50/60">
-          <td colSpan={5} className="pb-4 pl-14 pr-4 pt-2">
-            <div className="space-y-4 text-sm">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <DetailGroup title="Contacto">
-                  <DetailLine label="Contacto" value={c.contacto} />
-                  <DetailLine label="Email" value={c.email} />
-                  <DetailLine label="Teléfono" value={c.telefono} />
-                  <DetailLine label="Dirección" value={c.direccion} />
-                  <DetailLine label="CUIT/CUIL" value={c.cuit_cuil} />
-                </DetailGroup>
+          <td colSpan={5} className="px-4 pb-4 pl-4 pr-4 pt-3 sm:pl-14">
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <DetailCard
+                  title="Contacto"
+                  emptyLabel="Sin datos de contacto."
+                  fields={[
+                    ['Contacto', c.contacto],
+                    ['Email', c.email],
+                    ['Teléfono', c.telefono],
+                    ['Dirección', c.direccion],
+                    ['CUIT/CUIL', c.cuit_cuil],
+                  ]}
+                />
 
-                <DetailGroup title="Comercial">
-                  <DetailLine
-                    label="Condición de pago"
-                    value={condicionPagoLabel(c.condicion_pago)}
-                  />
-                  <DetailLine
-                    label="Categoría de precio"
-                    value={categoriaPrecioLabel(c.categoria_precio)}
-                  />
-                  <DetailLine label="Vendedor" value={c.vendedor_asignado} />
-                  <DetailLine
-                    label="Antigüedad"
-                    value={`${dias} ${dias === 1 ? 'día' : 'días'}`}
-                  />
-                </DetailGroup>
+                <DetailCard
+                  title="Comercial"
+                  fields={[
+                    [
+                      'Condición de pago',
+                      c.condicion_pago
+                        ? condicionPagoLabel(c.condicion_pago)
+                        : null,
+                    ],
+                    [
+                      'Categoría de precio',
+                      c.categoria_precio
+                        ? categoriaPrecioLabel(c.categoria_precio)
+                        : null,
+                    ],
+                    ['Vendedor', c.vendedor_asignado],
+                    ['Antigüedad', `${dias} ${dias === 1 ? 'día' : 'días'}`],
+                  ]}
+                />
 
-                <DetailGroup title="Artículos más pedidos">
-                  {c.top_articulos.length > 0 ? (
-                    <ul className="space-y-1">
-                      {c.top_articulos.map((art) => (
-                        <li key={art} className="text-foreground">
-                          {art}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-muted-foreground">Sin pedidos todavía.</p>
-                  )}
-                </DetailGroup>
+                <ArticulosCard articulos={c.top_articulos} />
               </div>
 
-              {c.notas && (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {c.notas && c.notas.trim() && (
+                <div className="rounded-lg border bg-white p-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Notas
                   </p>
-                  <p className="mt-1 whitespace-pre-line text-foreground">
+                  <p className="mt-1.5 whitespace-pre-line text-sm text-foreground">
                     {c.notas}
                   </p>
                 </div>
@@ -377,36 +373,62 @@ function ClienteRowItem({
   )
 }
 
-function DetailGroup({
+function DetailCard({
   title,
-  children,
+  fields,
+  emptyLabel = 'Sin datos.',
 }: {
   title: string
-  children: React.ReactNode
+  fields: [string, string | null][]
+  emptyLabel?: string
 }) {
+  const visibles = fields.filter(
+    ([, value]) => value != null && value.trim() !== ''
+  )
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-lg border bg-white p-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </p>
-      <div className="space-y-1">{children}</div>
+      {visibles.length > 0 ? (
+        <dl className="mt-2 space-y-2">
+          {visibles.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="text-sm font-medium text-foreground">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">{emptyLabel}</p>
+      )}
     </div>
   )
 }
 
-function DetailLine({
-  label,
-  value,
-}: {
-  label: string
-  value: string | null
-}) {
+function ArticulosCard({ articulos }: { articulos: string[] }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-right text-foreground">
-        {value && value.trim() ? value : '—'}
-      </span>
+    <div className="rounded-lg border bg-white p-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Artículos más pedidos
+      </p>
+      {articulos.length > 0 ? (
+        <ul className="mt-2 space-y-1">
+          {articulos.map((art) => (
+            <li
+              key={art}
+              className="flex items-center gap-2 text-sm font-medium text-foreground"
+            >
+              <span className="size-1.5 shrink-0 rounded-full bg-action" />
+              {art}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Sin pedidos todavía.
+        </p>
+      )}
     </div>
   )
 }
