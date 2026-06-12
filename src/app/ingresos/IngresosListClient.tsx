@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { fechaEnRango } from '@/lib/fechas'
 
 export type IngresoRow = {
   id: string
@@ -30,38 +31,84 @@ export default function IngresosListClient({
   ingresos: IngresoRow[]
 }) {
   const [search, setSearch] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
 
   const filtrados = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return ingresos
-    return ingresos.filter((d) =>
-      [
+    return ingresos.filter((d) => {
+      if (!fechaEnRango(d.fecha_despacho, desde, hasta)) return false
+      if (!q) return true
+      return [
         d.numero_lote,
         d.ot,
         d.numero_remito,
         d.referencia,
         d.rem_tejeduria,
       ].some((campo) => campo?.toLowerCase().includes(q))
-    )
-  }, [ingresos, search])
+    })
+  }, [ingresos, search, desde, hasta])
+
+  const hayFiltros = Boolean(search || desde || hasta)
+
+  function limpiarFiltros() {
+    setSearch('')
+    setDesde('')
+    setHasta('')
+  }
 
   return (
     <div className="space-y-4">
-      <div className="relative max-w-md">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por partida, OT (tintorería), remito o referencia..."
-          className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        {search && (
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative w-full sm:max-w-md sm:flex-1">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por partida, OT (tintorería), remito o referencia..."
+            className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-end gap-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Desde
+            <input
+              type="date"
+              value={desde}
+              max={hasta || undefined}
+              onChange={(e) => setDesde(e.target.value)}
+              className="rounded-md border border-input bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Hasta
+            <input
+              type="date"
+              value={hasta}
+              min={desde || undefined}
+              onChange={(e) => setHasta(e.target.value)}
+              className="rounded-md border border-input bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+        </div>
+
+        {hayFiltros && (
           <button
             type="button"
-            onClick={() => setSearch('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+            onClick={limpiarFiltros}
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline sm:pb-2.5"
           >
-            Limpiar
+            Limpiar filtros
           </button>
         )}
       </div>
@@ -106,8 +153,8 @@ export default function IngresosListClient({
           })
         ) : (
           <div className="rounded-lg border bg-white p-8 text-center text-sm text-muted-foreground">
-            {search
-              ? 'No hay partidas que coincidan con la búsqueda.'
+            {hayFiltros
+              ? 'No hay partidas que coincidan con los filtros.'
               : 'Todavía no cargaste ningún ingreso.'}
           </div>
         )}
@@ -176,8 +223,8 @@ export default function IngresosListClient({
                     colSpan={9}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
-                    {search
-                      ? 'No hay partidas que coincidan con la búsqueda.'
+                    {hayFiltros
+                      ? 'No hay partidas que coincidan con los filtros.'
                       : 'Todavía no cargaste ningún ingreso.'}
                   </td>
                 </tr>

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import ExcelFilter, { type ExcelFilterOption } from '@/components/ExcelFilter'
 import SearchableCombobox from '@/components/SearchableCombobox'
+import { fechaEnRango } from '@/lib/fechas'
 import {
   ubicacionesToOptions,
   type UbicacionOption,
@@ -88,6 +89,8 @@ export default function RollosBulkView({
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [pending, startTransition] = useTransition()
 
   const [bulkMode, setBulkMode] = useState<
@@ -145,6 +148,9 @@ export default function RollosBulkView({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rollos.filter((r) => {
+      if (!fechaEnRango(r.ingreso_fecha, desde, hasta)) {
+        return false
+      }
       if (filters.tintoreria.length && !filters.tintoreria.includes(r.tintoreria_id ?? '')) {
         return false
       }
@@ -187,7 +193,9 @@ export default function RollosBulkView({
         return false
       return true
     })
-  }, [rollos, filters, search])
+  }, [rollos, filters, search, desde, hasta])
+
+  const hayFecha = Boolean(desde || hasta)
 
   const visibles = filtered
   const allVisibleSelected =
@@ -208,6 +216,8 @@ export default function RollosBulkView({
   function resetFilters() {
     setFilters(EMPTY_FILTERS)
     setSearch('')
+    setDesde('')
+    setHasta('')
   }
 
   function toggleSelect(id: string) {
@@ -300,22 +310,42 @@ export default function RollosBulkView({
 
   return (
     <div className="space-y-4">
-      {/* Barra de búsqueda + reset */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Barra de búsqueda + fecha + reset */}
+      <div className="flex flex-wrap items-end gap-2">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nº de pieza, OT (tintorería), remito o referencia..."
-          className="flex-1 min-w-[160px] rounded-md border px-3 py-2 text-sm"
+          className="flex-1 min-w-[160px] self-end rounded-md border px-3 py-2 text-sm"
         />
-        {(activeFilterCount > 0 || search) && (
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+          Desde
+          <input
+            type="date"
+            value={desde}
+            max={hasta || undefined}
+            onChange={(e) => setDesde(e.target.value)}
+            className="rounded-md border bg-white px-3 py-2 text-sm text-foreground"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+          Hasta
+          <input
+            type="date"
+            value={hasta}
+            min={desde || undefined}
+            onChange={(e) => setHasta(e.target.value)}
+            className="rounded-md border bg-white px-3 py-2 text-sm text-foreground"
+          />
+        </label>
+        {(activeFilterCount > 0 || search || hayFecha) && (
           <button
             type="button"
             onClick={resetFilters}
-            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            className="self-end pb-2.5 text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
           >
-            Limpiar filtros ({activeFilterCount + (search ? 1 : 0)})
+            Limpiar filtros ({activeFilterCount + (search ? 1 : 0) + (hayFecha ? 1 : 0)})
           </button>
         )}
       </div>

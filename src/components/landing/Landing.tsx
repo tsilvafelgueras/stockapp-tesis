@@ -186,16 +186,17 @@ function LandingNav() {
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/login"
-            className="hidden h-10 items-center justify-center rounded-md px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 sm:inline-flex"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 sm:border-0 sm:px-4"
           >
-            ¿Ya sos usuario?
-            <span className="ml-1 text-sky-600">Iniciá sesión</span>
+            <span className="hidden sm:inline">¿Ya sos usuario?</span>
+            <span className="text-sky-600 sm:ml-1">Iniciá sesión</span>
           </Link>
           <a
             href="#contacto"
             className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-sky-500 px-3 text-sm font-semibold text-white shadow-[0_8px_20px_-4px_rgba(14,165,233,0.45)] transition-colors hover:bg-sky-600 sm:px-4"
           >
-            Pedí una demo
+            <span className="sm:hidden">Demo</span>
+            <span className="hidden sm:inline">Pedí una demo</span>
             <ArrowRight className="size-4" />
           </a>
         </div>
