@@ -189,6 +189,32 @@ export default function EtiquetaPage() {
 
   return (
     <div>
+      {/* Estilos de impresión para Zebra ZD220 — etiqueta física de 10×8 cm.
+          Se montan solo en esta ruta, así no afectan la impresión del resto de la app. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @media print {
+              @page { size: 10cm 8cm; margin: 0; }
+              html, body { margin: 0; padding: 0; }
+              .etiquetas-print { display: block !important; }
+              .etiqueta-print {
+                width: 10cm;
+                height: 8cm;
+                box-sizing: border-box;
+                padding: 0.1cm;
+                break-inside: avoid;
+                break-after: page;
+                border: none !important;
+                border-radius: 0 !important;
+                overflow: hidden;
+              }
+              .etiqueta-print:last-child { break-after: auto; }
+            }
+          `,
+        }}
+      />
+
       {/* Barra de acciones — oculta al imprimir */}
       <div className="print:hidden p-4 sm:p-6 flex flex-wrap items-center gap-3 border-b border-border bg-background sticky top-0 z-10">
         <Link
@@ -243,63 +269,65 @@ export default function EtiquetaPage() {
       </div>
 
       {/* Etiquetas */}
-      <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 print:p-0 print:grid-cols-2 print:gap-0">
+      <div className="etiquetas-print p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 print:p-0 print:block print:gap-0">
         {rollos.map((rollo) => (
           <div
             key={rollo.id}
-            className="rounded-lg border-2 border-gray-800 p-4 space-y-3 print:rounded-none print:border print:border-gray-800 print:p-3 print:break-inside-avoid"
+            className="etiqueta-print flex flex-col rounded-lg border-2 border-black p-3 print:rounded-none print:border-0"
           >
             {/* Encabezado empresa */}
-            <div className="text-center border-b border-gray-300 pb-2">
-              <p className="text-xs font-bold tracking-widest uppercase text-gray-600">
+            <div className="text-center border-b border-black pb-1">
+              <p className="text-[11px] font-bold tracking-widest uppercase text-black leading-tight">
                 NUDO · {rollo.tintoreria.toUpperCase()}
               </p>
             </div>
 
-            {/* QR centrado */}
-            <div className="flex justify-center py-2">
+            {/* Bloque principal: QR + número grande */}
+            <div className="flex items-center gap-3 py-2">
               <QRCode
                 value={rollo.numero_pieza}
-                size={120}
+                size={128}
                 bgColor="#ffffff"
                 fgColor="#000000"
+                style={{ width: '3.6cm', height: '3.6cm', flexShrink: 0 }}
               />
+              <div className="min-w-0 flex-1 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-black leading-none">
+                  Pieza
+                </p>
+                <p className="text-5xl font-black tracking-tight text-black leading-none">
+                  {padNumero(rollo.numero_pieza)}
+                </p>
+              </div>
             </div>
 
-            {/* Número grande */}
-            <div className="text-center">
-              <p className="text-4xl font-black tracking-tight text-gray-900">
-                {padNumero(rollo.numero_pieza)}
-              </p>
-            </div>
-
-            {/* Datos */}
-            <div className="space-y-1 text-sm border-t border-gray-200 pt-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Partida</span>
-                <span className="font-semibold">{rollo.numero_lote || '—'}</span>
+            {/* Datos compactos */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] border-t border-black pt-1 leading-tight">
+              <div className="flex justify-between gap-1">
+                <span className="font-medium text-black">Partida</span>
+                <span className="font-bold text-black truncate">{rollo.numero_lote || '—'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Tela</span>
-                <span className="font-semibold">{rollo.articulo}</span>
+              <div className="flex justify-between gap-1">
+                <span className="font-medium text-black">Color</span>
+                <span className="font-bold text-black truncate">{rollo.color}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Color</span>
-                <span className="font-semibold">{rollo.color}</span>
+              <div className="flex justify-between gap-1">
+                <span className="font-medium text-black">Tela</span>
+                <span className="font-bold text-black truncate">{rollo.articulo}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Kilos</span>
-                <span className="font-semibold">{rollo.kilos}</span>
+              <div className="flex justify-between gap-1">
+                <span className="font-medium text-black">Kilos</span>
+                <span className="font-bold text-black">{rollo.kilos}</span>
               </div>
               {rollo.ubicacion && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Ubic.</span>
-                  <span className="font-semibold">{rollo.ubicacion}</span>
+                <div className="flex justify-between gap-1">
+                  <span className="font-medium text-black">Ubic.</span>
+                  <span className="font-bold text-black truncate">{rollo.ubicacion}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-gray-500">Fecha</span>
-                <span className="font-semibold">{formatFecha(rollo.fecha_despacho)}</span>
+              <div className="flex justify-between gap-1">
+                <span className="font-medium text-black">Fecha</span>
+                <span className="font-bold text-black">{formatFecha(rollo.fecha_despacho)}</span>
               </div>
             </div>
           </div>
