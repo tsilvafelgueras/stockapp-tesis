@@ -80,28 +80,45 @@ type IngresoTask = {
 export default async function OperarioDashboard() {
   const supabase = await createClient()
 
-  const [{ data: pedidosRaw }, { data: ingresosRaw }] = await Promise.all([
+  const [{ data: pedidosRaw }, { data: rollosPendientes }] = await Promise.all([
     supabase
       .from('pedidos')
       .select('id, numero_pedido, cliente, estado, created_at')
       .in('estado', ['pendiente', 'en_preparacion', 'lista'])
       .order('created_at', { ascending: true })
       .limit(8),
-    supabase
-      .from('ingresos')
-      .select(
-        `
-          id,
-          fecha_despacho,
-          numero_remito,
-          tintorerias ( nombre ),
-          rollos ( id, estado )
-        `
-      )
-      .eq('rollos.estado', 'pendiente')
-      .order('fecha_despacho', { ascending: false })
-      .limit(8),
+    // Ingresos por confirmar = los que tienen al menos un rollo en estado
+    // 'pendiente'. Mismo criterio que /confirmar: resolvemos primero los ids
+    // de los ingresos pendientes (no alcanza con traer los más recientes y
+    // filtrar, porque eso se perdía ingresos viejos sin confirmar).
+    supabase.from('rollos').select('ingreso_id').eq('estado', 'pendiente'),
   ])
+
+  const ingresoIdsPendientes = [
+    ...new Set(
+      ((rollosPendientes ?? []) as { ingreso_id: string }[]).map(
+        (r) => r.ingreso_id
+      )
+    ),
+  ]
+
+  const { data: ingresosRaw } =
+    ingresoIdsPendientes.length > 0
+      ? await supabase
+          .from('ingresos')
+          .select(
+            `
+              id,
+              fecha_despacho,
+              numero_remito,
+              tintorerias ( nombre ),
+              rollos ( id, estado )
+            `
+          )
+          .in('id', ingresoIdsPendientes)
+          .order('fecha_despacho', { ascending: false })
+          .limit(8)
+      : { data: [] }
 
   const pedidos = ((pedidosRaw ?? []) as PedidoTask[]).filter(Boolean)
   const ingresos = ((ingresosRaw ?? []) as unknown as IngresoTask[])
@@ -113,8 +130,10 @@ export default async function OperarioDashboard() {
 
   const pedidosPendientes = pedidos.filter((p) => p.estado !== 'lista')
   const pedidosListos = pedidos.filter((p) => p.estado === 'lista')
+  // El total real de ingresos por confirmar (sin el tope de 8 del listado).
+  const ingresosPendientesCount = ingresoIdsPendientes.length
   const totalTareas =
-    pedidosPendientes.length + pedidosListos.length + ingresos.length
+    pedidosPendientes.length + pedidosListos.length + ingresosPendientesCount
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-3xl flex-col px-4 py-5 sm:px-6 md:min-h-dvh md:py-8">
@@ -185,7 +204,7 @@ export default async function OperarioDashboard() {
             <TaskBlock
               title="Ingresos por confirmar"
               href="/confirmar"
-              count={ingresos.length}
+              count={ingresosPendientesCount}
               tone="primary"
             >
               {ingresos.slice(0, 3).map((i) => (

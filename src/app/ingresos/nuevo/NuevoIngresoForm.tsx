@@ -269,24 +269,14 @@ export default function NuevoIngresoForm({
   }
 
   /**
-   * Cuando cambia el artículo de un rollo, validamos que el color
-   * seleccionado siga disponible para ese artículo. Si no, lo limpiamos
-   * para que el usuario elija uno asociado.
+   * Cambia el artículo de un rollo. El color es independiente del artículo
+   * (todos los artículos aceptan todos los colores), así que no lo tocamos.
    */
   function setRolloArticulo(idx: number, nuevoArticuloId: string | null) {
     setRollos((prev) =>
-      prev.map((r, i) => {
-        if (i !== idx) return r
-        const articulo = articulos.find((a) => a.id === nuevoArticuloId)
-        const colorSigueValido = articulo?.colores.some(
-          (c) => c.id === r.color_id
-        )
-        return {
-          ...r,
-          articulo_id: nuevoArticuloId,
-          color_id: colorSigueValido ? r.color_id : null,
-        }
-      })
+      prev.map((r, i) =>
+        i === idx ? { ...r, articulo_id: nuevoArticuloId } : r
+      )
     )
   }
 
@@ -296,10 +286,7 @@ export default function NuevoIngresoForm({
   function rolloConDefaults(): RolloInput {
     const base = emptyRollo()
     if (bulkArticuloId) base.articulo_id = bulkArticuloId
-    if (bulkColorId) {
-      const art = articulos.find((a) => a.id === (base.articulo_id ?? ''))
-      if (art?.colores.some((c) => c.id === bulkColorId)) base.color_id = bulkColorId
-    }
+    if (bulkColorId) base.color_id = bulkColorId
     if (bulkUbicacion.trim()) base.ubicacion = bulkUbicacion.trim()
     return base
   }
@@ -433,17 +420,9 @@ export default function NuevoIngresoForm({
   function applyBulkArticulo() {
     if (!bulkArticuloId) return
     const articulo = articulos.find((a) => a.id === bulkArticuloId)
+    // El color es independiente del artículo, así que lo mantenemos tal cual.
     setRollos((prev) =>
-      prev.map((r) => {
-        const colorSigueValido = articulo?.colores.some(
-          (c) => c.id === r.color_id
-        )
-        return {
-          ...r,
-          articulo_id: bulkArticuloId,
-          color_id: colorSigueValido ? r.color_id : null,
-        }
-      })
+      prev.map((r) => ({ ...r, articulo_id: bulkArticuloId }))
     )
     toast.success(
       `Artículo "${articulo?.nombre ?? ''}" asignado a ${rollos.length} ${rollos.length === 1 ? 'rollo' : 'rollos'}.`
@@ -453,25 +432,12 @@ export default function NuevoIngresoForm({
   function applyBulkColor() {
     if (!bulkColorId) return
     const colorNombre = colores.find((c) => c.id === bulkColorId)?.nombre ?? ''
-    let aplicados = 0
-    setRollos((prev) =>
-      prev.map((r) => {
-        const articulo = articulos.find((a) => a.id === r.articulo_id)
-        const colorPertenece = articulo?.colores.some(
-          (c) => c.id === bulkColorId
-        )
-        if (!colorPertenece) return r
-        aplicados++
-        return { ...r, color_id: bulkColorId }
-      })
+    // Todos los artículos aceptan todos los colores (ver migración 051), así que
+    // aplicamos el color a todos los rollos sin depender del artículo asignado.
+    setRollos((prev) => prev.map((r) => ({ ...r, color_id: bulkColorId })))
+    toast.success(
+      `Color "${colorNombre}" asignado a ${rollos.length} ${rollos.length === 1 ? 'rollo' : 'rollos'}.`
     )
-    if (aplicados > 0) {
-      toast.success(
-        `Color "${colorNombre}" asignado a ${aplicados} ${aplicados === 1 ? 'rollo' : 'rollos'}.`
-      )
-    } else {
-      toast.info('Ningún rollo tiene un artículo que admita ese color.')
-    }
   }
 
   function resetIA() {
@@ -1447,6 +1413,7 @@ export default function NuevoIngresoForm({
               rollo={r}
               index={i}
               articulos={articulos}
+              colores={colores}
               ubicacionOptions={ubicacionOptions}
               fotoFalla={fotosFalla[i]}
               confianzas={confianzas?.rollos[i]}
@@ -1487,8 +1454,6 @@ export default function NuevoIngresoForm({
                 const isDuplicate =
                   r.numero_pieza.trim() &&
                   validations.duplicados.includes(r.numero_pieza.trim())
-                const articulo = articulos.find((a) => a.id === r.articulo_id)
-                const coloresDelArticulo = articulo?.colores ?? []
                 return (
                   <Fragment key={i}>
                     <tr
@@ -1540,17 +1505,14 @@ export default function NuevoIngresoForm({
                           onChange={(e) =>
                             updateRollo(i, 'color_id', e.target.value || null)
                           }
-                          disabled={!r.articulo_id}
-                          className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-zinc-50 disabled:cursor-not-allowed ${
-                            r.numero_pieza.trim() && r.articulo_id && !r.color_id
+                          className={`w-full rounded border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
+                            r.numero_pieza.trim() && !r.color_id
                               ? 'border-destructive'
                               : celdaCls(conf?.color)
                           }`}
                         >
-                          <option value="">
-                            {r.articulo_id ? 'Seleccionar...' : 'Elegí artículo'}
-                          </option>
-                          {coloresDelArticulo.map((c) => (
+                          <option value="">Seleccionar...</option>
+                          {colores.map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.nombre}
                             </option>
@@ -1886,6 +1848,7 @@ function RolloCardMobile({
   rollo,
   index,
   articulos,
+  colores,
   ubicacionOptions,
   fotoFalla,
   confianzas,
@@ -1899,6 +1862,7 @@ function RolloCardMobile({
   rollo: RolloInput
   index: number
   articulos: ArticuloCatalog[]
+  colores: Catalog[]
   ubicacionOptions: ReturnType<typeof ubicacionesToOptions>
   fotoFalla: FotoPendiente | undefined
   confianzas:
@@ -1919,9 +1883,6 @@ function RolloCardMobile({
   onFotoFalla: (file: File | null) => void
   onRemove: () => void
 }) {
-  const articulo = articulos.find((a) => a.id === rollo.articulo_id)
-  const coloresDelArticulo = articulo?.colores ?? []
-
   return (
     <div
       className={`p-3 space-y-2 ${isDuplicate ? 'bg-destructive/5' : ''} ${
@@ -1988,17 +1949,14 @@ function RolloCardMobile({
         <select
           value={rollo.color_id ?? ''}
           onChange={(e) => onUpdate('color_id', e.target.value || null)}
-          disabled={!rollo.articulo_id}
-          className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-zinc-50 disabled:cursor-not-allowed ${
-            rollo.numero_pieza.trim() && rollo.articulo_id && !rollo.color_id
+          className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+            rollo.numero_pieza.trim() && !rollo.color_id
               ? 'border-destructive'
               : celdaCls(confianzas?.color)
           }`}
         >
-          <option value="">
-            {rollo.articulo_id ? 'Seleccionar...' : 'Elegí artículo primero'}
-          </option>
-          {coloresDelArticulo.map((c) => (
+          <option value="">Seleccionar...</option>
+          {colores.map((c) => (
             <option key={c.id} value={c.id}>
               {c.nombre}
             </option>
