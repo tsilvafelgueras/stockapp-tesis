@@ -88,6 +88,7 @@ export default async function StockPage({
     { data: coloresRaw },
     { data: lotesRaw },
     { data: otsRaw },
+    { data: articuloColoresRaw },
     ubicaciones,
   ] = await Promise.all([
     supabase
@@ -112,6 +113,7 @@ export default async function StockPage({
       .from('ingresos')
       .select('ot')
       .not('ot', 'is', null),
+    supabase.from('articulo_colores').select('articulo_id, color_id'),
     getUbicacionesActivas(supabase),
   ])
 
@@ -123,6 +125,22 @@ export default async function StockPage({
 
   const colores = (coloresRaw ?? []) as { id: string; nombre: string }[]
   const colorById = new Map(colores.map((c) => [c.id, c]))
+
+  // Colores válidos por artículo (pivot articulo_colores). Sirve para que al
+  // editar un rollo el selector de color se filtre a las combinaciones que la
+  // FK compuesta rollos_articulo_color_fk permite.
+  const articuloColores: Record<string, { id: string; nombre: string }[]> = {}
+  for (const row of (articuloColoresRaw ?? []) as {
+    articulo_id: string
+    color_id: string
+  }[]) {
+    const color = colorById.get(row.color_id)
+    if (!color) continue
+    ;(articuloColores[row.articulo_id] ??= []).push(color)
+  }
+  for (const lista of Object.values(articuloColores)) {
+    lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  }
 
   const lotes = Array.from(
     new Set(
@@ -392,6 +410,8 @@ export default async function StockPage({
             summary={stockSummary}
             reservaBanner={reservaBanner}
             ubicaciones={ubicaciones}
+            articulos={articulos ?? []}
+            articuloColores={articuloColores}
           />
         </>
       )}

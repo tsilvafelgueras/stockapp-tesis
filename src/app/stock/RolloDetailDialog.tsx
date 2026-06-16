@@ -6,6 +6,7 @@ import type { StockRollo, StockRole } from './StockList'
 import SearchableCombobox from '@/components/SearchableCombobox'
 import {
   darDeBajaRollo,
+  eliminarRollo,
   moverUbicacion,
   marcarComoSegunda,
   confirmarRolloManual,
@@ -45,15 +46,19 @@ export default function RolloDetailDialog({
   onClose,
   initialMode,
   ubicaciones,
+  articulos,
+  articuloColores,
 }: {
   rollo: StockRollo
   role: StockRole
   onClose: () => void
   initialMode?: 'view' | 'editar'
   ubicaciones: UbicacionOption[]
+  articulos: { id: string; nombre: string }[]
+  articuloColores: Record<string, { id: string; nombre: string }[]>
 }) {
   const [mode, setMode] = useState<
-    'view' | 'mover' | 'baja' | 'segunda' | 'confirmar' | 'editar'
+    'view' | 'mover' | 'baja' | 'eliminar' | 'segunda' | 'confirmar' | 'editar'
   >(initialMode ?? 'view')
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
@@ -110,6 +115,8 @@ export default function RolloDetailDialog({
   ).includes(rollo.estado)
   const [editForm, setEditForm] = useState({
     numero_pieza: rollo.numero_pieza,
+    articulo_id: rollo.articulos?.id ?? '',
+    color_id: rollo.color_id ?? '',
     ubicacion: rollo.ubicacion ?? '',
     pantone: rollo.pantone ?? '',
     kilos: rollo.kilos != null ? String(rollo.kilos) : '',
@@ -151,6 +158,10 @@ export default function RolloDetailDialog({
     (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
   const puedeBaja =
     esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+  const puedeEliminar =
+    esOperarioOAdmin &&
+    rollo.estado !== 'reservado' &&
+    rollo.estado !== 'entregado'
   const puedeConfirmar = esOperarioOAdmin && rollo.estado === 'pendiente'
   const puedeEditar =
     esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
@@ -275,6 +286,11 @@ export default function RolloDetailDialog({
       try {
         const res = await editarRollo(rollo.id, {
           numero_pieza: editForm.numero_pieza,
+          // Solo enviamos artículo/color si cambió alguno respecto del rollo.
+          ...(editForm.articulo_id !== (rollo.articulos?.id ?? '') ||
+          editForm.color_id !== (rollo.color_id ?? '')
+            ? { articulo_id: editForm.articulo_id, color_id: editForm.color_id }
+            : {}),
           ubicacion: editForm.ubicacion,
           pantone: editForm.pantone,
           kilos: parseNumOpt(editForm.kilos),
@@ -335,6 +351,27 @@ export default function RolloDetailDialog({
           e instanceof Error
             ? `Error: ${e.message}`
             : 'Error inesperado al dar de baja. Mirá la consola.'
+        )
+      }
+    })
+  }
+
+  function handleEliminar() {
+    startTransition(async () => {
+      try {
+        const res = await eliminarRollo(rollo.id)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(`Pieza ${rollo.numero_pieza} eliminada.`)
+        onClose()
+      } catch (e) {
+        console.error('[handleEliminar] error inesperado', e)
+        toast.error(
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al eliminar. Mirá la consola.'
         )
       }
     })
@@ -594,6 +631,7 @@ export default function RolloDetailDialog({
               puedeMover ||
               puedeSegunda ||
               puedeBaja ||
+              puedeEliminar ||
               puedeEditar) && (
               <div className="flex flex-wrap gap-2 pt-2 border-t">
                 {puedeConfirmar && (
@@ -641,6 +679,15 @@ export default function RolloDetailDialog({
                     Dar de baja
                   </button>
                 )}
+                {puedeEliminar && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('eliminar')}
+                    className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium hover:bg-destructive/90 transition-colors"
+                  >
+                    Eliminar
+                  </button>
+                )}
               </div>
             )}
 
@@ -661,6 +708,55 @@ export default function RolloDetailDialog({
                   }
                   required
                 />
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Artículo
+                  </label>
+                  <SearchableCombobox
+                    value={editForm.articulo_id}
+                    onChange={(v) =>
+                      setEditForm((prev) => {
+                        // Al cambiar de artículo, si el color actual no es válido
+                        // para el nuevo artículo, lo reseteamos.
+                        const coloresValidos = articuloColores[v] ?? []
+                        const colorSigueValido = coloresValidos.some(
+                          (c) => c.id === prev.color_id
+                        )
+                        return {
+                          ...prev,
+                          articulo_id: v,
+                          color_id: colorSigueValido ? prev.color_id : '',
+                        }
+                      })
+                    }
+                    options={articulos.map((a) => ({
+                      value: a.id,
+                      label: a.nombre,
+                    }))}
+                    placeholder="Seleccionar artículo..."
+                    searchPlaceholder="Buscar artículo..."
+                    emptyLabel="No hay artículos"
+                    allowClear={false}
+                  />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Color
+                  </label>
+                  <SearchableCombobox
+                    value={editForm.color_id}
+                    onChange={(v) =>
+                      setEditForm((prev) => ({ ...prev, color_id: v }))
+                    }
+                    options={(articuloColores[editForm.articulo_id] ?? []).map(
+                      (c) => ({ value: c.id, label: c.nombre })
+                    )}
+                    placeholder="Seleccionar color..."
+                    searchPlaceholder="Buscar color..."
+                    emptyLabel="Elegí primero un artículo"
+                    allowClear={false}
+                  />
+                </div>
                 <div className="min-w-0 space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">
                     Estado
@@ -1024,6 +1120,38 @@ export default function RolloDetailDialog({
                   className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
                   {pending ? 'Dando de baja…' : 'Confirmar baja'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'eliminar' && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-sm">
+                ¿Eliminar definitivamente la pieza{' '}
+                <strong>{rollo.numero_pieza}</strong>?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Esto <strong>borra el rollo de la base de datos</strong> y libera
+                el número de pieza {rollo.numero_pieza} para reusarlo. La acción
+                queda registrada en el historial, pero no se puede deshacer.
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEliminar}
+                  disabled={pending}
+                  className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {pending ? 'Eliminando…' : 'Eliminar definitivamente'}
                 </button>
               </div>
             </div>

@@ -80,12 +80,16 @@ export default function StockList({
   summary,
   reservaBanner,
   ubicaciones,
+  articulos,
+  articuloColores,
 }: {
   rollos: StockRollo[]
   role: StockRole
   summary: StockSummaryGroup[]
   reservaBanner: StockReservaBanner | null
   ubicaciones: UbicacionOption[]
+  articulos: { id: string; nombre: string }[]
+  articuloColores: Record<string, { id: string; nombre: string }[]>
 }) {
   const [selected, setSelected] = useState<StockRollo | null>(null)
   const [selectedIntent, setSelectedIntent] = useState<'view' | 'editar'>(
@@ -366,6 +370,8 @@ export default function StockList({
           role={role}
           initialMode={selectedIntent}
           ubicaciones={ubicaciones}
+          articulos={articulos}
+          articuloColores={articuloColores}
           onClose={() => setSelected(null)}
         />
       )}
