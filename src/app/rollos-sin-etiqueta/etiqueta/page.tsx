@@ -9,10 +9,14 @@ import Link from 'next/link'
 
 // Tamaño físico del stock de etiquetas (Zebra ZD220).
 // Para cambiar de stock, editar estas constantes.
-const LABEL_WIDTH = '10cm'
+const LABEL_WIDTH = '10cm' // tamaño físico de la página/etiqueta
 const LABEL_HEIGHT = '10cm'
-const LABEL_PADDING = '0.1cm' // margen físico pedido por lado
-const QR_SIZE = '5cm' // QR grande y escaneable
+// Tamaño del contenido impreso. Es más chico que la etiqueta para que entre
+// aunque el navegador deje sus márgenes "Default" (no hace falta poner
+// "Márgenes: Ninguno"). Va centrado dentro de la etiqueta de 10×10.
+const CONTENT_SIZE = '8cm'
+const LABEL_PADDING = '0.15cm' // margen interno del contenido
+const QR_SIZE = '3.4cm' // QR grande y escaneable
 
 type RolloEtiqueta = {
   id: string
@@ -206,10 +210,13 @@ export default function EtiquetaPage() {
               html, body { margin: 0; padding: 0; }
               .etiquetas-print { display: block !important; }
               .etiqueta-print {
-                width: ${LABEL_WIDTH};
-                height: ${LABEL_HEIGHT};
+                width: ${CONTENT_SIZE};
+                height: ${CONTENT_SIZE};
                 box-sizing: border-box;
                 padding: ${LABEL_PADDING};
+                /* Centrado horizontal dentro del área imprimible. El tamaño
+                   reducido evita que se corte si quedan los márgenes "Default". */
+                margin: 0 auto;
                 break-inside: avoid;
                 break-after: page;
                 border: none !important;
@@ -280,18 +287,18 @@ export default function EtiquetaPage() {
         {rollos.map((rollo) => (
           <div
             key={rollo.id}
-            className="etiqueta-print flex h-full flex-col rounded-lg border-2 border-black p-3 print:rounded-none print:border-0"
-            style={{ width: LABEL_WIDTH, height: LABEL_HEIGHT }}
+            className="etiqueta-print mx-auto flex h-full flex-col rounded-lg border-2 border-black p-3 print:rounded-none print:border-0"
+            style={{ width: CONTENT_SIZE, height: CONTENT_SIZE }}
           >
             {/* Encabezado empresa */}
             <div className="shrink-0 text-center border-b-2 border-black pb-1">
-              <p className="text-sm font-bold tracking-widest uppercase text-black leading-tight">
+              <p className="text-xs font-bold tracking-widest uppercase text-black leading-tight">
                 NUDO · {rollo.tintoreria.toUpperCase()}
               </p>
             </div>
 
             {/* Bloque principal: QR + número grande — llena el centro */}
-            <div className="flex flex-1 items-center justify-center gap-4 py-2">
+            <div className="flex flex-1 items-center justify-center gap-3 py-1">
               <QRCode
                 value={rollo.numero_pieza}
                 size={256}
@@ -300,17 +307,17 @@ export default function EtiquetaPage() {
                 style={{ width: QR_SIZE, height: QR_SIZE, flexShrink: 0 }}
               />
               <div className="min-w-0 flex-1 text-center">
-                <p className="text-xs font-bold uppercase tracking-widest text-black leading-none">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-black leading-none">
                   Pieza
                 </p>
-                <p className="text-8xl font-black tracking-tight text-black leading-none">
+                <p className="text-6xl font-black tracking-tight text-black leading-none">
                   {padNumero(rollo.numero_pieza)}
                 </p>
               </div>
             </div>
 
             {/* Datos — fila inferior */}
-            <div className="shrink-0 grid grid-cols-2 gap-x-4 gap-y-1 text-sm border-t-2 border-black pt-1.5 leading-tight">
+            <div className="shrink-0 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] border-t-2 border-black pt-1 leading-tight">
               <div className="flex justify-between gap-1">
                 <span className="font-medium text-black">Partida</span>
                 <span className="font-bold text-black truncate">{rollo.numero_lote || '—'}</span>
