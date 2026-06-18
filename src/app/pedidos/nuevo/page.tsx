@@ -25,6 +25,7 @@ type RolloRaw = {
   ingresos: {
     id: string
     numero_lote: string | null
+    ot: string | null
     tintoreria_id: string | null
     tintorerias: { id: string; nombre: string } | null
   } | null
@@ -41,6 +42,7 @@ type PedidoPartidaRaw = {
 type GrupoPartida = {
   ingresoId: string
   numeroLote: string | null
+  ot: string | null
   articuloId: string
   articuloNombre: string
   colorId: string
@@ -111,6 +113,7 @@ export default async function NuevoPedidoPage({
         ingresos!inner (
           id,
           numero_lote,
+          ot,
           tintoreria_id,
           tintorerias ( id, nombre )
         )
@@ -169,6 +172,7 @@ export default async function NuevoPedidoPage({
       ({
         ingresoId: r.ingresos.id,
         numeroLote: r.ingresos.numero_lote,
+        ot: r.ingresos.ot,
         articuloId: r.articulo_id,
         articuloNombre: r.articulos?.nombre ?? 'Articulo',
         colorId: r.color_id,
@@ -203,6 +207,7 @@ export default async function NuevoPedidoPage({
         key,
         ingresoId: g.ingresoId,
         numeroLote: g.numeroLote,
+        ot: g.ot,
         articuloId: g.articuloId,
         articuloNombre: g.articuloNombre,
         colorId: g.colorId,
@@ -223,6 +228,7 @@ export default async function NuevoPedidoPage({
       if (!search) return true
       return (
         p.numeroLote?.toLowerCase().includes(search) ||
+        p.ot?.toLowerCase().includes(search) ||
         p.articuloNombre.toLowerCase().includes(search) ||
         p.colorNombre.toLowerCase().includes(search) ||
         p.rollosEstimacion.some((r) => r.numeroPieza.toLowerCase().includes(search))

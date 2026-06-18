@@ -13,6 +13,7 @@ export type PartidaDisponible = {
   key: string
   ingresoId: string
   numeroLote: string | null
+  ot: string | null
   articuloId: string
   articuloNombre: string
   colorId: string
@@ -456,6 +457,7 @@ export default function NuevoPedidoForm({
                 <thead className="bg-zinc-50 border-b">
                   <tr className="text-left">
                     <th className="px-3 py-2 font-medium">Partida</th>
+                    <th className="px-3 py-2 font-medium">OT</th>
                     <th className="px-3 py-2 font-medium">Articulo</th>
                     <th className="px-3 py-2 font-medium">Color</th>
                     <th className="px-3 py-2 font-medium">Tintoreria</th>
@@ -511,7 +513,10 @@ function PartidaCard({
     <li className="space-y-2 px-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium">Partida {partida.numeroLote ?? 'sin numero'}</p>
+          <p className="font-medium">
+            Partida {partida.numeroLote ?? 'sin numero'}
+            {partida.ot ? ` · OT ${partida.ot}` : ''}
+          </p>
           <p className="text-xs text-muted-foreground">
             {partida.articuloNombre} - {partida.colorNombre}
           </p>
@@ -537,6 +542,7 @@ function PartidaRow({
   return (
     <tr className="border-b last:border-0">
       <td className="px-3 py-2 font-medium">{partida.numeroLote ?? '-'}</td>
+      <td className="px-3 py-2 font-mono text-xs">{partida.ot ?? '—'}</td>
       <td className="px-3 py-2">{partida.articuloNombre}</td>
       <td className="px-3 py-2">{partida.colorNombre}</td>
       <td className="px-3 py-2 text-muted-foreground">

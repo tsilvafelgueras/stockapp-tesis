@@ -22,7 +22,10 @@ type PedidoRow = {
   estado: string
   created_at: string
   pedido_rollos: { rollos: { kilos: number | null } | null }[] | null
-  pedido_partidas: { rollos_solicitados: number }[] | null
+  pedido_partidas: {
+    rollos_solicitados: number
+    ingresos: { ot: string | null } | null
+  }[] | null
 }
 
 export default async function PedidosListPage({
@@ -49,7 +52,7 @@ export default async function PedidosListPage({
         fecha_entrega_comprometida,
         estado,
         created_at,
-        pedido_partidas ( rollos_solicitados ),
+        pedido_partidas ( rollos_solicitados, ingresos ( ot ) ),
         pedido_rollos ( rollos ( kilos ) )
       `
     )
@@ -141,6 +144,7 @@ export default async function PedidosListPage({
               <tr className="text-left">
                 <th className="px-4 py-3 font-medium">Nro Pedido</th>
                 <th className="px-4 py-3 font-medium">Cliente</th>
+                <th className="px-4 py-3 font-medium">OT</th>
                 <th className="px-4 py-3 font-medium">Fecha</th>
                 <th className="px-4 py-3 font-medium">Rollos</th>
                 <th className="px-4 py-3 font-medium">Kilos</th>
@@ -157,7 +161,7 @@ export default async function PedidosListPage({
               ) : (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Todavia no hay pedidos.
@@ -183,6 +187,7 @@ function PedidoCardMobile({
   const cantidadSolicitada = totalRollosSolicitados(pedido)
   const kilos = totalKilosReal(pedido)
   const demorado = pedidoDemorado(pedido, hoyIso)
+  const ots = otsDePedido(pedido)
 
   return (
     <Link
@@ -217,6 +222,7 @@ function PedidoCardMobile({
         <span className="tabular-nums">
           {kilos > 0 ? `${kilos.toFixed(2)} kg reales` : 'kg reales pendientes'}
         </span>
+        {ots.length > 0 && <span>OT: {ots.join(', ')}</span>}
         {pedido.numero_remito_externo && (
           <span>Rem: {pedido.numero_remito_externo}</span>
         )}
@@ -245,6 +251,7 @@ function PedidoRowDesktop({
   const kilos = totalKilosReal(pedido)
   const href = `/pedidos/${pedido.id}`
   const demorado = pedidoDemorado(pedido, hoyIso)
+  const ots = otsDePedido(pedido)
 
   return (
     <tr className="border-b last:border-0 hover:bg-zinc-50">
@@ -256,6 +263,14 @@ function PedidoRowDesktop({
       <td>
         <Link href={href} className="block px-4 py-3">
           {pedido.cliente}
+        </Link>
+      </td>
+      <td>
+        <Link
+          href={href}
+          className="block px-4 py-3 font-mono text-xs text-muted-foreground"
+        >
+          {ots.length > 0 ? ots.join(', ') : '—'}
         </Link>
       </td>
       <td>
@@ -308,6 +323,15 @@ function PedidoRowDesktop({
       </td>
     </tr>
   )
+}
+
+function otsDePedido(pedido: PedidoRow): string[] {
+  const set = new Set<string>()
+  for (const pp of pedido.pedido_partidas ?? []) {
+    const ot = pp.ingresos?.ot?.trim()
+    if (ot) set.add(ot)
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))
 }
 
 function totalRollosSolicitados(pedido: PedidoRow): number {

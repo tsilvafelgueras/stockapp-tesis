@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { quitarRolloDePicking } from '@/app/picking/[id]/actions'
+import { liberarRolloDePedido } from '../actions'
 
 export type RolloPickeadoRow = {
   pedidoRolloId: string
@@ -14,6 +14,7 @@ export type RolloPickeadoRow = {
   kilos: number | null
   ubicacion: string | null
   pickeadoAt: string | null
+  ot: string | null
   partidaRealLote: string | null
   partidaSolicitadaLote: string | null
   esSustitucionPartida: boolean
@@ -37,7 +38,7 @@ export default function RollosPickeadosTable({
     if (!quitarTarget) return
 
     setQuitando(true)
-    const res = await quitarRolloDePicking({
+    const res = await liberarRolloDePedido({
       pedidoId,
       pedidoRolloId: quitarTarget.pedidoRolloId,
     })
@@ -56,7 +57,7 @@ export default function RollosPickeadosTable({
     router.refresh()
   }
 
-  const colSpan = puedeQuitar ? 8 : 7
+  const colSpan = puedeQuitar ? 9 : 8
 
   return (
     <>
@@ -69,6 +70,7 @@ export default function RollosPickeadosTable({
               <th className="px-4 py-2 font-medium">Color</th>
               <th className="px-4 py-2 font-medium">Kilos</th>
               <th className="px-4 py-2 font-medium">Partida real</th>
+              <th className="px-4 py-2 font-medium">OT</th>
               <th className="px-4 py-2 font-medium">Ubicacion</th>
               <th className="px-4 py-2 font-medium">Picking</th>
               {puedeQuitar && <th className="px-4 py-2 text-right font-medium"></th>}
@@ -93,6 +95,9 @@ export default function RollosPickeadosTable({
                         Solicitada: {r.partidaSolicitadaLote ?? '-'}
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-2 font-mono text-xs">
+                    {r.ot ?? '—'}
                   </td>
                   <td className="px-4 py-2 text-muted-foreground">
                     {r.ubicacion ?? '-'}
@@ -138,7 +143,9 @@ export default function RollosPickeadosTable({
               <p className="mt-1 text-sm">
                 El rollo{' '}
                 <strong className="font-mono">{quitarTarget.numeroPieza}</strong>{' '}
-                vuelve a stock disponible y deja de contar para este pedido.
+                vuelve a stock como <strong>&ldquo;Sin ubicar&rdquo;</strong> y el
+                depósito recibe un aviso para reubicarlo. Deja de contar para este
+                pedido.
               </p>
             </div>
 

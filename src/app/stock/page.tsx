@@ -3,12 +3,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import StockFilters from './StockFilters'
-import StockList, {
-  type StockReservaBanner,
-  type StockRollo,
-  type StockRole,
-  type StockSummaryGroup,
-} from './StockList'
+import StockList, { type StockRollo, type StockRole } from './StockList'
+import {
+  buildReservaBanner,
+  buildStockSummary,
+  type ReservaResumenRow,
+  type StockResumenRow,
+} from '@/lib/stockResumen'
 
 const ESTADO_LABEL: Record<string, string> = {
   en_stock: 'En stock',
@@ -30,34 +31,6 @@ type SearchParams = {
   ubicacion?: string
   estado?: string
   orden?: string
-}
-
-type StockResumenRow = {
-  id: string
-  kilos: number | null
-  estado: string
-  articulo_id: string | null
-  color_id: string | null
-  ubicacion: string | null
-  articulos: { id: string; nombre: string } | null
-  ingresos: {
-    id: string
-    numero_lote: string | null
-    tintoreria_id: string | null
-  } | null
-}
-
-type ReservaResumenRow = {
-  ingreso_id: string
-  articulo_id: string
-  color_id: string
-  rollos_solicitados: number
-  articulos: { id: string; nombre: string } | null
-  ingresos: {
-    id: string
-    numero_lote: string | null
-    tintoreria_id: string | null
-  } | null
 }
 
 export default async function StockPage({
@@ -448,153 +421,6 @@ function comparadorPorOrden(
     default:
       return (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  }
-}
-
-function buildStockSummary(
-  stockRows: StockResumenRow[],
-  reservaRows: ReservaResumenRow[],
-  colorById: Map<string, { id: string; nombre: string }>
-): StockSummaryGroup[] {
-  type MutableGroup = StockSummaryGroup
-  const groups = new Map<string, MutableGroup>()
-
-  function ensureGroup(params: {
-    articuloId: string
-    colorId: string
-    articulo: string
-    color: string
-  }) {
-    const key = `${params.articuloId}|||${params.colorId}`
-    const existing = groups.get(key)
-    if (existing) return existing
-    const group: MutableGroup = {
-      key,
-      articulo: params.articulo,
-      color: params.color,
-      rollos: 0,
-      kilos: 0,
-      reservado: 0,
-      libre: 0,
-      partidas: [],
-    }
-    groups.set(key, group)
-    return group
-  }
-
-  const partidas = new Map<
-    string,
-    {
-      groupKey: string
-      key: string
-      lote: string
-      rollos: number
-      en_stock: number
-      reservado: number
-      pickeados: number
-      libre: number
-    }
-  >()
-
-  function ensurePartida(group: StockSummaryGroup, ingresoId: string, lote: string) {
-    const key = `${group.key}|||${ingresoId}`
-    const existing = partidas.get(key)
-    if (existing) return existing
-    const partida = {
-      groupKey: group.key,
-      key,
-      lote,
-      rollos: 0,
-      en_stock: 0,
-      reservado: 0,
-      pickeados: 0,
-      libre: 0,
-    }
-    partidas.set(key, partida)
-    return partida
-  }
-
-  for (const r of stockRows) {
-    const articuloId = r.articulo_id ?? r.articulos?.id ?? 'sin-articulo'
-    const colorId = r.color_id ?? 'sin-color'
-    const group = ensureGroup({
-      articuloId,
-      colorId,
-      articulo: r.articulos?.nombre ?? '-',
-      color: r.color_id ? colorById.get(r.color_id)?.nombre ?? '-' : '-',
-    })
-    const kilos = Number(r.kilos ?? 0)
-    group.rollos += 1
-    group.kilos += kilos
-
-    const partida = ensurePartida(
-      group,
-      r.ingresos?.id ?? 'sin-partida',
-      r.ingresos?.numero_lote ?? 'Sin partida'
-    )
-    partida.rollos += 1
-    if (r.estado === 'en_stock') partida.en_stock += 1
-    if (r.estado === 'reservado') partida.pickeados += 1
-  }
-
-  for (const r of reservaRows) {
-    const group = ensureGroup({
-      articuloId: r.articulo_id,
-      colorId: r.color_id,
-      articulo: r.articulos?.nombre ?? '-',
-      color: colorById.get(r.color_id)?.nombre ?? '-',
-    })
-    const cantidad = Number(r.rollos_solicitados ?? 0)
-    group.reservado += cantidad
-
-    const partida = ensurePartida(
-      group,
-      r.ingresos?.id ?? r.ingreso_id,
-      r.ingresos?.numero_lote ?? 'Sin partida'
-    )
-    partida.reservado += cantidad
-  }
-
-  for (const group of groups.values()) {
-    const propias = [...partidas.values()]
-      .filter((p) => p.groupKey === group.key)
-      .map((p) => ({
-        key: p.key,
-        lote: p.lote,
-        rollos: p.rollos,
-        reservado: p.reservado,
-        libre: Math.max(0, p.en_stock - p.reservado),
-      }))
-      .sort((a, b) => a.lote.localeCompare(b.lote, 'es', { numeric: true }))
-
-    group.partidas = propias
-    group.libre = propias.reduce((acc, p) => acc + p.libre, 0)
-  }
-
-  return [...groups.values()].sort((a, b) => {
-    if (b.rollos !== a.rollos) return b.rollos - a.rollos
-    return a.articulo.localeCompare(b.articulo, 'es')
-  })
-}
-
-function buildReservaBanner(
-  summary: StockSummaryGroup[],
-  lote?: string
-): StockReservaBanner | null {
-  if (!lote) return null
-
-  const matches = summary.flatMap((g) =>
-    g.partidas.filter((p) => p.lote === lote)
-  )
-  if (matches.length === 0) return null
-
-  const rollos = matches.reduce((acc, p) => acc + p.rollos, 0)
-  const reservado = matches.reduce((acc, p) => acc + p.reservado, 0)
-  return {
-    lote,
-    rollos,
-    reservado,
-    libre: matches.reduce((acc, p) => acc + p.libre, 0),
   }
 }
 

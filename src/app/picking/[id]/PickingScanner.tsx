@@ -122,12 +122,17 @@ export default function PickingScanner({
 
   const draftKey = `picking_draft_${pedidoId}`
 
-  // Cargar el borrador guardado en localStorage al montar.
+  // Cargar el borrador guardado en localStorage al montar. Se hace en un effect
+  // (no en el inicializador de useState) a propósito: el componente se renderiza
+  // en el server, donde no existe localStorage, así que leerlo en el primer
+  // render rompería la hidratación. El estado arranca vacío (igual que el SSR) y
+  // recién al montar en el cliente cargamos el borrador real.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(draftKey)
       if (raw) {
         const parsed = JSON.parse(raw) as DraftRollo[]
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial desde localStorage (store externo), no es un render en cascada evitable
         if (Array.isArray(parsed)) setNuevosLocales(parsed)
       }
     } catch {

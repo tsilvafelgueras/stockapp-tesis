@@ -3,6 +3,16 @@
 import { useState } from 'react'
 import RolloDetailDialog from './RolloDetailDialog'
 import type { UbicacionOption } from '@/lib/ubicaciones'
+import type {
+  StockReservaBanner,
+  StockSummaryGroup,
+} from '@/lib/stockResumen'
+
+export type {
+  StockReservaBanner,
+  StockSummaryGroup,
+  StockSummaryPartida,
+} from '@/lib/stockResumen'
 
 export type StockRollo = {
   id: string
@@ -48,31 +58,6 @@ const ESTADO_LABEL: Record<string, { text: string; className: string } | null> =
   segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
 }
 
-export type StockSummaryPartida = {
-  key: string
-  lote: string
-  rollos: number
-  reservado: number
-  libre: number
-}
-
-export type StockSummaryGroup = {
-  key: string
-  articulo: string
-  color: string
-  rollos: number
-  kilos: number
-  reservado: number
-  libre: number
-  partidas: StockSummaryPartida[]
-}
-
-export type StockReservaBanner = {
-  lote: string
-  rollos: number
-  reservado: number
-  libre: number
-}
 
 export default function StockList({
   rollos,
@@ -390,6 +375,12 @@ function ResumenStock({ grupos }: { grupos: StockSummaryGroup[] }) {
 
   return (
     <>
+      <p className="text-xs text-muted-foreground">
+        El resumen muestra la disponibilidad total de cada artículo + color
+        (rollos en stock y reservados), sin importar el filtro de estado.{' '}
+        <span className="font-medium">Rollos = Libre + Reservado.</span>
+      </p>
+
       <div className="space-y-3 sm:hidden">
         {grupos.map((g) => (
           <div key={g.key} className="rounded-lg border bg-white p-4 shadow-sm">

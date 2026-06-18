@@ -7,6 +7,7 @@ export type Notificacion = {
     | 'solicitud_color'
     | 'ingreso_pendiente'
     | 'pedido_pendiente'
+    | 'rollo_liberado'
   titulo: string
   mensaje: string
   articulo_id: string | null
@@ -31,6 +32,9 @@ export async function getNotificacionesNoLeidas(): Promise<Notificacion[]> {
     .select('id, tipo, titulo, mensaje, articulo_id, leida_at, resuelta_at, created_at')
     .is('resuelta_at', null)
     .is('leida_at', null)
+    // 'rollo_liberado' es un aviso dirigido al operario; no ensuciamos la
+    // campanita de admin/ventas (que ya generaron la acción).
+    .neq('tipo', 'rollo_liberado')
     .order('created_at', { ascending: false })
     .limit(50)
   return (data ?? []) as Notificacion[]
@@ -63,7 +67,7 @@ export async function getNotificacionesOperario(): Promise<Notificacion[]> {
   const now = new Date().toISOString()
   const notifs: Notificacion[] = []
 
-  const [{ data: rollosPendientes }, { count: pedidosCount }] =
+  const [{ data: rollosPendientes }, { count: pedidosCount }, { data: liberados }] =
     await Promise.all([
       // Ingresos por confirmar = ingresos con al menos un rollo 'pendiente'.
       supabase.from('rollos').select('ingreso_id').eq('estado', 'pendiente'),
@@ -72,6 +76,16 @@ export async function getNotificacionesOperario(): Promise<Notificacion[]> {
         .from('pedidos')
         .select('id', { count: 'exact', head: true })
         .in('estado', ['pendiente', 'en_preparacion']),
+      // Rollos liberados de pedidos por ventas, pendientes de reubicar.
+      // Persistidas en la tabla (RLS deja al operario ver solo este tipo).
+      supabase
+        .from('notificaciones')
+        .select('id, tipo, titulo, mensaje, articulo_id, leida_at, resuelta_at, created_at')
+        .eq('tipo', 'rollo_liberado')
+        .is('resuelta_at', null)
+        .is('leida_at', null)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ])
 
   const ingresosPendientes = new Set(
@@ -115,6 +129,17 @@ export async function getNotificacionesOperario(): Promise<Notificacion[]> {
       created_at: now,
       href: '/picking',
       dismissable: false,
+    })
+  }
+
+  // Rollos liberados por ventas: notificación persistida y descartable (el
+  // operario la marca leída al reubicar). Linkea al stock filtrado por la
+  // ubicación sentinela para encontrarlos rápido.
+  for (const n of (liberados ?? []) as Notificacion[]) {
+    notifs.unshift({
+      ...n,
+      href: '/stock?ubicacion=Sin+ubicar',
+      dismissable: true,
     })
   }
 

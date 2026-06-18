@@ -128,6 +128,80 @@ export async function agregarPartidasAPedido(
   return { ok: true }
 }
 
+export type QuitarRolloPedidoResult =
+  | { ok: true; numeroPieza: string; pendientes: number; total: number }
+  | { ok: false; error: string }
+
+// Ventas/admin quitan un rollo ya pickeado: vuelve a stock como 'Sin ubicar' y
+// el operario recibe una notificación para reubicarlo.
+export async function liberarRolloDePedido(input: {
+  pedidoId: string
+  pedidoRolloId: string
+  motivo?: string
+}): Promise<QuitarRolloPedidoResult> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('liberar_rollo_de_pedido', {
+    p_pedido_id: input.pedidoId,
+    p_pedido_rollo_id: input.pedidoRolloId,
+    p_motivo: input.motivo?.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  const json = data as {
+    numero_pieza: string
+    pendientes: number
+    total: number
+  }
+
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${input.pedidoId}`)
+  revalidatePath('/picking')
+  revalidatePath(`/picking/${input.pedidoId}`)
+  revalidatePath('/stock')
+  return {
+    ok: true,
+    numeroPieza: json.numero_pieza,
+    pendientes: json.pendientes,
+    total: json.total,
+  }
+}
+
+// Ventas/admin quitan una línea de demanda entera: libera sus rollos pickeados
+// (cada uno notifica al operario) y elimina la línea solicitada.
+export async function quitarPartidaDePedido(input: {
+  pedidoId: string
+  pedidoPartidaId: string
+  motivo?: string
+}): Promise<
+  | { ok: true; rollosLiberados: number; pendientes: number; total: number }
+  | { ok: false; error: string }
+> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('quitar_partida_de_pedido', {
+    p_pedido_partida_id: input.pedidoPartidaId,
+    p_motivo: input.motivo?.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  const json = data as {
+    rollos_liberados: number
+    pendientes: number
+    total: number
+  }
+
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${input.pedidoId}`)
+  revalidatePath('/picking')
+  revalidatePath(`/picking/${input.pedidoId}`)
+  revalidatePath('/stock')
+  return {
+    ok: true,
+    rollosLiberados: json.rollos_liberados,
+    pendientes: json.pendientes,
+    total: json.total,
+  }
+}
+
 export async function cancelarPedido(
   pedidoId: string,
   motivoCaida = '',
