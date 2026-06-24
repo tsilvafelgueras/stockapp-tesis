@@ -2,6 +2,11 @@ import { notFound } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import { createClient } from '@/lib/supabase/server'
 import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
+import {
+  demandaPendientePorPartida,
+  keyPartida,
+  type DemandaPartidaRow,
+} from '@/lib/pedidoDisponibilidad'
 import PedidoActions from './PedidoActions'
 import AgregarRollosPedido, {
   type PartidaParaAgregar,
@@ -63,12 +68,6 @@ type RolloDisponibleRaw = {
   } | null
 }
 
-type PedidoPartidaPendienteRaw = {
-  ingreso_id: string
-  articulo_id: string
-  color_id: string
-  rollos_solicitados: number
-}
 
 type GrupoPartidaDisponible = {
   ingresoId: string
@@ -533,20 +532,18 @@ async function cargarPartidasParaAgregar(
           articulo_id,
           color_id,
           rollos_solicitados,
-          pedidos!inner ( estado )
+          pedidos!inner ( estado ),
+          pedido_rollos ( id, liberado_at )
         `
       )
       .in('pedidos.estado', ['pendiente', 'en_preparacion', 'lista']),
   ])
 
-  const reservadosPorPartida = new Map<string, number>()
-  for (const p of (pendientesRaw ?? []) as unknown as PedidoPartidaPendienteRaw[]) {
-    const key = keyPartida(p.ingreso_id, p.articulo_id, p.color_id)
-    reservadosPorPartida.set(
-      key,
-      (reservadosPorPartida.get(key) ?? 0) + Number(p.rollos_solicitados ?? 0)
-    )
-  }
+  // Demanda pendiente = solicitados − ya pickeados (los pickeados ya salieron de
+  // en_stock). Descontar la demanda completa contaría dos veces a los pickeados.
+  const reservadosPorPartida = demandaPendientePorPartida(
+    (pendientesRaw ?? []) as unknown as DemandaPartidaRow[]
+  )
 
   const grupos = new Map<string, GrupoPartidaDisponible>()
   for (const r of (rollosRaw ?? []) as unknown as RolloDisponibleRaw[]) {
@@ -606,8 +603,4 @@ async function cargarPartidasParaAgregar(
       if (byLote !== 0) return byLote
       return a.articuloNombre.localeCompare(b.articuloNombre, 'es')
     })
-}
-
-function keyPartida(ingresoId: string, articuloId: string, colorId: string) {
-  return `${ingresoId}|${articuloId}|${colorId}`
 }
