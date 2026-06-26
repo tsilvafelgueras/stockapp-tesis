@@ -18,6 +18,7 @@ export type CreateRollosInput =
   | {
       modo: 'nuevo'
       numero_lote: string
+      ot?: string
       tintoreria_id: string
       fecha_despacho: string
       articulo_id: string
@@ -120,6 +121,7 @@ export async function createRollosSinEtiqueta(
         tintoreria_id: input.tintoreria_id,
         fecha_despacho: input.fecha_despacho,
         numero_lote: input.numero_lote.trim(),
+        ot: input.ot?.trim() || null,
         estado: 'confirmado',
         origen: 'manual',
       })

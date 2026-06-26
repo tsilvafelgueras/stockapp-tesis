@@ -11,6 +11,7 @@ type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
 type IngresoOption = {
   id: string
   numero_lote: string
+  ot: string
   fecha_despacho: string
   tintoria_nombre: string
 }
@@ -51,6 +52,7 @@ export default function RollosSinEtiquetaForm({
 
   // Modo B
   const [numeroLote, setNumeroLote] = useState('')
+  const [ot, setOt] = useState('')
   const [tintoreriaId, setTintoreriaId] = useState('')
   const [fechaDespacho, setFechaDespacho] = useState('')
 
@@ -65,13 +67,13 @@ export default function RollosSinEtiquetaForm({
     return articulos.find((a) => a.id === articuloId)?.colores ?? []
   }, [articuloId, articulos])
 
-  // Ingresos filtrados por búsqueda
+  // Ingresos filtrados por búsqueda (por OT o tintorería)
   const ingresosFiltrados = useMemo(() => {
     if (!ingresoSearch.trim()) return ingresos
     const q = ingresoSearch.toLowerCase()
     return ingresos.filter(
       (i) =>
-        i.numero_lote.toLowerCase().includes(q) ||
+        i.ot.toLowerCase().includes(q) ||
         i.tintoria_nombre.toLowerCase().includes(q)
     )
   }, [ingresos, ingresoSearch])
@@ -118,6 +120,7 @@ export default function RollosSinEtiquetaForm({
     setArticuloNombre('')
     setColorNombre('')
     setNumeroLote('')
+    setOt('')
     setTintoreriaId('')
     setFechaDespacho('')
     setError(null)
@@ -148,7 +151,7 @@ export default function RollosSinEtiquetaForm({
 
     if (!articuloId) { setError('Seleccioná el artículo.'); return }
     if (!colorId) { setError('Seleccioná el color.'); return }
-    if (modo === 'existente' && !ingresoId) { setError('Seleccioná una partida.'); return }
+    if (modo === 'existente' && !ingresoId) { setError('Seleccioná una OT.'); return }
     if (modo === 'nuevo') {
       if (!numeroLote.trim()) { setError('Ingresá el número de partida.'); return }
       if (!tintoreriaId) { setError('Seleccioná la tintorería.'); return }
@@ -179,6 +182,7 @@ export default function RollosSinEtiquetaForm({
           : {
               modo: 'nuevo' as const,
               numero_lote: numeroLote.trim(),
+              ot: ot.trim() || undefined,
               tintoreria_id: tintoreriaId,
               fecha_despacho: fechaDespacho,
               articulo_id: articuloId,
@@ -233,11 +237,11 @@ export default function RollosSinEtiquetaForm({
       {/* Modo A: Partida existente */}
       {modo === 'existente' && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">Seleccionar partida</h2>
+          <h2 className="text-sm font-semibold text-foreground">Seleccionar OT</h2>
           <div>
             <input
               type="text"
-              placeholder="Buscar por número de partida o tintorería..."
+              placeholder="Buscar por OT o tintorería..."
               value={ingresoSearch}
               onChange={(e) => setIngresoSearch(e.target.value)}
               className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring mb-2"
@@ -247,10 +251,10 @@ export default function RollosSinEtiquetaForm({
               onChange={(e) => handleSelectIngreso(e.target.value)}
               className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">— Elegir partida —</option>
+              <option value="">— Elegir OT —</option>
               {ingresosFiltrados.map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.numero_lote || '(sin número)'} · {i.tintoria_nombre} · {formatFecha(i.fecha_despacho)}
+                  {i.ot ? `OT ${i.ot}` : '(sin OT)'} · {i.tintoria_nombre} · {formatFecha(i.fecha_despacho)}
                 </option>
               ))}
             </select>
@@ -284,6 +288,18 @@ export default function RollosSinEtiquetaForm({
                 value={numeroLote}
                 onChange={(e) => setNumeroLote(e.target.value)}
                 placeholder="ej: L-2026-042 o MUTER-001"
+                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                OT <span className="text-muted-foreground font-normal">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={ot}
+                onChange={(e) => setOt(e.target.value)}
+                placeholder="N° de orden de trabajo de la tintorería"
                 className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
