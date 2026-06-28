@@ -15,6 +15,7 @@ import RollosPickeadosTable, {
   type RolloPickeadoRow,
 } from './RollosPickeadosTable'
 import QuitarPartidaButton from './QuitarPartidaButton'
+import DevolucionParcialSection from './DevolucionParcialSection'
 import { estadoPedidoBadge } from '@/lib/estadoPedido'
 
 type PedidoPartidaRaw = {
@@ -36,6 +37,7 @@ type PedidoRolloRaw = {
   id: string
   pedido_partida_id: string | null
   pickeado_at: string | null
+  devuelto_at: string | null
   rollos: {
     id: string
     numero_pieza: string
@@ -163,6 +165,7 @@ export default async function PedidoDetailPage({
             id,
             pedido_partida_id,
             pickeado_at,
+            devuelto_at,
             rollos (
               id,
               numero_pieza,
@@ -178,7 +181,8 @@ export default async function PedidoDetailPage({
           `
         )
         .eq('pedido_id', id)
-        .is('liberado_at', null),
+        .is('liberado_at', null)
+        .is('devuelto_at', null),
       supabase.from('colores').select('id, nombre'),
       getUbicacionesActivas(supabase),
     ])
@@ -202,6 +206,9 @@ export default async function PedidoDetailPage({
   const puedeQuitarPartida =
     (role === 'ventas' || role === 'admin') &&
     ['pendiente', 'en_preparacion', 'lista'].includes(pedido.estado)
+  const puedeDevolver =
+    (role === 'ventas' || role === 'admin' || role === 'operario') &&
+    pedido.estado === 'confirmada_egreso'
 
   const partidas = ((partidasRaw ?? []) as unknown as PedidoPartidaRaw[]).map((p) => ({
     ...p,
@@ -452,6 +459,13 @@ export default async function PedidoDetailPage({
           puedeQuitar={puedeQuitarRollo}
         />
       </section>
+
+      {puedeDevolver && (
+        <DevolucionParcialSection
+          pedidoId={pedido.id}
+          rollos={rollosRows}
+        />
+      )}
     </div>
   )
 }

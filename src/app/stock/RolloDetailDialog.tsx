@@ -13,6 +13,7 @@ import {
   subirFotoRollo,
   listarFotosRollo,
   editarRollo,
+  devolverRolloAStock,
   type RolloFotoConUrl,
 } from './actions'
 import { actualizarOtIngreso } from '@/app/ingresos/otActions'
@@ -58,7 +59,7 @@ export default function RolloDetailDialog({
   articuloColores: Record<string, { id: string; nombre: string }[]>
 }) {
   const [mode, setMode] = useState<
-    'view' | 'mover' | 'baja' | 'eliminar' | 'segunda' | 'confirmar' | 'editar'
+    'view' | 'mover' | 'baja' | 'eliminar' | 'segunda' | 'confirmar' | 'editar' | 'devolver'
   >(initialMode ?? 'view')
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
@@ -70,6 +71,8 @@ export default function RolloDetailDialog({
   const [otValue, setOtValue] = useState(rollo.ingresos?.ot ?? '')
   const [otActual, setOtActual] = useState<string | null>(rollo.ingresos?.ot ?? null)
   const ubicacionOptions = ubicacionesToOptions(ubicaciones)
+
+  const [devolverMotivo, setDevolverMotivo] = useState('')
 
   // Formulario de "segunda"
   const [fallaCategoria, setFallaCategoria] = useState<FallaCategoria | ''>('')
@@ -165,6 +168,7 @@ export default function RolloDetailDialog({
   const puedeConfirmar = esOperarioOAdmin && rollo.estado === 'pendiente'
   const puedeEditar =
     esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+  const puedeDevolver = esOperarioOAdmin && rollo.estado === 'entregado'
 
   function handleGuardarOt() {
     const ingresoId = rollo.ingresos?.id
@@ -372,6 +376,29 @@ export default function RolloDetailDialog({
           e instanceof Error
             ? `Error: ${e.message}`
             : 'Error inesperado al eliminar. Mirá la consola.'
+        )
+      }
+    })
+  }
+
+  function handleDevolver() {
+    startTransition(async () => {
+      try {
+        const res = await devolverRolloAStock(rollo.id, devolverMotivo)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(
+          `Pieza ${rollo.numero_pieza} devuelta al stock como "Sin ubicar".`
+        )
+        onClose()
+      } catch (e) {
+        console.error('[devolverRolloAStock] error inesperado', e)
+        toast.error(
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al devolver el rollo. Mirá la consola.'
         )
       }
     })
@@ -632,8 +659,18 @@ export default function RolloDetailDialog({
               puedeSegunda ||
               puedeBaja ||
               puedeEliminar ||
-              puedeEditar) && (
+              puedeEditar ||
+              puedeDevolver) && (
               <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {puedeDevolver && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('devolver')}
+                    className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:bg-success/90 transition-colors"
+                  >
+                    Devolver al stock
+                  </button>
+                )}
                 {puedeConfirmar && (
                   <button
                     type="button"
@@ -1152,6 +1189,47 @@ export default function RolloDetailDialog({
                   className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
                   {pending ? 'Eliminando…' : 'Eliminar definitivamente'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'devolver' && (
+            <div className="space-y-3 pt-2 border-t">
+              <p className="text-sm">
+                Devolver la pieza <strong>{rollo.numero_pieza}</strong> al stock.
+                El rollo vuelve a &ldquo;En stock&rdquo; marcado como{' '}
+                &ldquo;Sin ubicar&rdquo; para que lo puedas reubicar.
+              </p>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground block">
+                  Motivo (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={devolverMotivo}
+                  onChange={(e) => setDevolverMotivo(e.target.value)}
+                  disabled={pending}
+                  placeholder="Ej. Devolución por exceso, cambio de diseño..."
+                  className="w-full rounded-md border bg-white px-3 py-2 text-sm disabled:opacity-50"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDevolver}
+                  disabled={pending}
+                  className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:bg-success/90 disabled:opacity-50"
+                >
+                  {pending ? 'Devolviendo…' : 'Confirmar devolución'}
                 </button>
               </div>
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { crearCliente } from '@/app/clientes/actions'
@@ -72,8 +72,19 @@ export default function NuevoPedidoForm({
     [partidasDisponibles]
   )
 
+  // Acumula todas las partidas vistas en cualquier resultado de filtro para
+  // que el carrito no pierda items cuando el usuario cambia los filtros.
+  const allPartidasRef = useRef<Map<string, PartidaDisponible>>(
+    new Map(partidasDisponibles.map((p) => [p.key, p]))
+  )
+  useEffect(() => {
+    for (const p of partidasDisponibles) {
+      allPartidasRef.current.set(p.key, p)
+    }
+  }, [partidasDisponibles])
+
   const seleccionadas = Object.entries(cantidades)
-    .map(([key, cantidad]) => ({ partida: partidasByKey.get(key), cantidad }))
+    .map(([key, cantidad]) => ({ partida: allPartidasRef.current.get(key), cantidad }))
     .filter(
       (row): row is { partida: PartidaDisponible; cantidad: number } =>
         !!row.partida && row.cantidad > 0
@@ -369,9 +380,9 @@ export default function NuevoPedidoForm({
               options={colores.map((c) => ({ value: c.id, label: c.nombre }))}
               value={currentFilters.color}
               onChange={(v) => updateFilter('color', v)}
-              placeholder="Todos"
-              searchPlaceholder="Buscar color..."
+              placeholder="Escribí para filtrar..."
               emptyLabel="Sin colores"
+              autocomplete
             />
           </Field>
 

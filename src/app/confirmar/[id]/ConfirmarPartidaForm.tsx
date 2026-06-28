@@ -16,6 +16,7 @@ export type RolloPartida = {
   articulo: string | null
   color: string | null
   ubicacion: string | null
+  kilos: number | null
 }
 
 type Props = {
@@ -273,33 +274,50 @@ export default function ConfirmarPartidaForm({
               <li key={r.id} className="space-y-2 px-4 py-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-mono text-sm font-medium">
-                    {r.numero_pieza}
+                    Rollo #{r.numero_pieza}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {[r.articulo, r.color].filter(Boolean).join(' · ') || '—'}
-                  </span>
+                  <div className="flex items-baseline gap-3 shrink-0">
+                    {r.kilos != null && (
+                      <span className="text-xs font-medium tabular-nums">
+                        {r.kilos.toLocaleString('es-AR', { maximumFractionDigits: 2 })} kg
+                      </span>
+                    )}
+                    <span className="truncate text-xs text-muted-foreground max-w-[12rem]">
+                      {[r.articulo, r.color].filter(Boolean).join(' · ') || '—'}
+                    </span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <SearchableCombobox
-                    value={o?.ubicacion ?? ''}
-                    onChange={(value) => setOverride(r.id, 'ubicacion', value)}
-                    options={ubicacionOptions}
-                    placeholder={
-                      ubicacionGeneral
-                        ? `Ubicacion de la partida (${ubicacionGeneral})`
-                        : 'Ubicacion de la partida'
-                    }
-                    searchPlaceholder="Buscar ubicacion..."
-                    emptyLabel="No hay ubicaciones"
-                  />
-                  <input
-                    value={o?.comentario ?? ''}
-                    onChange={(e) =>
-                      setOverride(r.id, 'comentario', e.target.value)
-                    }
-                    placeholder="Comentario (opcional)"
-                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Ubicación
+                    </label>
+                    <SearchableCombobox
+                      value={o?.ubicacion ?? ''}
+                      onChange={(value) => setOverride(r.id, 'ubicacion', value)}
+                      options={ubicacionOptions}
+                      placeholder={
+                        ubicacionGeneral
+                          ? `Partida (${ubicacionGeneral})`
+                          : 'Ubicación de la partida'
+                      }
+                      searchPlaceholder="Buscar ubicacion..."
+                      emptyLabel="No hay ubicaciones"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Comentario
+                    </label>
+                    <input
+                      value={o?.comentario ?? ''}
+                      onChange={(e) =>
+                        setOverride(r.id, 'comentario', e.target.value)
+                      }
+                      placeholder="Opcional"
+                      className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </div>
                 </div>
               </li>
             )

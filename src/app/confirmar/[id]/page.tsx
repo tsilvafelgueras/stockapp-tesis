@@ -47,7 +47,7 @@ export default async function ConfirmarIngresoPage({
     supabase
       .from('rollos')
       .select(`
-        id, numero_pieza, estado, color_id, ubicacion,
+        id, numero_pieza, estado, color_id, ubicacion, kilos,
         articulos ( nombre )
       `)
       .eq('ingreso_id', id)
@@ -77,6 +77,7 @@ export default async function ConfirmarIngresoPage({
     articulo: (r.articulos as unknown as { nombre: string } | null)?.nombre ?? null,
     color: r.color_id ? colorById.get(r.color_id as string) ?? null : null,
     ubicacion: (r.ubicacion as string | null) ?? null,
+    kilos: (r.kilos as number | null) ?? null,
   }))
 
   // Si todos los rollos pendientes comparten la misma ubicación no-nula, la

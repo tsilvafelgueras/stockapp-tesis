@@ -224,6 +224,25 @@ export async function cancelarPedido(
   return { ok: true }
 }
 
+export async function devolverRollosPedido(
+  pedidoId: string,
+  pedidoRolloIds: string[],
+  motivo: string
+): Promise<SimpleResult & { devueltos?: number }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('devolver_rollos_pedido', {
+    p_pedido_id: pedidoId,
+    p_pedido_rollo_ids: pedidoRolloIds,
+    p_motivo: motivo.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/pedidos')
+  revalidatePath(`/pedidos/${pedidoId}`)
+  revalidatePath('/stock')
+  return { ok: true, devueltos: (data as { devueltos: number })?.devueltos }
+}
+
 export async function confirmarEgresoPedido(
   pedidoId: string,
   comentario = '',

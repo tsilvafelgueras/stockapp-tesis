@@ -50,12 +50,12 @@ export type StockRollo = {
 export type StockRole = 'operario' | 'ventas' | 'admin'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string } | null> = {
-  pendiente: { text: 'Pendiente', className: 'bg-amber-50 text-warning' },
+  pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
   en_stock: null,
-  reservado: { text: 'Reservado', className: 'bg-blue-50 text-action' },
+  reservado: { text: 'Reservado', className: 'bg-primary/15 text-primary' },
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
-  baja: { text: 'Baja', className: 'bg-red-50 text-destructive' },
-  segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
+  baja: { text: 'Baja', className: 'bg-destructive/15 text-destructive' },
+  segunda: { text: 'Segunda', className: 'bg-warning/30 text-warning' },
 }
 
 

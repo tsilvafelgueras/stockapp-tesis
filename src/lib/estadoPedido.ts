@@ -20,12 +20,12 @@ export const ESTADO_PEDIDO_LABEL: Record<string, EstadoBadge> = {
     text: 'En preparación',
     className: 'bg-warning/15 text-warning',
   },
-  lista: { text: 'Pedido listo', className: 'bg-indigo-100 text-indigo-700' },
+  lista: { text: 'Pedido listo', className: 'bg-success/20 text-success' },
   confirmada_egreso: {
     text: 'Egreso confirmado',
     className: 'bg-primary/15 text-primary',
   },
-  entregada: { text: 'Entregado', className: 'bg-success/15 text-success' },
+  entregada: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
   cancelada: {
     text: 'Cancelada',
     className: 'bg-destructive/15 text-destructive',

@@ -51,7 +51,6 @@ export default function RollosSinEtiquetaForm({
   const [colorNombre, setColorNombre] = useState('')
 
   // Modo B
-  const [numeroLote, setNumeroLote] = useState('')
   const [ot, setOt] = useState('')
   const [tintoreriaId, setTintoreriaId] = useState('')
   const [fechaDespacho, setFechaDespacho] = useState('')
@@ -119,7 +118,6 @@ export default function RollosSinEtiquetaForm({
     setColorId('')
     setArticuloNombre('')
     setColorNombre('')
-    setNumeroLote('')
     setOt('')
     setTintoreriaId('')
     setFechaDespacho('')
@@ -153,7 +151,6 @@ export default function RollosSinEtiquetaForm({
     if (!colorId) { setError('Seleccioná el color.'); return }
     if (modo === 'existente' && !ingresoId) { setError('Seleccioná una OT.'); return }
     if (modo === 'nuevo') {
-      if (!numeroLote.trim()) { setError('Ingresá el número de partida.'); return }
       if (!tintoreriaId) { setError('Seleccioná la tintorería.'); return }
       if (!fechaDespacho) { setError('Ingresá la fecha.'); return }
     }
@@ -181,7 +178,6 @@ export default function RollosSinEtiquetaForm({
             }
           : {
               modo: 'nuevo' as const,
-              numero_lote: numeroLote.trim(),
               ot: ot.trim() || undefined,
               tintoreria_id: tintoreriaId,
               fecha_despacho: fechaDespacho,
@@ -279,17 +275,9 @@ export default function RollosSinEtiquetaForm({
         <div className="rounded-lg border border-border bg-card p-4 space-y-4">
           <h2 className="text-sm font-semibold text-foreground">Datos de la nueva partida</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Número de partida <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                value={numeroLote}
-                onChange={(e) => setNumeroLote(e.target.value)}
-                placeholder="ej: L-2026-042 o MUTER-001"
-                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+            <div className="rounded-md bg-muted px-3 py-2 text-sm sm:col-span-2">
+              <span className="text-muted-foreground">Número de partida: </span>
+              <span className="font-medium">asignado automáticamente por el sistema</span>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">

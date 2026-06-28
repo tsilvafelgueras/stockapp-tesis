@@ -411,7 +411,7 @@ export async function eliminarRollo(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, nombre, empresa_id')
       .eq('id', user.id)
       .single()
 
@@ -424,7 +424,11 @@ export async function eliminarRollo(
 
     const { data: rollo, error: fetchError } = await supabase
       .from('rollos')
-      .select('id, estado')
+      .select(`
+        id, estado, numero_pieza,
+        articulos ( nombre ),
+        colores ( nombre )
+      `)
       .eq('id', rolloId)
       .single()
 
@@ -454,6 +458,19 @@ export async function eliminarRollo(
       return { ok: false, error: error.message }
     }
 
+    // Notificar al admin que un rollo fue eliminado del inventario.
+    if (profile.empresa_id) {
+      const articulo = (rollo.articulos as unknown as { nombre: string } | null)?.nombre ?? null
+      const color = (rollo.colores as unknown as { nombre: string } | null)?.nombre ?? null
+      await supabase.rpc('notificar_rollo_eliminado', {
+        p_empresa_id:     profile.empresa_id,
+        p_numero_pieza:   rollo.numero_pieza as string,
+        p_articulo:       articulo,
+        p_color:          color,
+        p_usuario_nombre: profile.nombre ?? null,
+      })
+    }
+
     revalidatePath('/stock')
     return { ok: true }
   } catch (e) {
@@ -462,6 +479,24 @@ export async function eliminarRollo(
       error: e instanceof Error ? e.message : 'Error inesperado al eliminar el rollo.',
     }
   }
+}
+
+export async function devolverRolloAStock(
+  rolloId: string,
+  motivo: string
+): Promise<StockActionResult & { pedidoId?: string; numeroPieza?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('devolver_rollo_por_rollo_id', {
+    p_rollo_id: rolloId,
+    p_motivo:   motivo.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  const json = data as { devuelto: boolean; pedido_id: string; numero_pieza: string } | null
+  revalidatePath('/stock')
+  revalidatePath('/pedidos')
+  if (json?.pedido_id) revalidatePath(`/pedidos/${json.pedido_id}`)
+  return { ok: true, pedidoId: json?.pedido_id, numeroPieza: json?.numero_pieza }
 }
 
 export type MarcarSegundaParams = {
