@@ -582,6 +582,7 @@ export default function RollosBulkView({
                   </select>
                 </div>
               )}
+
             </div>
             <div className="border-t px-4 py-3 flex justify-end gap-2">
               <button

@@ -59,7 +59,8 @@ export default function RollosSinEtiquetaForm({
   // Colores disponibles para el artículo seleccionado
   const coloresDisponibles = useMemo(() => {
     if (!articuloId) return []
-    return articulos.find((a) => a.id === articuloId)?.colores ?? []
+    const colores = articulos.find((a) => a.id === articuloId)?.colores ?? []
+    return [...colores].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   }, [articuloId, articulos])
 
   // Ingresos filtrados por búsqueda (por OT o tintorería)
@@ -343,32 +344,38 @@ export default function RollosSinEtiquetaForm({
               <div className="flex items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
                 <span className="text-xs">Auto</span>
               </div>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={rollo.kilos}
-                onChange={(e) => updateRow(rollo.id, 'kilos', e.target.value)}
-                placeholder="0.0"
-                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <select
-                value={rollo.ubicacion}
-                onChange={(e) => updateRow(rollo.id, 'ubicacion', e.target.value)}
-                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">— Ubicación —</option>
-                {ubicaciones.map((u) => (
-                  <option key={u.codigo} value={u.codigo}>
-                    {u.codigo}{u.descripcion ? ` - ${u.descripcion}` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground sm:hidden">Kilos *</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={rollo.kilos}
+                  onChange={(e) => updateRow(rollo.id, 'kilos', e.target.value)}
+                  placeholder="0.0"
+                  className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground sm:hidden">Ubicación</span>
+                <select
+                  value={rollo.ubicacion}
+                  onChange={(e) => updateRow(rollo.id, 'ubicacion', e.target.value)}
+                  className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">— Ubicación —</option>
+                  {ubicaciones.map((u) => (
+                    <option key={u.codigo} value={u.codigo}>
+                      {u.codigo}{u.descripcion ? ` - ${u.descripcion}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={() => removeRow(rollo.id)}
                 disabled={rollos.length === 1}
-                className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors disabled:opacity-30"
+                className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors disabled:opacity-30 self-end"
                 aria-label="Eliminar fila"
               >
                 <Trash2 className="size-4" />

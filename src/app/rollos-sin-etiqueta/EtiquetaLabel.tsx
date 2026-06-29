@@ -33,7 +33,14 @@ export const ROLLO_EJEMPLO: RolloEtiqueta = {
 export function padNumero(n: string): string {
   const num = parseInt(n)
   if (isNaN(num)) return n
+  if (num >= 1000) return String(num)
   return String(num).padStart(3, '0')
+}
+
+export function numFontSize(padded: string): string {
+  if (padded.length <= 3) return '26cqmin'
+  if (padded.length === 4) return '20cqmin'
+  return '15cqmin'
 }
 
 export function formatFecha(iso: string): string {
@@ -106,12 +113,17 @@ export function EtiquetaLabel({ rollo, config, escala = 1, className = '' }: Pro
           >
             Pieza
           </p>
-          <p
-            className="font-black leading-none"
-            style={{ fontSize: '26cqmin', letterSpacing: '-0.02em' }}
-          >
-            {padNumero(rollo.numero_pieza)}
-          </p>
+          {(() => {
+            const padded = padNumero(rollo.numero_pieza)
+            return (
+              <p
+                className="font-black leading-none"
+                style={{ fontSize: numFontSize(padded), letterSpacing: '-0.02em' }}
+              >
+                {padded}
+              </p>
+            )
+          })()}
         </div>
       </div>
 

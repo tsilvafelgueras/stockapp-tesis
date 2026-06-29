@@ -181,3 +181,4 @@ export async function bulkEditRollos(
 
   return { ok: true, afectados: rolloIds.length }
 }
+

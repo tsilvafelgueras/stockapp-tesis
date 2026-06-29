@@ -223,48 +223,48 @@ export default function EtiquetaPage() {
           {rollos.length} etiqueta{rollos.length !== 1 ? 's' : ''}
         </span>
 
-        <div className="flex gap-2 ml-auto">
+        <div className="flex flex-wrap gap-2 ml-auto">
           <Link
             href="/rollos-sin-etiqueta/ajustes"
-            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
           >
             <Settings2 className="size-4" />
-            Ajustar medidas
+            <span className="hidden sm:inline">Ajustar medidas</span>
           </Link>
           {canShare ? (
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
             >
               <Share2 className="size-4" />
-              Compartir link
+              <span className="hidden sm:inline">Compartir link</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={handleCopy}
-              className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
             >
               {copied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
-              {copied ? 'Copiado' : 'Copiar link'}
+              <span className="hidden sm:inline">{copied ? 'Copiado' : 'Copiar link'}</span>
             </button>
           )}
           <button
             type="button"
             onClick={handlePrint}
-            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium border border-border bg-background hover:bg-muted transition-colors"
           >
             <Printer className="size-4" />
-            Imprimir
+            <span className="hidden sm:inline">Imprimir</span>
           </button>
           <button
             type="button"
             onClick={handleExportPdf}
-            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Download className="size-4" />
-            Exportar PDF
+            <span className="hidden sm:inline">Exportar PDF</span>
           </button>
         </div>
       </div>
