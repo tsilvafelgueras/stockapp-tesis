@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
-import { obtenerDatosPartida, createRollosSinEtiqueta } from './actions'
+import { createRollosSinEtiqueta } from './actions'
 import type { UbicacionOption } from '@/lib/ubicaciones'
 
 type Catalog = { id: string; nombre: string }
@@ -41,14 +41,10 @@ export default function RollosSinEtiquetaForm({
   // Modo A
   const [ingresoSearch, setIngresoSearch] = useState('')
   const [ingresoId, setIngresoId] = useState('')
-  const [loadingPartida, setLoadingPartida] = useState(false)
-  const [autoAsignado, setAutoAsignado] = useState(false) // artículo/color ya inferidos
 
   // Artículo y color (comunes a ambos modos)
   const [articuloId, setArticuloId] = useState('')
   const [colorId, setColorId] = useState('')
-  const [articuloNombre, setArticuloNombre] = useState('')
-  const [colorNombre, setColorNombre] = useState('')
 
   // Modo B
   const [ot, setOt] = useState('')
@@ -83,41 +79,18 @@ export default function RollosSinEtiquetaForm({
     return `${d}/${m}/${y}`
   }
 
-  async function handleSelectIngreso(id: string) {
+  function handleSelectIngreso(id: string) {
     setIngresoId(id)
-    setAutoAsignado(false)
     setArticuloId('')
     setColorId('')
-    setArticuloNombre('')
-    setColorNombre('')
-    if (!id) return
-
-    setLoadingPartida(true)
-    const result = await obtenerDatosPartida(id)
-    setLoadingPartida(false)
-
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-    if ('sin_rollos' in result) return // show pickers manually
-
-    setArticuloId(result.articulo_id)
-    setColorId(result.color_id)
-    setArticuloNombre(result.articulo_nombre)
-    setColorNombre(result.color_nombre)
-    setAutoAsignado(true)
   }
 
   function handleModoChange(m: 'existente' | 'nuevo') {
     setModo(m)
     setIngresoId('')
     setIngresoSearch('')
-    setAutoAsignado(false)
     setArticuloId('')
     setColorId('')
-    setArticuloNombre('')
-    setColorNombre('')
     setOt('')
     setTintoreriaId('')
     setFechaDespacho('')
@@ -200,7 +173,7 @@ export default function RollosSinEtiquetaForm({
 
   const canShowArticuloColor =
     modo === 'nuevo' ||
-    (modo === 'existente' && ingresoId && !loadingPartida)
+    (modo === 'existente' && !!ingresoId)
 
   return (
     <div className="space-y-6">
@@ -255,18 +228,6 @@ export default function RollosSinEtiquetaForm({
               ))}
             </select>
           </div>
-          {loadingPartida && (
-            <p className="text-xs text-muted-foreground">Cargando datos de la partida...</p>
-          )}
-          {ingresoId && !loadingPartida && autoAsignado && (
-            <div className="rounded-md bg-muted px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Artículo: </span>
-              <span className="font-medium">{articuloNombre}</span>
-              <span className="text-muted-foreground mx-2">·</span>
-              <span className="text-muted-foreground">Color: </span>
-              <span className="font-medium">{colorNombre}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -322,7 +283,7 @@ export default function RollosSinEtiquetaForm({
       )}
 
       {/* Artículo y color (cuando aplica) */}
-      {canShowArticuloColor && !autoAsignado && (
+      {canShowArticuloColor && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-4">
           <h2 className="text-sm font-semibold text-foreground">Artículo y color</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

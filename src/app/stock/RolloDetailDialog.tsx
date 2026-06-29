@@ -653,15 +653,16 @@ export default function RolloDetailDialog({
           )}
 
           {/* Acciones */}
-          {mode === 'view' &&
-            (puedeConfirmar ||
-              puedeMover ||
-              puedeSegunda ||
-              puedeBaja ||
-              puedeEliminar ||
-              puedeEditar ||
-              puedeDevolver) && (
+          {mode === 'view' && (
               <div className="flex flex-wrap gap-2 pt-2 border-t">
+                <a
+                  href={`/rollos-sin-etiqueta/etiqueta?ids=${rollo.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md border border-input bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 transition-colors"
+                >
+                  Imprimir etiqueta
+                </a>
                 {puedeDevolver && (
                   <button
                     type="button"
