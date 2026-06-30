@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
-import { obtenerDatosPartida, createRollosSinEtiqueta } from './actions'
+import { createRollosSinEtiqueta } from './actions'
 import type { UbicacionOption } from '@/lib/ubicaciones'
 
 type Catalog = { id: string; nombre: string }
@@ -11,6 +11,7 @@ type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
 type IngresoOption = {
   id: string
   numero_lote: string
+  ot: string
   fecha_despacho: string
   tintoria_nombre: string
 }
@@ -40,17 +41,13 @@ export default function RollosSinEtiquetaForm({
   // Modo A
   const [ingresoSearch, setIngresoSearch] = useState('')
   const [ingresoId, setIngresoId] = useState('')
-  const [loadingPartida, setLoadingPartida] = useState(false)
-  const [autoAsignado, setAutoAsignado] = useState(false) // artículo/color ya inferidos
 
   // Artículo y color (comunes a ambos modos)
   const [articuloId, setArticuloId] = useState('')
   const [colorId, setColorId] = useState('')
-  const [articuloNombre, setArticuloNombre] = useState('')
-  const [colorNombre, setColorNombre] = useState('')
 
   // Modo B
-  const [numeroLote, setNumeroLote] = useState('')
+  const [ot, setOt] = useState('')
   const [tintoreriaId, setTintoreriaId] = useState('')
   const [fechaDespacho, setFechaDespacho] = useState('')
 
@@ -62,16 +59,17 @@ export default function RollosSinEtiquetaForm({
   // Colores disponibles para el artículo seleccionado
   const coloresDisponibles = useMemo(() => {
     if (!articuloId) return []
-    return articulos.find((a) => a.id === articuloId)?.colores ?? []
+    const colores = articulos.find((a) => a.id === articuloId)?.colores ?? []
+    return [...colores].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
   }, [articuloId, articulos])
 
-  // Ingresos filtrados por búsqueda
+  // Ingresos filtrados por búsqueda (por OT o tintorería)
   const ingresosFiltrados = useMemo(() => {
     if (!ingresoSearch.trim()) return ingresos
     const q = ingresoSearch.toLowerCase()
     return ingresos.filter(
       (i) =>
-        i.numero_lote.toLowerCase().includes(q) ||
+        i.ot.toLowerCase().includes(q) ||
         i.tintoria_nombre.toLowerCase().includes(q)
     )
   }, [ingresos, ingresoSearch])
@@ -82,42 +80,19 @@ export default function RollosSinEtiquetaForm({
     return `${d}/${m}/${y}`
   }
 
-  async function handleSelectIngreso(id: string) {
+  function handleSelectIngreso(id: string) {
     setIngresoId(id)
-    setAutoAsignado(false)
     setArticuloId('')
     setColorId('')
-    setArticuloNombre('')
-    setColorNombre('')
-    if (!id) return
-
-    setLoadingPartida(true)
-    const result = await obtenerDatosPartida(id)
-    setLoadingPartida(false)
-
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-    if ('sin_rollos' in result) return // show pickers manually
-
-    setArticuloId(result.articulo_id)
-    setColorId(result.color_id)
-    setArticuloNombre(result.articulo_nombre)
-    setColorNombre(result.color_nombre)
-    setAutoAsignado(true)
   }
 
   function handleModoChange(m: 'existente' | 'nuevo') {
     setModo(m)
     setIngresoId('')
     setIngresoSearch('')
-    setAutoAsignado(false)
     setArticuloId('')
     setColorId('')
-    setArticuloNombre('')
-    setColorNombre('')
-    setNumeroLote('')
+    setOt('')
     setTintoreriaId('')
     setFechaDespacho('')
     setError(null)
@@ -148,9 +123,8 @@ export default function RollosSinEtiquetaForm({
 
     if (!articuloId) { setError('Seleccioná el artículo.'); return }
     if (!colorId) { setError('Seleccioná el color.'); return }
-    if (modo === 'existente' && !ingresoId) { setError('Seleccioná una partida.'); return }
+    if (modo === 'existente' && !ingresoId) { setError('Seleccioná una OT.'); return }
     if (modo === 'nuevo') {
-      if (!numeroLote.trim()) { setError('Ingresá el número de partida.'); return }
       if (!tintoreriaId) { setError('Seleccioná la tintorería.'); return }
       if (!fechaDespacho) { setError('Ingresá la fecha.'); return }
     }
@@ -178,7 +152,7 @@ export default function RollosSinEtiquetaForm({
             }
           : {
               modo: 'nuevo' as const,
-              numero_lote: numeroLote.trim(),
+              ot: ot.trim() || undefined,
               tintoreria_id: tintoreriaId,
               fecha_despacho: fechaDespacho,
               articulo_id: articuloId,
@@ -200,7 +174,7 @@ export default function RollosSinEtiquetaForm({
 
   const canShowArticuloColor =
     modo === 'nuevo' ||
-    (modo === 'existente' && ingresoId && !loadingPartida)
+    (modo === 'existente' && !!ingresoId)
 
   return (
     <div className="space-y-6">
@@ -233,11 +207,11 @@ export default function RollosSinEtiquetaForm({
       {/* Modo A: Partida existente */}
       {modo === 'existente' && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">Seleccionar partida</h2>
+          <h2 className="text-sm font-semibold text-foreground">Seleccionar OT</h2>
           <div>
             <input
               type="text"
-              placeholder="Buscar por número de partida o tintorería..."
+              placeholder="Buscar por OT o tintorería..."
               value={ingresoSearch}
               onChange={(e) => setIngresoSearch(e.target.value)}
               className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring mb-2"
@@ -247,26 +221,14 @@ export default function RollosSinEtiquetaForm({
               onChange={(e) => handleSelectIngreso(e.target.value)}
               className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">— Elegir partida —</option>
+              <option value="">— Elegir OT —</option>
               {ingresosFiltrados.map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.numero_lote || '(sin número)'} · {i.tintoria_nombre} · {formatFecha(i.fecha_despacho)}
+                  {i.ot ? `OT ${i.ot}` : '(sin OT)'} · {i.tintoria_nombre} · {formatFecha(i.fecha_despacho)}
                 </option>
               ))}
             </select>
           </div>
-          {loadingPartida && (
-            <p className="text-xs text-muted-foreground">Cargando datos de la partida...</p>
-          )}
-          {ingresoId && !loadingPartida && autoAsignado && (
-            <div className="rounded-md bg-muted px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Artículo: </span>
-              <span className="font-medium">{articuloNombre}</span>
-              <span className="text-muted-foreground mx-2">·</span>
-              <span className="text-muted-foreground">Color: </span>
-              <span className="font-medium">{colorNombre}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -275,15 +237,19 @@ export default function RollosSinEtiquetaForm({
         <div className="rounded-lg border border-border bg-card p-4 space-y-4">
           <h2 className="text-sm font-semibold text-foreground">Datos de la nueva partida</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="rounded-md bg-muted px-3 py-2 text-sm sm:col-span-2">
+              <span className="text-muted-foreground">Número de partida: </span>
+              <span className="font-medium">asignado automáticamente por el sistema</span>
+            </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Número de partida <span className="text-destructive">*</span>
+                OT <span className="text-muted-foreground font-normal">(opcional)</span>
               </label>
               <input
                 type="text"
-                value={numeroLote}
-                onChange={(e) => setNumeroLote(e.target.value)}
-                placeholder="ej: L-2026-042 o MUTER-001"
+                value={ot}
+                onChange={(e) => setOt(e.target.value)}
+                placeholder="N° de orden de trabajo de la tintorería"
                 className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -318,7 +284,7 @@ export default function RollosSinEtiquetaForm({
       )}
 
       {/* Artículo y color (cuando aplica) */}
-      {canShowArticuloColor && !autoAsignado && (
+      {canShowArticuloColor && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-4">
           <h2 className="text-sm font-semibold text-foreground">Artículo y color</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -378,32 +344,38 @@ export default function RollosSinEtiquetaForm({
               <div className="flex items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
                 <span className="text-xs">Auto</span>
               </div>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={rollo.kilos}
-                onChange={(e) => updateRow(rollo.id, 'kilos', e.target.value)}
-                placeholder="0.0"
-                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <select
-                value={rollo.ubicacion}
-                onChange={(e) => updateRow(rollo.id, 'ubicacion', e.target.value)}
-                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">— Ubicación —</option>
-                {ubicaciones.map((u) => (
-                  <option key={u.codigo} value={u.codigo}>
-                    {u.codigo}{u.descripcion ? ` - ${u.descripcion}` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground sm:hidden">Kilos *</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={rollo.kilos}
+                  onChange={(e) => updateRow(rollo.id, 'kilos', e.target.value)}
+                  placeholder="0.0"
+                  className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground sm:hidden">Ubicación</span>
+                <select
+                  value={rollo.ubicacion}
+                  onChange={(e) => updateRow(rollo.id, 'ubicacion', e.target.value)}
+                  className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">— Ubicación —</option>
+                  {ubicaciones.map((u) => (
+                    <option key={u.codigo} value={u.codigo}>
+                      {u.codigo}{u.descripcion ? ` - ${u.descripcion}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={() => removeRow(rollo.id)}
                 disabled={rollos.length === 1}
-                className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors disabled:opacity-30"
+                className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors disabled:opacity-30 self-end"
                 aria-label="Eliminar fila"
               >
                 <Trash2 className="size-4" />

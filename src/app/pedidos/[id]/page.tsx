@@ -2,10 +2,20 @@ import { notFound } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import { createClient } from '@/lib/supabase/server'
 import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
+import {
+  demandaPendientePorPartida,
+  keyPartida,
+  type DemandaPartidaRow,
+} from '@/lib/pedidoDisponibilidad'
 import PedidoActions from './PedidoActions'
 import AgregarRollosPedido, {
   type PartidaParaAgregar,
 } from './AgregarRollosPedido'
+import RollosPickeadosTable, {
+  type RolloPickeadoRow,
+} from './RollosPickeadosTable'
+import QuitarPartidaButton from './QuitarPartidaButton'
+import DevolucionParcialSection from './DevolucionParcialSection'
 import { estadoPedidoBadge } from '@/lib/estadoPedido'
 
 type PedidoPartidaRaw = {
@@ -17,6 +27,7 @@ type PedidoPartidaRaw = {
   articulos: { nombre: string } | null
   ingresos: {
     numero_lote: string | null
+    ot: string | null
     tintorerias: { nombre: string } | null
   } | null
   pedido_rollos: { id: string; liberado_at: string | null }[] | null
@@ -26,6 +37,7 @@ type PedidoRolloRaw = {
   id: string
   pedido_partida_id: string | null
   pickeado_at: string | null
+  devuelto_at: string | null
   rollos: {
     id: string
     numero_pieza: string
@@ -36,7 +48,7 @@ type PedidoRolloRaw = {
     ingreso_id: string | null
     color_id: string | null
     articulos: { nombre: string } | null
-    ingresos: { numero_lote: string | null } | null
+    ingresos: { numero_lote: string | null; ot: string | null } | null
   } | null
 }
 
@@ -52,21 +64,17 @@ type RolloDisponibleRaw = {
   ingresos: {
     id: string
     numero_lote: string | null
+    ot: string | null
     tintoreria_id: string | null
     tintorerias: { id: string; nombre: string } | null
   } | null
 }
 
-type PedidoPartidaPendienteRaw = {
-  ingreso_id: string
-  articulo_id: string
-  color_id: string
-  rollos_solicitados: number
-}
 
 type GrupoPartidaDisponible = {
   ingresoId: string
   numeroLote: string | null
+  ot: string | null
   articuloId: string
   articuloNombre: string
   colorId: string
@@ -98,7 +106,7 @@ export default async function PedidoDetailPage({
     .select('role')
     .eq('id', user!.id)
     .single()
-  const role = profile?.role as 'ventas' | 'admin' | undefined
+  const role = profile?.role as 'ventas' | 'admin' | 'operario' | undefined
 
   const { data: pedido } = await supabase
     .from('pedidos')
@@ -143,6 +151,7 @@ export default async function PedidoDetailPage({
             articulos ( nombre ),
             ingresos (
               numero_lote,
+              ot,
               tintorerias ( nombre )
             ),
             pedido_rollos ( id, liberado_at )
@@ -156,6 +165,7 @@ export default async function PedidoDetailPage({
             id,
             pedido_partida_id,
             pickeado_at,
+            devuelto_at,
             rollos (
               id,
               numero_pieza,
@@ -166,12 +176,13 @@ export default async function PedidoDetailPage({
               ingreso_id,
               color_id,
               articulos ( nombre ),
-              ingresos ( numero_lote )
+              ingresos ( numero_lote, ot )
             )
           `
         )
         .eq('pedido_id', id)
-        .is('liberado_at', null),
+        .is('liberado_at', null)
+        .is('devuelto_at', null),
       supabase.from('colores').select('id, nombre'),
       getUbicacionesActivas(supabase),
     ])
@@ -189,6 +200,15 @@ export default async function PedidoDetailPage({
   const partidasParaAgregar = puedeAgregarRollos
     ? await cargarPartidasParaAgregar(supabase, colorById)
     : []
+  const puedeQuitarRollo =
+    (role === 'ventas' || role === 'operario' || role === 'admin') &&
+    ['pendiente', 'en_preparacion', 'lista'].includes(pedido.estado)
+  const puedeQuitarPartida =
+    (role === 'ventas' || role === 'admin') &&
+    ['pendiente', 'en_preparacion', 'lista'].includes(pedido.estado)
+  const puedeDevolver =
+    (role === 'ventas' || role === 'admin' || role === 'operario') &&
+    pedido.estado === 'confirmada_egreso'
 
   const partidas = ((partidasRaw ?? []) as unknown as PedidoPartidaRaw[]).map((p) => ({
     ...p,
@@ -220,6 +240,21 @@ export default async function PedidoDetailPage({
         },
       }
     })
+
+  const rollosRows: RolloPickeadoRow[] = rollos.map((r) => ({
+    pedidoRolloId: r.id,
+    pedidoPartidaId: r.pedido_partida_id,
+    numeroPieza: r.rollos.numero_pieza,
+    articulo: r.rollos.articulos?.nombre ?? null,
+    color: r.rollos.colorNombre,
+    kilos: r.rollos.kilos,
+    ubicacion: r.rollos.ubicacion,
+    pickeadoAt: r.pickeado_at,
+    ot: r.rollos.ingresos?.ot ?? null,
+    partidaRealLote: r.partidaRealLote,
+    partidaSolicitadaLote: r.partidaSolicitadaLote,
+    esSustitucionPartida: r.esSustitucionPartida,
+  }))
 
   const totalSolicitado = partidas.reduce(
     (acc, p) => acc + Number(p.rollos_solicitados ?? 0),
@@ -356,11 +391,15 @@ export default async function PedidoDetailPage({
             <thead className="border-b text-left">
               <tr>
                 <th className="px-4 py-2 font-medium">Partida</th>
+                <th className="px-4 py-2 font-medium">OT</th>
                 <th className="px-4 py-2 font-medium">Articulo</th>
                 <th className="px-4 py-2 font-medium">Color</th>
                 <th className="px-4 py-2 font-medium">Tintoreria</th>
                 <th className="px-4 py-2 text-right font-medium">Solicitado</th>
                 <th className="px-4 py-2 text-right font-medium">Pickeado</th>
+                {puedeQuitarPartida && (
+                  <th className="px-4 py-2 text-right font-medium"></th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -369,6 +408,9 @@ export default async function PedidoDetailPage({
                   <tr key={p.id} className="border-b last:border-0">
                     <td className="px-4 py-2 font-medium">
                       {p.ingresos?.numero_lote ?? '-'}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs">
+                      {p.ingresos?.ot ?? '—'}
                     </td>
                     <td className="px-4 py-2">{p.articulos?.nombre ?? '-'}</td>
                     <td className="px-4 py-2">{p.colorNombre}</td>
@@ -381,11 +423,21 @@ export default async function PedidoDetailPage({
                     <td className="px-4 py-2 text-right tabular-nums">
                       {p.asignados}
                     </td>
+                    {puedeQuitarPartida && (
+                      <td className="px-4 py-2 text-right">
+                        <QuitarPartidaButton
+                          pedidoId={pedido.id}
+                          pedidoPartidaId={p.id}
+                          lote={p.ingresos?.numero_lote ?? null}
+                          asignados={p.asignados}
+                        />
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={puedeQuitarPartida ? 8 : 7} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     Sin partidas solicitadas.
                   </td>
                 </tr>
@@ -401,66 +453,19 @@ export default async function PedidoDetailPage({
             Rollos reales pickeados ({rollos.length})
           </h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b text-left">
-              <tr>
-                <th className="px-4 py-2 font-medium">Pieza</th>
-                <th className="px-4 py-2 font-medium">Articulo</th>
-                <th className="px-4 py-2 font-medium">Color</th>
-                <th className="px-4 py-2 font-medium">Kilos</th>
-                <th className="px-4 py-2 font-medium">Partida real</th>
-                <th className="px-4 py-2 font-medium">Ubicacion</th>
-                <th className="px-4 py-2 font-medium">Picking</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rollos.length > 0 ? (
-                rollos.map((r) => (
-                  <tr key={r.id} className="border-b last:border-0">
-                    <td className="px-4 py-2 font-medium">
-                      {r.rollos.numero_pieza}
-                    </td>
-                    <td className="px-4 py-2">
-                      {r.rollos.articulos?.nombre ?? '-'}
-                    </td>
-                    <td className="px-4 py-2">{r.rollos.colorNombre}</td>
-                    <td className="px-4 py-2 tabular-nums">
-                      {r.rollos.kilos != null ? Number(r.rollos.kilos).toFixed(2) : '-'}
-                    </td>
-                    <td className="px-4 py-2 text-xs">
-                      <span className={r.esSustitucionPartida ? 'text-warning' : ''}>
-                        {r.partidaRealLote ?? '-'}
-                      </span>
-                      {r.esSustitucionPartida && (
-                        <span className="block text-[11px] text-muted-foreground">
-                          Solicitada: {r.partidaSolicitadaLote ?? '-'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {r.rollos.ubicacion ?? '-'}
-                    </td>
-                    <td className="px-4 py-2 text-xs">
-                      {r.pickeado_at ? (
-                        <span className="text-success">Pickeado</span>
-                      ) : (
-                        <span className="text-muted-foreground">Pendiente</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    Deposito todavia no pickeo rollos para este pedido.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <RollosPickeadosTable
+          pedidoId={pedido.id}
+          rollos={rollosRows}
+          puedeQuitar={puedeQuitarRollo}
+        />
       </section>
+
+      {puedeDevolver && (
+        <DevolucionParcialSection
+          pedidoId={pedido.id}
+          rollos={rollosRows}
+        />
+      )}
     </div>
   )
 }
@@ -523,6 +528,7 @@ async function cargarPartidasParaAgregar(
           ingresos!inner (
             id,
             numero_lote,
+            ot,
             tintoreria_id,
             tintorerias ( id, nombre )
           )
@@ -540,20 +546,18 @@ async function cargarPartidasParaAgregar(
           articulo_id,
           color_id,
           rollos_solicitados,
-          pedidos!inner ( estado )
+          pedidos!inner ( estado ),
+          pedido_rollos ( id, liberado_at )
         `
       )
       .in('pedidos.estado', ['pendiente', 'en_preparacion', 'lista']),
   ])
 
-  const reservadosPorPartida = new Map<string, number>()
-  for (const p of (pendientesRaw ?? []) as unknown as PedidoPartidaPendienteRaw[]) {
-    const key = keyPartida(p.ingreso_id, p.articulo_id, p.color_id)
-    reservadosPorPartida.set(
-      key,
-      (reservadosPorPartida.get(key) ?? 0) + Number(p.rollos_solicitados ?? 0)
-    )
-  }
+  // Demanda pendiente = solicitados − ya pickeados (los pickeados ya salieron de
+  // en_stock). Descontar la demanda completa contaría dos veces a los pickeados.
+  const reservadosPorPartida = demandaPendientePorPartida(
+    (pendientesRaw ?? []) as unknown as DemandaPartidaRow[]
+  )
 
   const grupos = new Map<string, GrupoPartidaDisponible>()
   for (const r of (rollosRaw ?? []) as unknown as RolloDisponibleRaw[]) {
@@ -564,6 +568,7 @@ async function cargarPartidasParaAgregar(
       ({
         ingresoId: r.ingresos.id,
         numeroLote: r.ingresos.numero_lote,
+        ot: r.ingresos.ot,
         articuloId: r.articulo_id,
         articuloNombre: r.articulos?.nombre ?? 'Articulo',
         colorId: r.color_id,
@@ -594,6 +599,7 @@ async function cargarPartidasParaAgregar(
         key,
         ingresoId: g.ingresoId,
         numeroLote: g.numeroLote,
+        ot: g.ot,
         articuloId: g.articuloId,
         articuloNombre: g.articuloNombre,
         colorId: g.colorId,
@@ -611,8 +617,4 @@ async function cargarPartidasParaAgregar(
       if (byLote !== 0) return byLote
       return a.articuloNombre.localeCompare(b.articuloNombre, 'es')
     })
-}
-
-function keyPartida(ingresoId: string, articuloId: string, colorId: string) {
-  return `${ingresoId}|${articuloId}|${colorId}`
 }

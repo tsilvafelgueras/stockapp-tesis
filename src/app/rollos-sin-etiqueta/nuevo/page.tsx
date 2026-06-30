@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
+import { Settings2 } from 'lucide-react'
 import BackButton from '@/components/BackButton'
 import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import RollosSinEtiquetaForm from './RollosSinEtiquetaForm'
@@ -22,7 +24,7 @@ export default async function NuevosRollosSinEtiquetaPage() {
   ] = await Promise.all([
     supabase
       .from('ingresos')
-      .select('id, numero_lote, fecha_despacho, tintorerias(nombre)')
+      .select('id, numero_lote, ot, fecha_despacho, tintorerias(nombre)')
       .order('fecha_despacho', { ascending: false })
       .order('created_at', { ascending: false }),
     supabase
@@ -40,6 +42,7 @@ export default async function NuevosRollosSinEtiquetaPage() {
   type IngresoRow = {
     id: string
     numero_lote: string | null
+    ot: string | null
     fecha_despacho: string | null
     tintorerias: { nombre: string } | null
   }
@@ -48,6 +51,7 @@ export default async function NuevosRollosSinEtiquetaPage() {
     return {
       id: row.id,
       numero_lote: row.numero_lote ?? '',
+      ot: row.ot ?? '',
       fecha_despacho: row.fecha_despacho ?? '',
       tintoria_nombre: (row.tintorerias as unknown as { nombre: string } | null)?.nombre ?? '',
     }
@@ -73,10 +77,21 @@ export default async function NuevosRollosSinEtiquetaPage() {
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
       <div>
         <BackButton href="/ingresos" label="Volver a ingresos" />
-        <h1 className="text-xl sm:text-2xl font-bold mt-1">Rollos sin etiqueta</h1>
-        <p className="text-sm text-muted-foreground">
-          Registrá rollos que llegaron sin etiqueta y generá sus etiquetas con QR
-        </p>
+        <div className="flex items-start justify-between gap-3 mt-1">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Rollos sin etiqueta</h1>
+            <p className="text-sm text-muted-foreground">
+              Registrá rollos que llegaron sin etiqueta y generá sus etiquetas con QR
+            </p>
+          </div>
+          <Link
+            href="/rollos-sin-etiqueta/ajustes"
+            className="shrink-0 inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium border border-border hover:bg-muted transition-colors"
+          >
+            <Settings2 className="size-4" />
+            Medidas
+          </Link>
+        </div>
       </div>
 
       <RollosSinEtiquetaForm

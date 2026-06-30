@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import SearchableCombobox from '@/components/SearchableCombobox'
@@ -41,6 +41,8 @@ export default function AgregarRolloForm({
   const [ubicacion, setUbicacion] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [mostrarScanner, setMostrarScanner] = useState(false)
+  const [agregados, setAgregados] = useState(0)
+  const numeroRef = useRef<HTMLInputElement>(null)
 
   const ubicacionOptions = ubicacionesToOptions(ubicaciones)
   const articuloOptions = articulos.map((a) => ({ value: a.id, label: a.nombre }))
@@ -59,20 +61,29 @@ export default function AgregarRolloForm({
     toast.info(`Código capturado: ${codigo} — corregilo si hace falta.`)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!numeroPieza.trim()) {
+  // `continuar=true` → guarda y deja el form listo para cargar otro rollo
+  // (mantiene artículo/color/ubicación, limpia número/kilos/metros). Así se
+  // pueden agregar varios rollos faltantes seguidos sin salir de la pantalla.
+  async function guardar(continuar: boolean) {
+    const pieza = numeroPieza.trim()
+    if (!pieza) {
       toast.error('El número de pieza es obligatorio.')
+      return
+    }
+
+    const kilos = kilosStr ? parseFloat(kilosStr) : NaN
+    if (!Number.isFinite(kilos) || kilos <= 0) {
+      toast.error('Los kilos son obligatorios y deben ser mayores a cero.')
       return
     }
 
     setGuardando(true)
     try {
       const result = await agregarRolloAIngreso(ingresoId, {
-        numero_pieza: numeroPieza.trim(),
+        numero_pieza: pieza,
         articulo_id: articuloId || null,
         color_id: colorId || null,
-        kilos: kilosStr ? parseFloat(kilosStr) : null,
+        kilos,
         metros: metrosStr ? parseFloat(metrosStr) : null,
         ubicacion: ubicacion || null,
       })
@@ -82,16 +93,34 @@ export default function AgregarRolloForm({
         return
       }
 
-      toast.success(`Rollo ${numeroPieza.trim()} agregado correctamente.`)
-      router.push(`/ingresos/${ingresoId}`)
-      router.refresh()
+      toast.success(`Rollo ${pieza} agregado correctamente.`)
+      setAgregados((n) => n + 1)
+
+      if (continuar) {
+        // Limpiar solo lo propio de cada rollo; conservar artículo/color/ubicación.
+        setNumeroPieza('')
+        setKilosStr('')
+        setMetrosStr('')
+        setMostrarScanner(false)
+        numeroRef.current?.focus()
+        router.refresh()
+      } else {
+        router.push(`/ingresos/${ingresoId}`)
+        router.refresh()
+      }
     } finally {
       setGuardando(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        guardar(false)
+      }}
+      className="space-y-4"
+    >
       <div className="rounded-lg border bg-white p-5 shadow-sm space-y-4">
         <div className="space-y-1">
           <label className="text-sm font-medium">
@@ -99,7 +128,10 @@ export default function AgregarRolloForm({
           </label>
           <div className="flex gap-2">
             <input
+              ref={numeroRef}
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={numeroPieza}
               onChange={(e) => setNumeroPieza(e.target.value)}
               placeholder="Ej: 204021911"
@@ -152,12 +184,14 @@ export default function AgregarRolloForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-sm font-medium">Kilos</label>
+            <label className="text-sm font-medium">
+              Kilos <span className="text-destructive">*</span>
+            </label>
             <input
               type="number"
               inputMode="decimal"
               step="0.01"
-              min={0}
+              min={0.01}
               value={kilosStr}
               onChange={(e) => setKilosStr(e.target.value)}
               placeholder="Ej: 12.50"
@@ -192,22 +226,39 @@ export default function AgregarRolloForm({
         </div>
       </div>
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={() => router.push(`/ingresos/${ingresoId}`)}
-          disabled={guardando}
-          className="flex-1 rounded-md border px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
-        >
-          Cancelar
-        </button>
-        <button
-          type="submit"
-          disabled={guardando}
-          className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-        >
-          {guardando ? 'Guardando...' : 'Agregar rollo'}
-        </button>
+      {agregados > 0 && (
+        <p className="text-center text-xs text-muted-foreground">
+          {agregados} {agregados === 1 ? 'rollo agregado' : 'rollos agregados'} en
+          esta sesión.
+        </p>
+      )}
+
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => router.push(`/ingresos/${ingresoId}`)}
+            disabled={guardando}
+            className="flex-1 rounded-md border px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
+          >
+            {agregados > 0 ? 'Listo' : 'Cancelar'}
+          </button>
+          <button
+            type="button"
+            onClick={() => guardar(true)}
+            disabled={guardando}
+            className="flex-1 rounded-md border border-primary bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+          >
+            {guardando ? 'Guardando...' : 'Guardar y agregar otro'}
+          </button>
+          <button
+            type="submit"
+            disabled={guardando}
+            className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {guardando ? 'Guardando...' : 'Guardar y volver'}
+          </button>
+        </div>
       </div>
     </form>
   )

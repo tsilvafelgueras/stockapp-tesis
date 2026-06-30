@@ -7,6 +7,10 @@ import PickingScanner, {
 } from './PickingScanner'
 import ConfirmarEgresoCard from './ConfirmarEgresoCard'
 import { estadoPedidoBadge, ESTADO_PEDIDO_LABEL } from '@/lib/estadoPedido'
+import {
+  buildUbicacionesSugeridas,
+  type StockOrientacionRaw,
+} from '@/lib/picking'
 
 type PedidoPartidaRaw = {
   id: string
@@ -38,14 +42,6 @@ type PedidoRolloRaw = {
     articulos: { nombre: string } | null
     ingresos: { numero_lote: string | null } | null
   } | null
-}
-
-type StockOrientacionRaw = {
-  ingreso_id: string | null
-  articulo_id: string | null
-  color_id: string | null
-  ubicacion: string | null
-  ingresos: { numero_lote: string | null } | null
 }
 
 export default async function PickingDetailPage({
@@ -138,19 +134,24 @@ export default async function PickingDetailPage({
   const orientacionRows = (orientacionRaw ?? []) as unknown as StockOrientacionRaw[]
 
   const partidas: PickPartida[] = ((partidasRaw ?? []) as unknown as PedidoPartidaRaw[])
-    .map((p) => ({
-      id: p.id,
-      numeroLote: p.ingresos?.numero_lote ?? null,
-      articuloId: p.articulo_id,
-      colorId: p.color_id,
-      articulo: p.articulos?.nombre ?? 'Articulo',
-      color: colorById.get(p.color_id) ?? 'Color',
-      tintoreria: p.ingresos?.tintorerias?.nombre ?? null,
-      rollosSolicitados: Number(p.rollos_solicitados ?? 0),
-      rollosAsignados:
-        p.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0,
-      ubicacionesSugeridas: buildUbicacionesSugeridas(p, orientacionRows),
-    }))
+    .map((p) => {
+      const sugeridas = buildUbicacionesSugeridas(p, orientacionRows)
+      return {
+        id: p.id,
+        numeroLote: p.ingresos?.numero_lote ?? null,
+        ingresoId: p.ingreso_id,
+        articuloId: p.articulo_id,
+        colorId: p.color_id,
+        articulo: p.articulos?.nombre ?? 'Articulo',
+        color: colorById.get(p.color_id) ?? 'Color',
+        tintoreria: p.ingresos?.tintorerias?.nombre ?? null,
+        rollosSolicitados: Number(p.rollos_solicitados ?? 0),
+        rollosAsignados:
+          p.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0,
+        ubicacionesSugeridas: sugeridas.ubicaciones,
+        reemplazosSugeridos: sugeridas.reemplazos,
+      }
+    })
     .sort((a, b) => {
       const byLote = (a.numeroLote ?? '').localeCompare(b.numeroLote ?? '', 'es', {
         numeric: true,
@@ -282,40 +283,6 @@ export default async function PickingDetailPage({
       )}
     </div>
   )
-}
-
-function buildUbicacionesSugeridas(
-  partida: PedidoPartidaRaw,
-  stockRows: StockOrientacionRaw[]
-): string[] {
-  const seen = new Set<string>()
-  return stockRows
-    .filter(
-      (r) =>
-        r.articulo_id === partida.articulo_id &&
-        r.color_id === partida.color_id &&
-        r.ubicacion
-    )
-    .sort((a, b) => {
-      const aSame = a.ingreso_id === partida.ingreso_id ? 0 : 1
-      const bSame = b.ingreso_id === partida.ingreso_id ? 0 : 1
-      if (aSame !== bSame) return aSame - bSame
-      return (a.ubicacion ?? '').localeCompare(b.ubicacion ?? '', 'es', {
-        numeric: true,
-      })
-    })
-    .map((r) => {
-      const lote = r.ingresos?.numero_lote
-      return lote && r.ingreso_id !== partida.ingreso_id
-        ? `${r.ubicacion} (${lote})`
-        : r.ubicacion!
-    })
-    .filter((label) => {
-      if (seen.has(label)) return false
-      seen.add(label)
-      return true
-    })
-    .slice(0, 4)
 }
 
 function ResumenPedidoPicking({

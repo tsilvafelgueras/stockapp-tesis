@@ -1,5 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import BackButton from '@/components/BackButton'
+import {
+  demandaPendientePorPartida,
+  keyPartida,
+  type DemandaPartidaRow,
+} from '@/lib/pedidoDisponibilidad'
 import NuevoPedidoForm, {
   type Catalogo,
   type PartidaDisponible,
@@ -25,22 +30,17 @@ type RolloRaw = {
   ingresos: {
     id: string
     numero_lote: string | null
+    ot: string | null
     tintoreria_id: string | null
     tintorerias: { id: string; nombre: string } | null
   } | null
 }
 
-type PedidoPartidaRaw = {
-  ingreso_id: string
-  articulo_id: string
-  color_id: string
-  rollos_solicitados: number
-  pedido_rollos: { id: string; liberado_at: string | null }[] | null
-}
 
 type GrupoPartida = {
   ingresoId: string
   numeroLote: string | null
+  ot: string | null
   articuloId: string
   articuloNombre: string
   colorId: string
@@ -111,6 +111,7 @@ export default async function NuevoPedidoPage({
         ingresos!inner (
           id,
           numero_lote,
+          ot,
           tintoreria_id,
           tintorerias ( id, nombre )
         )
@@ -153,12 +154,11 @@ export default async function NuevoPedidoPage({
       ]),
   ])
 
-  const pendientesPorPartida = new Map<string, number>()
-  for (const p of (pendientesRaw ?? []) as unknown as PedidoPartidaRaw[]) {
-    const key = keyPartida(p.ingreso_id, p.articulo_id, p.color_id)
-    const reservados = Number(p.rollos_solicitados ?? 0)
-    pendientesPorPartida.set(key, (pendientesPorPartida.get(key) ?? 0) + reservados)
-  }
+  // Demanda pendiente = solicitados − ya pickeados (los pickeados ya salieron de
+  // en_stock). Descontar la demanda completa contaría dos veces a los pickeados.
+  const pendientesPorPartida = demandaPendientePorPartida(
+    (pendientesRaw ?? []) as unknown as DemandaPartidaRow[]
+  )
 
   const grupos = new Map<string, GrupoPartida>()
   for (const r of (rollosRaw ?? []) as unknown as RolloRaw[]) {
@@ -169,6 +169,7 @@ export default async function NuevoPedidoPage({
       ({
         ingresoId: r.ingresos.id,
         numeroLote: r.ingresos.numero_lote,
+        ot: r.ingresos.ot,
         articuloId: r.articulo_id,
         articuloNombre: r.articulos?.nombre ?? 'Articulo',
         colorId: r.color_id,
@@ -203,6 +204,7 @@ export default async function NuevoPedidoPage({
         key,
         ingresoId: g.ingresoId,
         numeroLote: g.numeroLote,
+        ot: g.ot,
         articuloId: g.articuloId,
         articuloNombre: g.articuloNombre,
         colorId: g.colorId,
@@ -223,6 +225,7 @@ export default async function NuevoPedidoPage({
       if (!search) return true
       return (
         p.numeroLote?.toLowerCase().includes(search) ||
+        p.ot?.toLowerCase().includes(search) ||
         p.articuloNombre.toLowerCase().includes(search) ||
         p.colorNombre.toLowerCase().includes(search) ||
         p.rollosEstimacion.some((r) => r.numeroPieza.toLowerCase().includes(search))
@@ -270,6 +273,3 @@ export default async function NuevoPedidoPage({
   )
 }
 
-function keyPartida(ingresoId: string, articuloId: string, colorId: string) {
-  return `${ingresoId}|${articuloId}|${colorId}`
-}

@@ -41,11 +41,11 @@ function tipoUbicacionLabel(tipo: string | null) {
     case 'piso':
       return 'Piso'
     case 'preparacion':
-      return 'Preparacion'
+      return 'Preparación'
     case 'devolucion':
-      return 'Devolucion'
+      return 'Devolución'
     case 'otro':
-      return 'Otra ubicacion'
+      return 'Otra ubicación'
     default:
       return null
   }

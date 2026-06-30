@@ -9,6 +9,7 @@ export type PartidaParaAgregar = {
   key: string
   ingresoId: string
   numeroLote: string | null
+  ot: string | null
   articuloId: string
   articuloNombre: string
   colorId: string
@@ -52,6 +53,7 @@ export default function AgregarRollosPedido({
       .filter(
         (p) =>
           (p.numeroLote ?? '').toLowerCase().includes(needle) ||
+          (p.ot ?? '').toLowerCase().includes(needle) ||
           p.articuloNombre.toLowerCase().includes(needle) ||
           p.colorNombre.toLowerCase().includes(needle) ||
           (p.tintoreriaNombre ?? '').toLowerCase().includes(needle)
@@ -138,6 +140,7 @@ export default function AgregarRollosPedido({
                 <thead className="border-b bg-zinc-50 text-left">
                   <tr>
                     <th className="px-3 py-2 font-medium">Partida</th>
+                    <th className="px-3 py-2 font-medium">OT</th>
                     <th className="px-3 py-2 font-medium">Artículo</th>
                     <th className="px-3 py-2 font-medium">Color</th>
                     <th className="px-3 py-2 font-medium">Tintorería</th>
@@ -150,6 +153,9 @@ export default function AgregarRollosPedido({
                     <tr key={p.key} className="border-b last:border-0">
                       <td className="px-3 py-2 font-medium">
                         {p.numeroLote ?? '-'}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {p.ot ?? '—'}
                       </td>
                       <td className="px-3 py-2">{p.articuloNombre}</td>
                       <td className="px-3 py-2">{p.colorNombre}</td>

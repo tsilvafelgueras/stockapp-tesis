@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { Eye, EyeOff } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -19,6 +20,7 @@ export default function LoginPage() {
 function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -133,16 +135,32 @@ function LoginForm() {
               >
                 Contraseña
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-                className="h-10 w-full rounded-lg border border-[#d9dee8] bg-white px-3 text-sm text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  className="h-10 w-full rounded-lg border border-[#d9dee8] bg-white pl-3 pr-10 text-sm text-[#1a2b4a] outline-none transition placeholder:text-[#9ba2af] focus:border-[#1a2b4a] focus:ring-2 focus:ring-[#1a2b4a]/15"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-pressed={showPassword}
+                  title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  className="absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-[#5c6980] transition hover:bg-[#f0f2f6] hover:text-[#1a2b4a]"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}

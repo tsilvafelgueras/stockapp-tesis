@@ -94,10 +94,10 @@ export async function darDeBajaRollo(
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
+  if (profile?.role !== 'admin' && profile?.role !== 'operario') {
     return {
       ok: false,
-      error: 'Solo el administrador puede dar de baja rollos.',
+      error: 'No tenés permiso para dar de baja rollos.',
     }
   }
 
@@ -214,6 +214,8 @@ export async function confirmarRolloManual(
 
 export type EditarRolloInput = {
   numero_pieza?: string
+  articulo_id?: string
+  color_id?: string
   ubicacion?: string | null
   pantone?: string | null
   kilos?: number | null
@@ -303,9 +305,33 @@ export async function editarRollo(
       }
     }
 
+    // Artículo y color se cambian juntos: la FK compuesta de rollos exige que
+    // el par (articulo_id, color_id) exista en articulo_colores.
+    if (cambios.articulo_id !== undefined || cambios.color_id !== undefined) {
+      if (!cambios.articulo_id?.trim() || !cambios.color_id?.trim()) {
+        return {
+          ok: false,
+          error: 'Para cambiar el artículo o el color, elegí ambos.',
+        }
+      }
+    }
+
+    if (cambios.kilos !== undefined) {
+      if (cambios.kilos == null || !Number.isFinite(cambios.kilos) || cambios.kilos <= 0) {
+        return {
+          ok: false,
+          error: 'Los kilos son obligatorios y deben ser mayores a cero.',
+        }
+      }
+    }
+
     const update: Record<string, unknown> = {}
     if (cambios.numero_pieza !== undefined) {
       update.numero_pieza = cambios.numero_pieza.trim()
+    }
+    if (cambios.articulo_id !== undefined && cambios.color_id !== undefined) {
+      update.articulo_id = cambios.articulo_id.trim()
+      update.color_id = cambios.color_id.trim()
     }
     if (cambios.ubicacion !== undefined) {
       const ubic = cleanText(cambios.ubicacion)
@@ -352,6 +378,13 @@ export async function editarRollo(
           error: 'Ya existe un rollo con ese número de pieza en este ingreso.',
         }
       }
+      if (error.code === '23503') {
+        return {
+          ok: false,
+          error:
+            'La combinación artículo-color no está asociada. Pedile al admin que la configure.',
+        }
+      }
       return { ok: false, error: error.message }
     }
 
@@ -363,6 +396,107 @@ export async function editarRollo(
       error: e instanceof Error ? e.message : 'Error inesperado al editar el rollo.',
     }
   }
+}
+
+export async function eliminarRollo(
+  rolloId: string
+): Promise<StockActionResult> {
+  try {
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, nombre, empresa_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'operario' && profile?.role !== 'admin') {
+      return {
+        ok: false,
+        error: 'No tenés permiso para eliminar rollos.',
+      }
+    }
+
+    const { data: rollo, error: fetchError } = await supabase
+      .from('rollos')
+      .select(`
+        id, estado, numero_pieza,
+        articulos ( nombre ),
+        colores ( nombre )
+      `)
+      .eq('id', rolloId)
+      .single()
+
+    if (fetchError || !rollo) {
+      return { ok: false, error: 'No se encontró el rollo.' }
+    }
+    if (rollo.estado === 'reservado' || rollo.estado === 'entregado') {
+      return {
+        ok: false,
+        error:
+          'No se puede eliminar un rollo reservado o entregado. Liberalo del pedido primero.',
+      }
+    }
+
+    const { error } = await supabase.from('rollos').delete().eq('id', rolloId)
+
+    if (error) {
+      // FK RESTRICT desde pedido_rollos o muestras: el rollo tiene historial
+      // que no se puede borrar en cascada.
+      if (error.code === '23503') {
+        return {
+          ok: false,
+          error:
+            'No se puede eliminar: el rollo está vinculado a un pedido o muestra. Liberalo primero.',
+        }
+      }
+      return { ok: false, error: error.message }
+    }
+
+    // Notificar al admin que un rollo fue eliminado del inventario.
+    if (profile.empresa_id) {
+      const articulo = (rollo.articulos as unknown as { nombre: string } | null)?.nombre ?? null
+      const color = (rollo.colores as unknown as { nombre: string } | null)?.nombre ?? null
+      await supabase.rpc('notificar_rollo_eliminado', {
+        p_empresa_id:     profile.empresa_id,
+        p_numero_pieza:   rollo.numero_pieza as string,
+        p_articulo:       articulo,
+        p_color:          color,
+        p_usuario_nombre: profile.nombre ?? null,
+      })
+    }
+
+    revalidatePath('/stock')
+    return { ok: true }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error inesperado al eliminar el rollo.',
+    }
+  }
+}
+
+export async function devolverRolloAStock(
+  rolloId: string,
+  motivo: string
+): Promise<StockActionResult & { pedidoId?: string; numeroPieza?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('devolver_rollo_por_rollo_id', {
+    p_rollo_id: rolloId,
+    p_motivo:   motivo.trim() || null,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  const json = data as { devuelto: boolean; pedido_id: string; numero_pieza: string } | null
+  revalidatePath('/stock')
+  revalidatePath('/pedidos')
+  if (json?.pedido_id) revalidatePath(`/pedidos/${json.pedido_id}`)
+  return { ok: true, pedidoId: json?.pedido_id, numeroPieza: json?.numero_pieza }
 }
 
 export type MarcarSegundaParams = {

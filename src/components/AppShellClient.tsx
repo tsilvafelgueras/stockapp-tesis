@@ -191,8 +191,10 @@ export default function AppShellClient({
   const sections = navForRole(role)
   const home = homeHref(role)
   const sidebarWidth = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
-  // El usuario admin/ventas ve la campanita. Operario y super no.
-  const muestraCampanita = role === 'admin' || role === 'ventas'
+  // Admin/ventas ven la campanita (notificaciones de stock/colores) y el
+  // operario también (avisos de ingresos por confirmar y pedidos). El super no.
+  const muestraCampanita =
+    role === 'admin' || role === 'ventas' || role === 'operario'
 
   return (
     <div
@@ -388,6 +390,7 @@ function SidebarNav({
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-ripple
                   onClick={onItemClick}
                   title={collapsed ? item.label : undefined}
                   className={`flex min-h-11 items-center gap-3 rounded-md text-sm font-medium transition-colors ${

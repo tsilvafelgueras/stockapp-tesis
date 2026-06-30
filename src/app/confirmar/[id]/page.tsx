@@ -47,7 +47,7 @@ export default async function ConfirmarIngresoPage({
     supabase
       .from('rollos')
       .select(`
-        id, numero_pieza, estado, color_id, ubicacion,
+        id, numero_pieza, estado, color_id, ubicacion, kilos,
         articulos ( nombre )
       `)
       .eq('ingreso_id', id)
@@ -77,6 +77,7 @@ export default async function ConfirmarIngresoPage({
     articulo: (r.articulos as unknown as { nombre: string } | null)?.nombre ?? null,
     color: r.color_id ? colorById.get(r.color_id as string) ?? null : null,
     ubicacion: (r.ubicacion as string | null) ?? null,
+    kilos: (r.kilos as number | null) ?? null,
   }))
 
   // Si todos los rollos pendientes comparten la misma ubicación no-nula, la
@@ -85,6 +86,11 @@ export default async function ConfirmarIngresoPage({
     ...new Set(rollos.map((r) => r.ubicacion).filter((u): u is string => Boolean(u))),
   ]
   const ubicacionComun = ubicacionesUnicas.length === 1 ? ubicacionesUnicas[0] : undefined
+
+  // Si TODOS los rollos pendientes ya tienen ubicación (caso típico de ingreso
+  // cargado a mano), no hace falta volver a pedirla al confirmar.
+  const todosTienenUbicacion =
+    rollos.length > 0 && rollos.every((r) => Boolean(r.ubicacion))
 
   const pendientes = rollos.length
 
@@ -119,6 +125,7 @@ export default async function ConfirmarIngresoPage({
           totalDeclarado={ingreso.total_rollos_declarado}
           ubicaciones={ubicaciones}
           ubicacionPrevia={ubicacionComun}
+          todosTienenUbicacion={todosTienenUbicacion}
         />
       )}
     </div>

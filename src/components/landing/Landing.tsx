@@ -1,17 +1,95 @@
+import Image from 'next/image'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import {
+  AlertTriangle,
   ArrowRight,
+  BarChart3,
   Boxes,
-  ScanLine,
-  Sparkles,
-  Smartphone,
-  ShieldCheck,
   Building2,
-  ClipboardList,
-  Upload,
-  Truck,
   CheckCircle2,
+  ClipboardList,
+  Factory,
+  Mail,
+  RefreshCw,
+  ScanLine,
+  Search,
+  ShieldCheck,
+  Truck,
+  Upload,
 } from 'lucide-react'
+
+import LandingDemoForm from './LandingDemoForm'
+
+const DEMO_EMAIL = 'nudostock@gmail.com'
+
+const VIDEO_SOURCES = {
+  cargaIa:
+    'https://www.dropbox.com/scl/fi/veubzxly6lbi2iglidzwy/carga-con-ia.mp4?rlkey=smejvvv9lbneym4k5lcfwuguo&st=dsx29epj&raw=1',
+  racks:
+    'https://www.dropbox.com/scl/fi/kup50sdp4d3crnnsmzj7j/WhatsApp-Video-2026-06-03-at-18.21.59.mp4?rlkey=o9kc8a89eg8v1mamu8nj09a3a&st=ynhcb03w&raw=1',
+  capacitacion:
+    'https://www.dropbox.com/scl/fi/std2cg47n61r0im7nyyr1/WhatsApp-Video-2026-06-03-at-18.21.48.mp4?rlkey=l65ggkuxewtwj70if6851u0rs&st=uth0roce&raw=1',
+} as const
+
+const PROBLEM_CARDS = [
+  {
+    icon: AlertTriangle,
+    title: 'Rollos que se pierden',
+    text: 'Entran al depósito, se ubican en algún rack y nadie los carga. Plata parada en piezas que el sistema dice que no existen.',
+  },
+  {
+    icon: ClipboardList,
+    title: 'Planillas que no coinciden',
+    text: 'Remitos por foto o WhatsApp, kilos copiados a mano y datos que llegan tarde. Cada transcripción abre la puerta al error.',
+  },
+  {
+    icon: Search,
+    title: 'Ventas sin stock real',
+    text: 'Se prometen piezas que ya salieron. El faltante aparece cuando el operario va a buscar el rollo, no cuando se vende.',
+  },
+]
+
+const SOLUTION_CARDS = [
+  {
+    icon: ShieldCheck,
+    title: 'Accesos por rol',
+    text: 'Administración, ventas y depósito ven solo lo que necesitan para operar rápido y sin mezclar permisos.',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Stock sincronizado',
+    text: 'Cuando un rollo se confirma en planta, ventas lo ve disponible al instante. Sin doble carga ni planillas paralelas.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Reportes accionables',
+    text: 'Kilos por estado, rotación, tintorerías y tendencias. Métricas reales para decidir con el depósito al día.',
+  },
+]
+
+const STEPS = [
+  {
+    icon: Upload,
+    title: 'Sacás foto de la planilla',
+    text: 'La IA detecta rollos, kilos y partida. Vos revisás y confirmás antes de impactar el ingreso.',
+  },
+  {
+    icon: Boxes,
+    title: 'Confirmás lo que llegó',
+    text: 'El equipo de depósito controla el conteo, ubica cada pieza y deja el stock listo para vender.',
+  },
+  {
+    icon: Building2,
+    title: 'Ventas reserva rollos puntuales',
+    text: 'Filtrás por artículo, kilos y ubicación. El pedido se arma con piezas exactas, sin prometer de más.',
+  },
+  {
+    icon: Truck,
+    title: 'Entregás sin errores',
+    text: 'Picking guiado, escaneo de egreso y descuento en tiempo real. Sin sobra, sin faltante.',
+  },
+]
 
 function LinkedinIcon({ className }: { className?: string }) {
   return (
@@ -40,49 +118,67 @@ function InstagramIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-import BrandMark from '@/components/BrandMark'
-
-const DEMO_EMAIL = 'nudostock@gmail.com'
-const DEMO_MAILTO = `mailto:${DEMO_EMAIL}?subject=Quiero%20una%20demo%20de%20NUDO&body=Hola%2C%20me%20gustar%C3%ADa%20conocer%20NUDO%20para%20mi%20f%C3%A1brica%20textil.%0A%0AEmpresa%3A%0ANombre%3A%0ATel%C3%A9fono%3A%0ACantidad%20aproximada%20de%20rollos%20por%20mes%3A%0A`
 
 export default function Landing() {
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-white text-slate-900">
       <LandingNav />
       <main className="flex-1">
         <Hero />
-        <Features />
+        <ProofStrip />
+        <Problem />
+        <Solution />
+        <Implementation />
         <HowItWorks />
-        <Privacy />
-        <FinalCta />
+        <LeadSection />
       </main>
       <LandingFooter />
     </div>
   )
 }
 
+function MarketingBrandMark({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sky-400/60 bg-slate-900 shadow-[0_8px_22px_rgba(15,23,42,0.24)] ${className}`}
+    >
+      <Image
+        src="/landing/nudo-logo.svg"
+        alt="NUDO"
+        width={916}
+        height={1145}
+        className="h-full w-full scale-[1.04] object-cover"
+        priority
+      />
+    </span>
+  )
+}
+
 function LandingNav() {
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur">
       <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3">
-          <BrandMark className="size-9" />
-          <span className="font-heading text-lg font-bold tracking-tight">
+          <MarketingBrandMark className="size-10" />
+          <span className="font-heading text-lg font-extrabold tracking-tight text-slate-950">
             NUDO
           </span>
         </Link>
 
-        <div className="hidden items-center gap-7 text-sm font-medium text-muted-foreground md:flex">
-          <a className="transition-colors hover:text-foreground" href="#features">
-            Características
+        <div className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+          <a className="transition-colors hover:text-slate-950" href="#solucion">
+            Producto
           </a>
-          <a className="transition-colors hover:text-foreground" href="#como-funciona">
+          <a className="transition-colors hover:text-slate-950" href="#problema">
+            Beneficios
+          </a>
+          <a
+            className="transition-colors hover:text-slate-950"
+            href="#como-funciona"
+          >
             Cómo funciona
           </a>
-          <a className="transition-colors hover:text-foreground" href="#privacidad">
-            Privacidad
-          </a>
-          <a className="transition-colors hover:text-foreground" href="#contacto">
+          <a className="transition-colors hover:text-slate-950" href="#contacto">
             Contacto
           </a>
         </div>
@@ -90,15 +186,17 @@ function LandingNav() {
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/login"
-            className="inline-flex h-10 items-center justify-center rounded-md px-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary sm:px-4"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 sm:border-0 sm:px-4"
           >
-            Ingresar
+            <span className="hidden sm:inline">¿Ya sos usuario?</span>
+            <span className="text-sky-600 sm:ml-1">Iniciá sesión</span>
           </Link>
           <a
-            href={DEMO_MAILTO}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-action px-3 text-sm font-semibold text-action-foreground shadow-sm transition-colors hover:bg-action/90 sm:px-4"
+            href="#contacto"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-sky-500 px-3 text-sm font-semibold text-white shadow-[0_8px_20px_-4px_rgba(14,165,233,0.45)] transition-colors hover:bg-sky-600 sm:px-4"
           >
-            Pedir demo
+            <span className="sm:hidden">Demo</span>
+            <span className="hidden sm:inline">Pedí una demo</span>
             <ArrowRight className="size-4" />
           </a>
         </div>
@@ -109,64 +207,49 @@ function LandingNav() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden">
+    <section id="hero" className="relative overflow-hidden">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           backgroundImage:
-            'radial-gradient(60rem 30rem at 80% -10%, rgba(42,143,232,0.18), transparent), radial-gradient(40rem 20rem at -10% 30%, rgba(26,47,84,0.12), transparent)',
+            'radial-gradient(54rem 28rem at 78% 0%, rgba(14,165,233,0.16), transparent), radial-gradient(38rem 22rem at -12% 28%, rgba(15,23,42,0.08), transparent)',
         }}
       />
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:px-8 lg:py-28">
-        <div className="flex flex-col justify-center">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-action/25 bg-action/10 px-3 py-1 text-xs font-medium text-foreground">
-            <Sparkles className="size-3.5 text-action" />
-            Diseñado para fábricas textiles argentinas
-          </div>
 
-          <h1 className="mt-5 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-            El stock de tu depósito,{' '}
-            <span className="text-action">en orden y al toque.</span>
+      <div className="mx-auto grid w-full max-w-7xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.12fr_1fr] lg:gap-20 lg:px-8 lg:py-28">
+        <div className="flex flex-col justify-center">
+          <span className="text-xs font-bold uppercase tracking-[0.18em] text-sky-600">
+            Stock textil · gestión inteligente
+          </span>
+
+          <h1 className="mt-6 max-w-3xl font-heading text-5xl font-extrabold leading-[1.02] tracking-tight text-slate-950 sm:text-6xl lg:text-7xl">
+            Tu <span className="text-sky-500">depósito</span>
+            <br />
+            bajo control total.
           </h1>
 
-          <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
+          <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
             NUDO es el software de gestión de rollos para PyMEs textiles.
-            Cargá planillas de tintorería con IA, confirmá cada rollo con
-            scanner y armá pedidos sin equivocarte. Pensado para que lo use
-            la persona del depósito desde el celular.
+            Trazá cada pieza desde la tintorería hasta el despacho, con escaneo
+            en mano y reportes en tiempo real.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <a
-              href={DEMO_MAILTO}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-action px-6 text-sm font-semibold text-action-foreground shadow-sm transition-colors hover:bg-action/90"
+              href="#contacto"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-sky-500 px-6 text-sm font-bold text-white shadow-[0_8px_20px_-4px_rgba(14,165,233,0.45)] transition-colors hover:bg-sky-600"
             >
-              Pedir una demo
+              Pedí una demo
               <ArrowRight className="size-4" />
             </a>
-            <Link
-              href="/login"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-input bg-white px-6 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
+            <a
+              href="#como-funciona"
+              className="inline-flex h-12 items-center justify-center rounded-md border border-slate-300 bg-white px-6 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-50"
             >
-              Ya tengo cuenta
-            </Link>
+              Cómo funciona
+            </a>
           </div>
-
-          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            <li className="inline-flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-success" />
-              Multi-empresa con datos aislados
-            </li>
-            <li className="inline-flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-success" />
-              Sin instalación, corre en el navegador
-            </li>
-            <li className="inline-flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-success" />
-              Soporte en español, en Argentina
-            </li>
-          </ul>
         </div>
 
         <HeroMockup />
@@ -176,166 +259,182 @@ function Hero() {
 }
 
 function HeroMockup() {
+  const bars = Array.from({ length: 24 }, (_, i) => i)
+
   return (
-    <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
-      <div className="relative rounded-2xl border border-border bg-white p-4 shadow-[0_20px_60px_rgba(26,47,84,0.18)]">
-        <div className="flex items-center gap-1.5 border-b border-border pb-3">
-          <span className="size-2.5 rounded-full bg-destructive/70" />
-          <span className="size-2.5 rounded-full bg-warning/80" />
-          <span className="size-2.5 rounded-full bg-success/80" />
-          <span className="ml-3 truncate text-xs text-muted-foreground">
-            nudo.app/stock
-          </span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 pt-4">
-          <MockStat label="Rollos en stock" value="1.248" tone="action" />
-          <MockStat label="Pedidos activos" value="17" tone="warning" />
-          <MockStat label="Kilos totales" value="38.420" tone="success" />
-        </div>
-
-        <div className="mt-4 rounded-lg border border-border">
-          <div className="grid grid-cols-[1fr_70px_60px] gap-2 border-b border-border bg-secondary/60 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            <span>Rollo</span>
-            <span className="text-right">Kg</span>
-            <span className="text-right">Ubic.</span>
+    <div className="relative mx-auto flex w-full max-w-md items-center justify-center lg:max-w-none">
+      <div className="relative w-full max-w-[22rem] rounded-[2rem] border border-slate-800 bg-slate-950 p-3 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+        <div className="rounded-[1.55rem] bg-slate-900 p-4 text-white">
+          <div className="flex items-center justify-between text-[11px] text-white/60">
+            <span>9:41</span>
+            <span>● ● ●</span>
           </div>
-          {[
-            ['204023686', 'Lycra Negro', '21,75', 'A14'],
-            ['204023687', 'Lycra Negro', '22,10', 'A14'],
-            ['204023812', 'Microfibra Marino', '18,90', 'B07'],
-            ['204023813', 'Microfibra Marino', '19,40', 'B07'],
-            ['204024105', 'Algodón Blanco', '24,30', 'C22'],
-          ].map(([n, art, kg, ub]) => (
-            <div
-              key={n}
-              className="grid grid-cols-[1fr_70px_60px] items-center gap-2 border-b border-border/60 px-3 py-2 text-[13px] last:border-b-0"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-mono text-foreground">{n}</p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {art}
+
+          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+            <MarketingBrandMark className="size-9 rounded-lg" />
+            <div>
+              <p className="text-sm font-semibold text-white">
+                Picking · Pedido #1248
+              </p>
+              <p className="text-xs text-white/55">Egreso · Lycra Negro</p>
+            </div>
+          </div>
+
+          <div className="relative mt-5 aspect-square overflow-hidden rounded-2xl border border-sky-400/40 bg-slate-950 p-5">
+            <span className="absolute left-4 top-4 size-8 border-l-2 border-t-2 border-sky-400" />
+            <span className="absolute right-4 top-4 size-8 border-r-2 border-t-2 border-sky-400" />
+            <span className="absolute bottom-4 left-4 size-8 border-b-2 border-l-2 border-sky-400" />
+            <span className="absolute bottom-4 right-4 size-8 border-b-2 border-r-2 border-sky-400" />
+            <div className="grid h-full grid-cols-8 items-center gap-1.5 opacity-70">
+              {bars.map((bar) => (
+                <span
+                  key={bar}
+                  className="mx-auto block w-full rounded-full bg-white"
+                  style={{
+                    height: `${34 + ((bar * 19) % 56)}%`,
+                    opacity: 0.24 + ((bar % 5) * 0.1),
+                  }}
+                />
+              ))}
+            </div>
+            <div className="absolute left-5 right-5 top-1/2 h-0.5 animate-pulse bg-sky-400 shadow-[0_0_22px_rgba(14,165,233,0.9)]" />
+          </div>
+
+          <div className="mt-5 rounded-2xl bg-white p-4 text-slate-950">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Rollo a retirar
+            </p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div>
+                <p className="font-mono text-xl font-bold">204023688</p>
+                <p className="text-sm text-slate-500">
+                  Lycra Negro · 21,40 kg
                 </p>
               </div>
-              <span className="text-right tabular-nums">{kg}</span>
-              <span className="text-right font-mono text-xs">{ub}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                <CheckCircle2 className="size-3.5" />
+                OK
+              </span>
             </div>
-          ))}
+          </div>
         </div>
       </div>
 
-      <div className="absolute -bottom-6 -right-3 hidden w-[14rem] rotate-3 rounded-xl border border-border bg-white p-3 shadow-[0_14px_36px_rgba(26,47,84,0.22)] sm:block">
-        <div className="flex items-center gap-2 text-[11px] font-medium text-success">
-          <ScanLine className="size-3.5" />
-          Rollo confirmado
-        </div>
-        <p className="mt-1 font-mono text-sm font-semibold text-foreground">
-          204023686
+      <div className="absolute -left-1 top-10 hidden w-48 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.14)] sm:block">
+        <p className="inline-flex items-center gap-2 text-xs font-bold text-emerald-600">
+          <CheckCircle2 className="size-4" />
+          Rollo retirado
         </p>
-        <p className="text-[11px] text-muted-foreground">
-          Ubicación A14 · 21,75 kg
+        <p className="mt-2 font-mono text-base font-bold text-slate-950">
+          204023687
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Egreso confirmado · Pedido #1248
+        </p>
+      </div>
+
+      <div className="absolute -bottom-4 -right-1 hidden w-52 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.14)] sm:block">
+        <p className="inline-flex items-center gap-2 text-xs font-bold text-sky-600">
+          <ScanLine className="size-4" />
+          Picking · Pedido #1248
+        </p>
+        <p className="mt-2 text-sm font-bold text-slate-950">
+          3 de 4 rollos
+        </p>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <span className="block h-full w-3/4 rounded-full bg-sky-500" />
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Lycra Negro · listo para despacho
         </p>
       </div>
     </div>
   )
 }
 
-function MockStat({
-  label,
-  value,
-  tone,
+function ProofStrip() {
+  return (
+    <section aria-label="Prueba de NUDO" className="bg-slate-50 py-5">
+      <div className="mx-auto grid w-full max-w-7xl gap-3 px-4 text-sm text-slate-600 sm:grid-cols-3 sm:px-6 lg:px-8">
+        <ProofItem label="Validado con" value="Muter Textil" />
+        <ProofItem label="Trazabilidad para" value="+12.000 rollos" />
+        <ProofItem label="Proyecto" value="ITBA · industria textil" />
+      </div>
+    </section>
+  )
+}
+
+function ProofItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <span>{label}</span>
+      <strong className="text-slate-950">{value}</strong>
+    </div>
+  )
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  text,
+  dark = false,
 }: {
-  label: string
-  value: string
-  tone: 'action' | 'warning' | 'success'
+  eyebrow: string
+  title: string
+  text: string
+  dark?: boolean
 }) {
-  const toneClass =
-    tone === 'action'
-      ? 'text-action'
-      : tone === 'warning'
-        ? 'text-warning'
-        : 'text-success'
   return (
-    <div className="rounded-lg bg-secondary/60 px-3 py-2.5">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-        {label}
+    <div className="mx-auto max-w-3xl text-center">
+      <p
+        className={`text-xs font-bold uppercase tracking-[0.18em] ${
+          dark ? 'text-sky-300' : 'text-sky-600'
+        }`}
+      >
+        {eyebrow}
       </p>
-      <p className={`mt-0.5 font-heading text-xl font-bold ${toneClass}`}>
-        {value}
+      <h2
+        className={`mt-3 font-heading text-3xl font-bold tracking-tight sm:text-4xl ${
+          dark ? 'text-white' : 'text-slate-950'
+        }`}
+      >
+        {title}
+      </h2>
+      <p
+        className={`mt-4 text-base leading-7 sm:text-lg ${
+          dark ? 'text-white/70' : 'text-slate-600'
+        }`}
+      >
+        {text}
       </p>
     </div>
   )
 }
 
-const FEATURES = [
-  {
-    icon: Sparkles,
-    title: 'Planillas con IA',
-    text: 'Subís la foto o PDF de la planilla de la tintorería y NUDO extrae los rollos automáticamente. Cada tintorería tiene su propia configuración.',
-  },
-  {
-    icon: ScanLine,
-    title: 'Scanner de rollos',
-    text: 'Confirmación física con QR o código de barras desde el celular. Si el rollo no pertenece al ingreso, el sistema bloquea: nada se carga mal.',
-  },
-  {
-    icon: ClipboardList,
-    title: 'Pedidos y picking',
-    text: 'Ventas elige los rollos puntuales para cada cliente. Operario hace el picking escaneando, sin chance de entregar la pieza equivocada.',
-  },
-  {
-    icon: Smartphone,
-    title: 'Mobile-first de verdad',
-    text: 'Pensada para depósito: tipografía grande, botones generosos, todo a una mano. La gente del depósito la aprende en un día.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Historial inborrable',
-    text: 'Cada cambio queda registrado: quién, cuándo, qué movió. Cumple con auditoría sin que tengas que llevar un Excel paralelo.',
-  },
-  {
-    icon: Building2,
-    title: 'Multi-empresa con datos aislados',
-    text: 'Cada empresa ve sólo sus datos. No mezclamos, no cruzamos, no usamos tu información para entrenar modelos ni para otros clientes. Tus rollos, pedidos y clientes son tuyos.',
-  },
-]
-
-function Features() {
+function Problem() {
   return (
-    <section
-      id="features"
-      className="border-t border-border bg-white py-20 sm:py-24"
-    >
+    <section id="problema" className="bg-white py-20 sm:py-24">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-action">
-            Por qué NUDO
-          </p>
-          <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-            Todo lo que necesita una fábrica textil, sin lo que sobra.
-          </h2>
-          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-            Construido a la medida del rubro: rollos, tintorerías, partidas y
-            piezas. No es un ERP genérico forzado a entender tela.
-          </p>
-        </div>
+        <SectionHeading
+          eyebrow="El problema"
+          title="No sabés cuánto tenés, ni dónde está."
+          text="Tu depósito mueve cientos de rollos por mes. Si esa operación vive en papel, WhatsApp y memoria, estás operando a ciegas."
+        />
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, text }) => (
-            <div
+        <div className="mt-14 grid gap-5 md:grid-cols-3">
+          {PROBLEM_CARDS.map(({ icon: Icon, title, text }) => (
+            <article
               key={title}
-              className="group rounded-2xl border border-border bg-card p-6 transition-shadow hover:shadow-[0_12px_30px_rgba(26,47,84,0.08)]"
+              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:border-red-200 hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
             >
-              <div className="inline-flex size-11 items-center justify-center rounded-xl bg-action/10 text-action transition-colors group-hover:bg-action group-hover:text-action-foreground">
+              <div className="inline-flex size-11 items-center justify-center rounded-xl bg-red-50 text-red-600">
                 <Icon className="size-5" />
               </div>
-              <h3 className="mt-4 font-heading text-lg font-semibold">
+              <h3 className="mt-5 font-heading text-lg font-bold text-slate-950">
                 {title}
               </h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {text}
-              </p>
-            </div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+            </article>
           ))}
         </div>
       </div>
@@ -343,62 +442,201 @@ function Features() {
   )
 }
 
-const STEPS = [
-  {
-    icon: Upload,
-    title: 'Cargás el ingreso',
-    text: 'Sacás foto de la planilla de la tintorería o cargás los rollos a mano. La IA arma la tabla por vos en segundos.',
-  },
-  {
-    icon: ScanLine,
-    title: 'Confirmás en depósito',
-    text: 'El operario escanea cada rollo con el celular. Si no coincide, NUDO bloquea. Cada rollo queda con su ubicación.',
-  },
-  {
-    icon: Boxes,
-    title: 'Armás pedidos',
-    text: 'Ventas selecciona los rollos puntuales que cubren cada pedido. Sin doble carga en planillas paralelas.',
-  },
-  {
-    icon: Truck,
-    title: 'Entregás sin errores',
-    text: 'Picking con scanner, confirmación de venta y despacho final. El stock real siempre coincide con el sistema.',
-  },
-]
+function Solution() {
+  return (
+    <section id="solucion" className="bg-slate-50 py-20 sm:py-24">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="La solución"
+          title="Simplificá tu operación y ahorrá tiempo en el depósito."
+          text="NUDO conecta ingreso, stock, ventas y picking en un flujo único pensado para el rubro textil."
+        />
+
+        <div className="mt-14 grid gap-5 lg:grid-cols-3">
+          <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] lg:col-span-2">
+            <div className="grid gap-6 p-6 md:grid-cols-[1fr_18rem] md:p-8">
+              <div className="flex flex-col justify-center">
+                <div className="inline-flex size-11 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                  <ScanLine className="size-5" />
+                </div>
+                <h3 className="mt-5 font-heading text-2xl font-bold text-slate-950">
+                  Carga inteligente
+                </h3>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+                  Subí la foto del remito y la IA carga los rollos al stock en
+                  tiempo real. En la salida, escaneás cada rollo para
+                  descontarlo, sin planillas ni errores.
+                </p>
+              </div>
+
+              <div className="mx-auto w-full max-w-[18rem]">
+                <VideoPhone
+                  src={VIDEO_SOURCES.cargaIa}
+                  title="Escaneo de rollos con IA"
+                  label="escaneo de rollos · IA"
+                />
+              </div>
+            </div>
+          </article>
+
+          {SOLUTION_CARDS.map(({ icon: Icon, title, text }) => (
+            <article
+              key={title}
+              className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:border-sky-200 hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+            >
+              <div className="inline-flex size-11 items-center justify-center rounded-xl bg-sky-100 text-sky-600 transition group-hover:bg-sky-500 group-hover:text-white">
+                <Icon className="size-5" />
+              </div>
+              <h3 className="mt-5 font-heading text-lg font-bold text-slate-950">
+                {title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function VideoPhone({
+  src,
+  title,
+  label,
+}: {
+  src: string
+  title: string
+  label: string
+}) {
+  return (
+    <div className="rounded-[2rem] border border-slate-200 bg-slate-950 p-3 shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
+      <div className="relative aspect-[9/16] overflow-hidden rounded-[1.55rem] bg-slate-900">
+        <span className="absolute left-1/2 top-3 z-10 h-1.5 w-16 -translate-x-1/2 rounded-full bg-white/20" />
+        <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold uppercase tracking-wide text-white/45">
+          {label}
+        </div>
+        <video
+          className="relative z-[1] h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          title={title}
+        >
+          <source src={src} type="video/mp4" />
+          <track
+            src="/landing/empty-captions.vtt"
+            kind="captions"
+            srcLang="es"
+            label="Sin audio"
+          />
+          Tu navegador no soporta video HTML5.
+        </video>
+      </div>
+    </div>
+  )
+}
+
+function Implementation() {
+  return (
+    <section id="implementacion" className="bg-white py-20 sm:py-24">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Implementación"
+          title="Te acompañamos en el depósito desde el primer día."
+          text="Vamos a tu fábrica para ayudarte con la puesta en marcha, el etiquetado de rollos viejos y el entrenamiento del equipo."
+        />
+
+        <div className="mt-14 grid gap-6 lg:grid-cols-2">
+          <ImplementationCard
+            src={VIDEO_SOURCES.racks}
+            title="Ordenamos el depósito físico"
+            text="Etiquetamos y ubicamos cada rollo en su rack. Tu depósito queda listo y cargado en el sistema desde el día uno."
+          />
+          <ImplementationCard
+            src={VIDEO_SOURCES.capacitacion}
+            title="Capacitamos a tu gente"
+            text="Entrenamos al equipo de depósito, administración y ventas hasta que todos operan con confianza, sin trabarse."
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ImplementationCard({
+  src,
+  title,
+  text,
+}: {
+  src: string
+  title: string
+  text: string
+}) {
+  return (
+    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+      <div className="relative aspect-video bg-slate-950">
+        <video
+          className="h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          title={title}
+        >
+          <source src={src} type="video/mp4" />
+          <track
+            src="/landing/empty-captions.vtt"
+            kind="captions"
+            srcLang="es"
+            label="Sin audio"
+          />
+          Tu navegador no soporta video HTML5.
+        </video>
+        <span className="absolute bottom-4 left-4 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-950 shadow-sm">
+          <Factory className="size-4 text-sky-600" />
+          Depósito textil
+        </span>
+      </div>
+      <div className="p-6">
+        <h3 className="font-heading text-xl font-bold text-slate-950">
+          {title}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+      </div>
+    </article>
+  )
+}
 
 function HowItWorks() {
   return (
     <section
       id="como-funciona"
-      className="bg-sidebar py-20 text-sidebar-foreground sm:py-24"
+      className="bg-slate-900 py-20 text-white sm:py-24"
     >
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-action">
-            Cómo funciona
-          </p>
-          <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            De la planilla en papel al stock en pantalla, en 4 pasos.
-          </h2>
-          <p className="mt-4 text-base text-white/70 sm:text-lg">
-            El flujo completo: desde que llega la mercadería de la tintorería
-            hasta que sale por la puerta del depósito.
-          </p>
-        </div>
+        <SectionHeading
+          eyebrow="Cómo funciona"
+          title="De la planilla en papel al stock en pantalla, en cuatro pasos."
+          text="El flujo completo: desde que la mercadería llega de la tintorería hasta que sale por la puerta del depósito. Sin vueltas, sin doble carga."
+          dark
+        />
 
-        <ol className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map(({ icon: Icon, title, text }, i) => (
+        <ol className="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {STEPS.map(({ icon: Icon, title, text }, index) => (
             <li
               key={title}
-              className="relative rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm"
+              className="relative rounded-2xl border border-white/10 bg-white/[0.05] p-6 backdrop-blur-sm"
             >
-              <span className="absolute -top-3 left-6 inline-flex h-7 items-center justify-center rounded-full bg-action px-3 text-xs font-bold text-action-foreground">
-                {String(i + 1).padStart(2, '0')}
+              <span className="absolute -top-3 left-6 inline-flex h-7 items-center justify-center rounded-full bg-sky-500 px-3 text-xs font-bold text-white">
+                {String(index + 1).padStart(2, '0')}
               </span>
               <div className="inline-flex size-11 items-center justify-center rounded-xl bg-white/10 text-white">
                 <Icon className="size-5" />
               </div>
-              <h3 className="mt-4 font-heading text-lg font-semibold text-white">
+              <h3 className="mt-5 font-heading text-lg font-bold text-white">
                 {title}
               </h3>
               <p className="mt-2 text-sm leading-6 text-white/70">{text}</p>
@@ -410,106 +648,54 @@ function HowItWorks() {
   )
 }
 
-function Privacy() {
+function LeadSection() {
   return (
-    <section id="privacidad" className="border-t border-border bg-background py-20 sm:py-24">
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:gap-16 lg:px-8">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-action/25 bg-action/10 px-3 py-1 text-xs font-medium text-foreground">
-            <ShieldCheck className="size-3.5 text-action" />
-            Privacidad y seguridad
-          </div>
-          <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-            Tus datos son tuyos.
-          </h2>
-          <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
-            En este rubro, la información de tu fábrica vale. Por eso lo
-            tratamos como tal: cada empresa ve sólo sus propios datos, y nunca
-            usamos información de un cliente para nadie más.
-          </p>
-        </div>
+    <section id="contacto" className="bg-white py-20 sm:py-24">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.10)] lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="bg-slate-900 p-6 text-white sm:p-8 lg:p-10">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
+              Pedí una demo
+            </p>
+            <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+              Probá NUDO en tu fábrica.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-white/70">
+              Te mostramos cómo se ve con datos reales de tu depósito.
+              Onboarding guiado, sin compromiso, en 30 minutos.
+            </p>
 
-        <ul className="space-y-5 rounded-2xl border border-border bg-white p-6 shadow-sm sm:p-8">
-          {[
-            {
-              title: 'Aislamiento total por empresa',
-              text: 'Cada empresa tiene su propio espacio. Tus rollos, pedidos y clientes no se cruzan con los de otros usuarios ni se comparten entre fábricas.',
-            },
-            {
-              title: 'No usamos tus datos para nada más',
-              text: 'No entrenamos modelos con tu información, no la vendemos y no la compartimos con terceros. Punto.',
-            },
-            {
-              title: 'Acceso controlado por rol',
-              text: 'Vos definís quién ve qué. Operario, ventas y admin tienen permisos distintos, y cada cambio queda registrado con nombre y fecha.',
-            },
-            {
-              title: 'Servidores en Argentina (São Paulo)',
-              text: 'Infraestructura en la región, sin saltos innecesarios al exterior. Conexión cifrada de extremo a extremo.',
-            },
-          ].map((item) => (
-            <li key={item.title} className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
-              <div>
-                <p className="font-semibold text-foreground">{item.title}</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {item.text}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  )
-}
-
-function FinalCta() {
-  return (
-    <section id="contacto" className="bg-background py-20 sm:py-24">
-      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
-        <div className="overflow-hidden rounded-3xl border border-border bg-white px-6 py-12 shadow-[0_20px_60px_rgba(26,47,84,0.10)] sm:px-12 sm:py-16">
-          <div className="grid items-center gap-10 lg:grid-cols-[1.2fr_1fr]">
-            <div>
-              <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-                Probá NUDO en tu fábrica.
-              </h2>
-              <p className="mt-3 text-base text-muted-foreground sm:text-lg">
-                Te mostramos cómo se ve con datos reales de tu depósito.
-                Onboarding guiado, sin compromiso, en 30 minutos.
-              </p>
-
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <a
-                  href={DEMO_MAILTO}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-action px-6 text-sm font-semibold text-action-foreground shadow-sm transition-colors hover:bg-action/90"
-                >
-                  Pedir una demo
-                  <ArrowRight className="size-4" />
-                </a>
-                <a
-                  href={`mailto:${DEMO_EMAIL}`}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-input bg-white px-6 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
-                >
-                  Contactanos
-                </a>
-              </div>
-            </div>
-
-            <ul className="space-y-4 rounded-2xl bg-secondary/50 p-6 text-sm">
+            <ul className="mt-8 space-y-5">
               {[
-                'Sin instalación: corre en cualquier navegador.',
-                'Datos en servidores en Argentina (São Paulo).',
-                'Soporte directo del equipo que desarrolla el producto.',
-                'Pensado para empezar con una sola fábrica y crecer.',
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
-                  <span className="text-foreground">{item}</span>
+                [
+                  'Respuesta en 24 hs hábiles',
+                  'Coordinamos la demo en el horario que te quede cómodo.',
+                ],
+                [
+                  'Demo con tus datos',
+                  'Mandanos una planilla de muestra y la probamos en vivo.',
+                ],
+                [
+                  'Sin compromiso',
+                  'Cotización y plan de implementación por escrito antes de avanzar.',
+                ],
+              ].map(([title, text]) => (
+                <li key={title} className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex size-6 items-center justify-center rounded-full bg-sky-500 text-white">
+                    <CheckCircle2 className="size-4" />
+                  </span>
+                  <div>
+                    <p className="font-semibold text-white">{title}</p>
+                    <p className="mt-1 text-sm leading-6 text-white/65">
+                      {text}
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
+
+          <LandingDemoForm />
         </div>
       </div>
     </section>
@@ -518,60 +704,114 @@ function FinalCta() {
 
 function LandingFooter() {
   return (
-    <footer className="border-t border-border bg-white">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div className="flex items-center gap-3">
-          <BrandMark className="size-9" />
+    <footer className="bg-slate-900 text-white">
+      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[1.3fr_0.7fr_0.7fr]">
           <div>
-            <p className="font-heading text-base font-bold leading-none">
-              NUDO
+            <Link href="#hero" className="flex items-center gap-3">
+              <MarketingBrandMark className="size-10" />
+              <span className="font-heading text-lg font-extrabold">
+                NUDO
+              </span>
+            </Link>
+            <p className="mt-4 max-w-md text-sm leading-6 text-white/65">
+              La plataforma inteligente de gestión de stock para la industria
+              textil. Diseñada para PyMEs argentinas.
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              WMS textil para PyMEs
-            </p>
+            <div className="mt-6 flex items-center gap-3">
+              <FooterSocial
+                href="https://www.instagram.com/nudo.stock"
+                label="NUDO en Instagram"
+                icon={<InstagramIcon className="size-4" />}
+              />
+              <FooterSocial
+                href="https://www.linkedin.com/company/nudostock"
+                label="NUDO en LinkedIn"
+                icon={<LinkedinIcon className="size-4" />}
+              />
+              <FooterSocial
+                href={`mailto:${DEMO_EMAIL}`}
+                label="Email de NUDO"
+                icon={<Mail className="size-4" />}
+              />
+            </div>
           </div>
+
+          <FooterLinks
+            title="Producto"
+            links={[
+              ['El problema', '#problema'],
+              ['La solución', '#solucion'],
+              ['Cómo funciona', '#como-funciona'],
+              ['Iniciar sesión', '/login'],
+            ]}
+          />
+          <FooterLinks
+            title="Empresa"
+            links={[
+              ['Pedir demo', '#contacto'],
+              [DEMO_EMAIL, `mailto:${DEMO_EMAIL}`],
+              ['Instagram', 'https://www.instagram.com/nudo.stock'],
+              ['LinkedIn', 'https://www.linkedin.com/company/nudostock'],
+            ]}
+          />
         </div>
 
-        <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
-          <a className="hover:text-foreground" href="#features">
-            Características
-          </a>
-          <a className="hover:text-foreground" href="#como-funciona">
-            Cómo funciona
-          </a>
-          <a className="hover:text-foreground" href={`mailto:${DEMO_EMAIL}`}>
-            {DEMO_EMAIL}
-          </a>
-          <Link className="hover:text-foreground" href="/login">
-            Ingresar
-          </Link>
+        <div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
+          <span>Copyright © {new Date().getFullYear()} NUDO</span>
+          <span>Buenos Aires, Argentina</span>
         </div>
-
-        <div className="flex items-center gap-3">
-          <a
-            href="https://www.linkedin.com/company/nudostock"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="NUDO en LinkedIn"
-            className="inline-flex size-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-action hover:bg-action hover:text-action-foreground"
-          >
-            <LinkedinIcon className="size-4" />
-          </a>
-          <a
-            href="https://www.instagram.com/nudo.stock"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="NUDO en Instagram"
-            className="inline-flex size-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-action hover:bg-action hover:text-action-foreground"
-          >
-            <InstagramIcon className="size-4" />
-          </a>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          Copyright © {new Date().getFullYear()} NUDO
-        </p>
       </div>
     </footer>
+  )
+}
+
+function FooterSocial({
+  href,
+  label,
+  icon,
+}: {
+  href: string
+  label: string
+  icon: ReactNode
+}) {
+  return (
+    <a
+      href={href}
+      target={href.startsWith('http') ? '_blank' : undefined}
+      rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+      aria-label={label}
+      className="inline-flex size-9 items-center justify-center rounded-full border border-white/15 text-white/70 transition-colors hover:border-sky-400 hover:bg-sky-500 hover:text-white"
+    >
+      {icon}
+    </a>
+  )
+}
+
+function FooterLinks({
+  title,
+  links,
+}: {
+  title: string
+  links: [string, string][]
+}) {
+  return (
+    <div>
+      <h4 className="font-heading text-sm font-bold text-white">{title}</h4>
+      <ul className="mt-4 space-y-3 text-sm text-white/60">
+        {links.map(([label, href]) => (
+          <li key={`${title}-${label}`}>
+            <a
+              href={href}
+              target={href.startsWith('http') ? '_blank' : undefined}
+              rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+              className="transition-colors hover:text-white"
+            >
+              {label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

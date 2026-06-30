@@ -73,29 +73,6 @@ export default async function PickingListPage() {
         </p>
       </div>
 
-      {listos.length > 0 && (
-        <section className="rounded-lg border border-success/30 bg-success/10 p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-success">
-                Listos para salida fisica
-              </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Falta confirmar que la mercaderia salio del deposito.
-              </p>
-            </div>
-            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-success">
-              {listos.length}
-            </span>
-          </div>
-          <div className="mt-3 space-y-2">
-            {listos.map((p) => (
-              <PedidoCard key={p.id} pedido={p} cta="Confirmar salida" />
-            ))}
-          </div>
-        </section>
-      )}
-
       {rows.length === 0 ? (
         <div className="rounded-lg border bg-white p-8 text-center space-y-2 shadow-sm">
           <p className="font-medium">Todo al dia</p>
@@ -117,6 +94,29 @@ export default async function PickingListPage() {
               No hay pedidos pendientes de picking.
             </div>
           )}
+        </section>
+      )}
+
+      {listos.length > 0 && (
+        <section className="rounded-lg border border-success/30 bg-success/10 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-success">
+                Listos para salida fisica
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Falta confirmar que la mercaderia salio del deposito.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-success">
+              {listos.length}
+            </span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {listos.map((p) => (
+              <PedidoCard key={p.id} pedido={p} cta="Confirmar salida" />
+            ))}
+          </div>
         </section>
       )}
 

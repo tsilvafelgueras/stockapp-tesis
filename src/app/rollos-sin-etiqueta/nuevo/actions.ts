@@ -17,7 +17,7 @@ export type CreateRollosInput =
     }
   | {
       modo: 'nuevo'
-      numero_lote: string
+      ot?: string
       tintoreria_id: string
       fecha_despacho: string
       articulo_id: string
@@ -113,13 +113,13 @@ export async function createRollosSinEtiqueta(
     if (!ingreso) return { ok: false, error: 'Partida no encontrada.' }
     ingreso_id = input.ingreso_id
   } else {
-    // Crear ingreso con numero_lote manual
+    // Crear ingreso — el trigger trg_ingresos_numero_lote asigna numero_lote automáticamente
     const { data: ingreso, error: iError } = await supabase
       .from('ingresos')
       .insert({
         tintoreria_id: input.tintoreria_id,
         fecha_despacho: input.fecha_despacho,
-        numero_lote: input.numero_lote.trim(),
+        ot: input.ot?.trim() || null,
         estado: 'confirmado',
         origen: 'manual',
       })
@@ -127,9 +127,6 @@ export async function createRollosSinEtiqueta(
       .single()
 
     if (iError || !ingreso) {
-      if (iError?.code === '23505') {
-        return { ok: false, error: `El número de partida "${input.numero_lote.trim()}" ya existe. Usá otro.` }
-      }
       return { ok: false, error: `No se pudo crear la partida: ${iError?.message}` }
     }
     ingreso_id = ingreso.id

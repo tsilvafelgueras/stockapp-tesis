@@ -6,14 +6,17 @@ import type { StockRollo, StockRole } from './StockList'
 import SearchableCombobox from '@/components/SearchableCombobox'
 import {
   darDeBajaRollo,
+  eliminarRollo,
   moverUbicacion,
   marcarComoSegunda,
   confirmarRolloManual,
   subirFotoRollo,
   listarFotosRollo,
   editarRollo,
+  devolverRolloAStock,
   type RolloFotoConUrl,
 } from './actions'
+import { actualizarOtIngreso } from '@/app/ingresos/otActions'
 import {
   FALLA_CATEGORIAS,
   FALLA_CATEGORIA_LABEL,
@@ -44,20 +47,32 @@ export default function RolloDetailDialog({
   onClose,
   initialMode,
   ubicaciones,
+  articulos,
+  articuloColores,
 }: {
   rollo: StockRollo
   role: StockRole
   onClose: () => void
   initialMode?: 'view' | 'editar'
   ubicaciones: UbicacionOption[]
+  articulos: { id: string; nombre: string }[]
+  articuloColores: Record<string, { id: string; nombre: string }[]>
 }) {
   const [mode, setMode] = useState<
-    'view' | 'mover' | 'baja' | 'segunda' | 'confirmar' | 'editar'
+    'view' | 'mover' | 'baja' | 'eliminar' | 'segunda' | 'confirmar' | 'editar' | 'devolver'
   >(initialMode ?? 'view')
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
   const [pending, startTransition] = useTransition()
+
+  // OT (partida de tintorería) — editable inline desde stock. Es del ingreso,
+  // así que el cambio aplica a toda la partida.
+  const [editandoOt, setEditandoOt] = useState(false)
+  const [otValue, setOtValue] = useState(rollo.ingresos?.ot ?? '')
+  const [otActual, setOtActual] = useState<string | null>(rollo.ingresos?.ot ?? null)
   const ubicacionOptions = ubicacionesToOptions(ubicaciones)
+
+  const [devolverMotivo, setDevolverMotivo] = useState('')
 
   // Formulario de "segunda"
   const [fallaCategoria, setFallaCategoria] = useState<FallaCategoria | ''>('')
@@ -103,6 +118,8 @@ export default function RolloDetailDialog({
   ).includes(rollo.estado)
   const [editForm, setEditForm] = useState({
     numero_pieza: rollo.numero_pieza,
+    articulo_id: rollo.articulos?.id ?? '',
+    color_id: rollo.color_id ?? '',
     ubicacion: rollo.ubicacion ?? '',
     pantone: rollo.pantone ?? '',
     kilos: rollo.kilos != null ? String(rollo.kilos) : '',
@@ -142,10 +159,39 @@ export default function RolloDetailDialog({
   const puedeSegunda =
     esOperarioOAdmin &&
     (rollo.estado === 'en_stock' || rollo.estado === 'pendiente')
-  const puedeBaja = role === 'admin' && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+  const puedeBaja =
+    esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+  const puedeEliminar =
+    esOperarioOAdmin &&
+    rollo.estado !== 'reservado' &&
+    rollo.estado !== 'entregado'
   const puedeConfirmar = esOperarioOAdmin && rollo.estado === 'pendiente'
   const puedeEditar =
     esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
+  const puedeDevolver = esOperarioOAdmin && rollo.estado === 'entregado'
+
+  function handleGuardarOt() {
+    const ingresoId = rollo.ingresos?.id
+    if (!ingresoId) return
+    startTransition(async () => {
+      try {
+        const res = await actualizarOtIngreso(ingresoId, otValue)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        const nueva = otValue.trim() || null
+        setOtActual(nueva)
+        setEditandoOt(false)
+        toast.success(
+          nueva ? `OT actualizada a ${nueva}.` : 'OT borrada.'
+        )
+      } catch (e) {
+        console.error('[handleGuardarOt] error inesperado', e)
+        toast.error('No se pudo actualizar la OT.')
+      }
+    })
+  }
 
   function handleMover() {
     startTransition(async () => {
@@ -235,10 +281,20 @@ export default function RolloDetailDialog({
       toast.error('El número de pieza no puede estar vacío.')
       return
     }
+    const kilos = parseNumOpt(editForm.kilos)
+    if (kilos == null || kilos <= 0) {
+      toast.error('Los kilos son obligatorios y deben ser mayores a cero.')
+      return
+    }
     startTransition(async () => {
       try {
         const res = await editarRollo(rollo.id, {
           numero_pieza: editForm.numero_pieza,
+          // Solo enviamos artículo/color si cambió alguno respecto del rollo.
+          ...(editForm.articulo_id !== (rollo.articulos?.id ?? '') ||
+          editForm.color_id !== (rollo.color_id ?? '')
+            ? { articulo_id: editForm.articulo_id, color_id: editForm.color_id }
+            : {}),
           ubicacion: editForm.ubicacion,
           pantone: editForm.pantone,
           kilos: parseNumOpt(editForm.kilos),
@@ -299,6 +355,50 @@ export default function RolloDetailDialog({
           e instanceof Error
             ? `Error: ${e.message}`
             : 'Error inesperado al dar de baja. Mirá la consola.'
+        )
+      }
+    })
+  }
+
+  function handleEliminar() {
+    startTransition(async () => {
+      try {
+        const res = await eliminarRollo(rollo.id)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(`Pieza ${rollo.numero_pieza} eliminada.`)
+        onClose()
+      } catch (e) {
+        console.error('[handleEliminar] error inesperado', e)
+        toast.error(
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al eliminar. Mirá la consola.'
+        )
+      }
+    })
+  }
+
+  function handleDevolver() {
+    startTransition(async () => {
+      try {
+        const res = await devolverRolloAStock(rollo.id, devolverMotivo)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(
+          `Pieza ${rollo.numero_pieza} devuelta al stock como "Sin ubicar".`
+        )
+        onClose()
+      } catch (e) {
+        console.error('[devolverRolloAStock] error inesperado', e)
+        toast.error(
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al devolver el rollo. Mirá la consola.'
         )
       }
     })
@@ -367,24 +467,17 @@ export default function RolloDetailDialog({
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Foto / placeholder */}
-          <div className="aspect-video w-full overflow-hidden rounded-lg bg-zinc-100 flex items-center justify-center">
-            {rollo.foto_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
+          {/* Foto: solo si el rollo tiene una. Sin placeholder cuando no hay. */}
+          {rollo.foto_url && (
+            <div className="aspect-video w-full overflow-hidden rounded-lg bg-zinc-100 flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={rollo.foto_url}
                 alt={`Rollo ${rollo.numero_pieza}`}
                 className="w-full h-full object-cover"
               />
-            ) : (
-              <div className="text-center text-muted-foreground">
-                <p className="text-3xl font-bold tracking-wider">
-                  {(rollo.colores?.nombre ?? '—').slice(0, 3).toUpperCase()}
-                </p>
-                <p className="text-xs mt-1">Sin foto</p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Metadata */}
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
@@ -433,12 +526,58 @@ export default function RolloDetailDialog({
                 {rollo.ingresos.numero_remito}
               </p>
             )}
-            {rollo.ingresos?.ot && (
-              <p>
-                <span className="text-muted-foreground">OT: </span>
-                {rollo.ingresos.ot}
-              </p>
-            )}
+            {/* OT (partida tintorería) — editable inline por operario/admin.
+                Aplica a toda la partida. */}
+            <div className="flex items-start gap-2">
+              <span className="text-muted-foreground">OT (partida): </span>
+              {editandoOt ? (
+                <span className="flex flex-1 items-center gap-1">
+                  <input
+                    type="text"
+                    value={otValue}
+                    onChange={(e) => setOtValue(e.target.value)}
+                    placeholder="Orden de trabajo"
+                    autoFocus
+                    className="min-w-0 flex-1 rounded border border-input bg-white px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGuardarOt}
+                    disabled={pending}
+                    className="rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtValue(otActual ?? '')
+                      setEditandoOt(false)
+                    }}
+                    disabled={pending}
+                    className="rounded border px-2 py-1 text-[11px] disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </span>
+              ) : (
+                <span className="flex flex-1 items-center justify-between gap-2">
+                  <span className="text-foreground">{otActual ?? '—'}</span>
+                  {esOperarioOAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtValue(otActual ?? '')
+                        setEditandoOt(true)
+                      }}
+                      className="shrink-0 text-[11px] font-medium text-action hover:underline"
+                    >
+                      {otActual ? 'Editar' : 'Agregar'}
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
             {rollo.ingresos?.referencia && (
               <p>
                 <span className="text-muted-foreground">Referencia: </span>
@@ -514,13 +653,25 @@ export default function RolloDetailDialog({
           )}
 
           {/* Acciones */}
-          {mode === 'view' &&
-            (puedeConfirmar ||
-              puedeMover ||
-              puedeSegunda ||
-              puedeBaja ||
-              puedeEditar) && (
+          {mode === 'view' && (
               <div className="flex flex-wrap gap-2 pt-2 border-t">
+                <a
+                  href={`/rollos-sin-etiqueta/etiqueta?ids=${rollo.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md border border-input bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 transition-colors"
+                >
+                  Imprimir etiqueta
+                </a>
+                {puedeDevolver && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('devolver')}
+                    className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:bg-success/90 transition-colors"
+                  >
+                    Devolver al stock
+                  </button>
+                )}
                 {puedeConfirmar && (
                   <button
                     type="button"
@@ -566,6 +717,15 @@ export default function RolloDetailDialog({
                     Dar de baja
                   </button>
                 )}
+                {puedeEliminar && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('eliminar')}
+                    className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium hover:bg-destructive/90 transition-colors"
+                  >
+                    Eliminar
+                  </button>
+                )}
               </div>
             )}
 
@@ -586,6 +746,55 @@ export default function RolloDetailDialog({
                   }
                   required
                 />
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Artículo
+                  </label>
+                  <SearchableCombobox
+                    value={editForm.articulo_id}
+                    onChange={(v) =>
+                      setEditForm((prev) => {
+                        // Al cambiar de artículo, si el color actual no es válido
+                        // para el nuevo artículo, lo reseteamos.
+                        const coloresValidos = articuloColores[v] ?? []
+                        const colorSigueValido = coloresValidos.some(
+                          (c) => c.id === prev.color_id
+                        )
+                        return {
+                          ...prev,
+                          articulo_id: v,
+                          color_id: colorSigueValido ? prev.color_id : '',
+                        }
+                      })
+                    }
+                    options={articulos.map((a) => ({
+                      value: a.id,
+                      label: a.nombre,
+                    }))}
+                    placeholder="Seleccionar artículo..."
+                    searchPlaceholder="Buscar artículo..."
+                    emptyLabel="No hay artículos"
+                    allowClear={false}
+                  />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Color
+                  </label>
+                  <SearchableCombobox
+                    value={editForm.color_id}
+                    onChange={(v) =>
+                      setEditForm((prev) => ({ ...prev, color_id: v }))
+                    }
+                    options={(articuloColores[editForm.articulo_id] ?? []).map(
+                      (c) => ({ value: c.id, label: c.nombre })
+                    )}
+                    placeholder="Seleccionar color..."
+                    searchPlaceholder="Buscar color..."
+                    emptyLabel="Elegí primero un artículo"
+                    allowClear={false}
+                  />
+                </div>
                 <div className="min-w-0 space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">
                     Estado
@@ -647,6 +856,7 @@ export default function RolloDetailDialog({
                     setEditForm((prev) => ({ ...prev, kilos: v }))
                   }
                   type="number"
+                  required
                 />
                 <EditField
                   label="Metros"
@@ -948,6 +1158,79 @@ export default function RolloDetailDialog({
                   className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
                   {pending ? 'Dando de baja…' : 'Confirmar baja'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'eliminar' && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-sm">
+                ¿Eliminar definitivamente la pieza{' '}
+                <strong>{rollo.numero_pieza}</strong>?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Esto <strong>borra el rollo de la base de datos</strong> y libera
+                el número de pieza {rollo.numero_pieza} para reusarlo. La acción
+                queda registrada en el historial, pero no se puede deshacer.
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEliminar}
+                  disabled={pending}
+                  className="rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {pending ? 'Eliminando…' : 'Eliminar definitivamente'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'devolver' && (
+            <div className="space-y-3 pt-2 border-t">
+              <p className="text-sm">
+                Devolver la pieza <strong>{rollo.numero_pieza}</strong> al stock.
+                El rollo vuelve a &ldquo;En stock&rdquo; marcado como{' '}
+                &ldquo;Sin ubicar&rdquo; para que lo puedas reubicar.
+              </p>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground block">
+                  Motivo (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={devolverMotivo}
+                  onChange={(e) => setDevolverMotivo(e.target.value)}
+                  disabled={pending}
+                  placeholder="Ej. Devolución por exceso, cambio de diseño..."
+                  className="w-full rounded-md border bg-white px-3 py-2 text-sm disabled:opacity-50"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDevolver}
+                  disabled={pending}
+                  className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:bg-success/90 disabled:opacity-50"
+                >
+                  {pending ? 'Devolviendo…' : 'Confirmar devolución'}
                 </button>
               </div>
             </div>

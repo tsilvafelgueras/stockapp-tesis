@@ -414,7 +414,8 @@ CREATE TRIGGER set_empresa_rollos BEFORE INSERT ON rollos
 CREATE TABLE IF NOT EXISTS pedidos (
   id                       UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   empresa_id               UUID NOT NULL REFERENCES empresas(id),
-  numero_pedido            TEXT UNIQUE,
+  numero_pedido            TEXT,
+  CONSTRAINT pedidos_empresa_numero_pedido_key UNIQUE (empresa_id, numero_pedido),
   cliente                  TEXT NOT NULL,
   numero_remito_externo    TEXT,
   estado                   TEXT NOT NULL DEFAULT 'pendiente'
@@ -425,7 +426,8 @@ CREATE TABLE IF NOT EXISTS pedidos (
   confirmada_egreso_at     TIMESTAMPTZ,
   confirmada_egreso_por    UUID REFERENCES auth.users(id),
   created_by               UUID REFERENCES profiles(id),
-  created_at               TIMESTAMPTZ DEFAULT NOW()
+  created_at               TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT pedidos_empresa_numero_pedido_key UNIQUE (empresa_id, numero_pedido)
 );
 
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;

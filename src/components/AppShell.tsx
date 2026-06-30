@@ -1,5 +1,9 @@
 import AppShellClient from './AppShellClient'
-import { getNotificacionesNoLeidas, type Notificacion } from '@/lib/notificaciones'
+import {
+  getNotificacionesNoLeidas,
+  getNotificacionesOperario,
+  type Notificacion,
+} from '@/lib/notificaciones'
 import { createClient } from '@/lib/supabase/server'
 
 type Role = 'operario' | 'ventas' | 'admin' | 'super'
@@ -7,8 +11,9 @@ type Role = 'operario' | 'ventas' | 'admin' | 'super'
 /**
  * Server Component wrapper. Carga las notificaciones para la campanita y se
  * las pasa al AppShellClient (que tiene el state de drawer + sidebar
- * colapsable). Las notificaciones solo se consultan para admin/ventas — el
- * operario y el super no las ven, así que evitamos la query en su caso.
+ * colapsable). Admin/ventas ven las notificaciones de la tabla; el operario
+ * ve avisos sintéticos de sus tareas (ingresos por confirmar y pedidos para
+ * picking). El super no ve campanita, así que evitamos la query en su caso.
  */
 export default async function AppShell({
   role,
@@ -24,7 +29,9 @@ export default async function AppShell({
   const notificaciones: Notificacion[] =
     role === 'admin' || role === 'ventas'
       ? await getNotificacionesNoLeidas()
-      : []
+      : role === 'operario'
+        ? await getNotificacionesOperario()
+        : []
 
   // El admin además ve una notificación de "verificar colores" mientras haya
   // solicitudes de color pendientes. Es sintética (no vive en la tabla): se

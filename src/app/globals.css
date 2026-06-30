@@ -269,3 +269,29 @@
     display: none;
   }
 }
+
+/* Efecto "onda" (ripple) al tocar botones/pestañas/módulos.
+   El <span> lo inyecta por JS RippleEffect.tsx dentro del elemento tocado. */
+@keyframes ripple-ink {
+  to {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.ripple-ink {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  background-color: currentColor;
+  opacity: 0.22;
+  transform: scale(0);
+  animation: ripple-ink 550ms ease-out forwards;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ripple-ink {
+    display: none;
+  }
+}

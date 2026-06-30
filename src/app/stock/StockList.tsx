@@ -3,6 +3,16 @@
 import { useState } from 'react'
 import RolloDetailDialog from './RolloDetailDialog'
 import type { UbicacionOption } from '@/lib/ubicaciones'
+import type {
+  StockReservaBanner,
+  StockSummaryGroup,
+} from '@/lib/stockResumen'
+
+export type {
+  StockReservaBanner,
+  StockSummaryGroup,
+  StockSummaryPartida,
+} from '@/lib/stockResumen'
 
 export type StockRollo = {
   id: string
@@ -40,39 +50,14 @@ export type StockRollo = {
 export type StockRole = 'operario' | 'ventas' | 'admin'
 
 const ESTADO_LABEL: Record<string, { text: string; className: string } | null> = {
-  pendiente: { text: 'Pendiente', className: 'bg-amber-50 text-warning' },
+  pendiente: { text: 'Pendiente', className: 'bg-warning/15 text-warning' },
   en_stock: null,
-  reservado: { text: 'Reservado', className: 'bg-blue-50 text-action' },
+  reservado: { text: 'Reservado', className: 'bg-primary/15 text-primary' },
   entregado: { text: 'Entregado', className: 'bg-zinc-100 text-zinc-700' },
-  baja: { text: 'Baja', className: 'bg-red-50 text-destructive' },
-  segunda: { text: 'Segunda', className: 'bg-amber-100 text-amber-700' },
+  baja: { text: 'Baja', className: 'bg-destructive/15 text-destructive' },
+  segunda: { text: 'Segunda', className: 'bg-warning/30 text-warning' },
 }
 
-export type StockSummaryPartida = {
-  key: string
-  lote: string
-  rollos: number
-  reservado: number
-  libre: number
-}
-
-export type StockSummaryGroup = {
-  key: string
-  articulo: string
-  color: string
-  rollos: number
-  kilos: number
-  reservado: number
-  libre: number
-  partidas: StockSummaryPartida[]
-}
-
-export type StockReservaBanner = {
-  lote: string
-  rollos: number
-  reservado: number
-  libre: number
-}
 
 export default function StockList({
   rollos,
@@ -80,12 +65,16 @@ export default function StockList({
   summary,
   reservaBanner,
   ubicaciones,
+  articulos,
+  articuloColores,
 }: {
   rollos: StockRollo[]
   role: StockRole
   summary: StockSummaryGroup[]
   reservaBanner: StockReservaBanner | null
   ubicaciones: UbicacionOption[]
+  articulos: { id: string; nombre: string }[]
+  articuloColores: Record<string, { id: string; nombre: string }[]>
 }) {
   const [selected, setSelected] = useState<StockRollo | null>(null)
   const [selectedIntent, setSelectedIntent] = useState<'view' | 'editar'>(
@@ -366,6 +355,8 @@ export default function StockList({
           role={role}
           initialMode={selectedIntent}
           ubicaciones={ubicaciones}
+          articulos={articulos}
+          articuloColores={articuloColores}
           onClose={() => setSelected(null)}
         />
       )}
@@ -384,6 +375,12 @@ function ResumenStock({ grupos }: { grupos: StockSummaryGroup[] }) {
 
   return (
     <>
+      <p className="text-xs text-muted-foreground">
+        El resumen muestra la disponibilidad total de cada artículo + color
+        (rollos en stock y reservados), sin importar el filtro de estado.{' '}
+        <span className="font-medium">Rollos = Libre + Reservado.</span>
+      </p>
+
       <div className="space-y-3 sm:hidden">
         {grupos.map((g) => (
           <div key={g.key} className="rounded-lg border bg-white p-4 shadow-sm">

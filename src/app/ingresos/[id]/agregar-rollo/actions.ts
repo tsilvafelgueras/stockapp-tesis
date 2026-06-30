@@ -41,6 +41,10 @@ export async function agregarRolloAIngreso(
   const numeroPieza = datos.numero_pieza.trim()
   if (!numeroPieza) return { ok: false, error: 'El número de pieza es obligatorio.' }
 
+  if (datos.kilos == null || !Number.isFinite(datos.kilos) || datos.kilos <= 0) {
+    return { ok: false, error: 'Los kilos son obligatorios y deben ser mayores a cero.' }
+  }
+
   // RLS garantiza que solo vemos ingresos de nuestra empresa.
   const { data: ingreso } = await supabase
     .from('ingresos')

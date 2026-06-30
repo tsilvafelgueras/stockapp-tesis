@@ -16,6 +16,7 @@ export type RolloPartida = {
   articulo: string | null
   color: string | null
   ubicacion: string | null
+  kilos: number | null
 }
 
 type Props = {
@@ -24,6 +25,9 @@ type Props = {
   totalDeclarado: number | null
   ubicaciones: UbicacionOption[]
   ubicacionPrevia?: string
+  /** true si TODOS los rollos pendientes ya tienen ubicación cargada (no hace
+      falta volver a pedirla; la action mantiene la existente). */
+  todosTienenUbicacion?: boolean
 }
 
 type Override = { ubicacion: string; comentario: string }
@@ -34,6 +38,7 @@ export default function ConfirmarPartidaForm({
   totalDeclarado,
   ubicaciones,
   ubicacionPrevia,
+  todosTienenUbicacion = false,
 }: Props) {
   const router = useRouter()
   const filas = rollos.length
@@ -218,25 +223,40 @@ export default function ConfirmarPartidaForm({
         </div>
       )}
 
-      <div className="space-y-1 rounded-lg border bg-white p-4 shadow-sm">
-        <label className="text-sm font-medium">Ubicación de la partida</label>
-        <p className="text-xs text-muted-foreground">
-          Se asigna a todos los rollos. Podés sobrescribirla por rollo abajo.
-        </p>
-        <SearchableCombobox
-          value={ubicacionGeneral}
-          onChange={setUbicacionGeneral}
-          options={ubicacionOptions}
-          placeholder="Sin ubicacion"
-          searchPlaceholder="Buscar ubicacion..."
-          emptyLabel="No hay ubicaciones"
-        />
-        {ubicacionPrevia && ubicacionGeneral === ubicacionPrevia && (
+      {todosTienenUbicacion ? (
+        <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          ✓ Ubicación ya cargada desde el ingreso
+          {ubicacionPrevia ? (
+            <>
+              {' '}(<strong>{ubicacionPrevia}</strong>)
+            </>
+          ) : (
+            ' por rollo'
+          )}
+          . No hace falta volver a ingresarla; podés ajustarla por rollo abajo si
+          hace falta.
+        </div>
+      ) : (
+        <div className="space-y-1 rounded-lg border bg-white p-4 shadow-sm">
+          <label className="text-sm font-medium">Ubicación de la partida</label>
           <p className="text-xs text-muted-foreground">
-            Pre-cargada desde el ingreso — cambiala si es necesario.
+            Se asigna a todos los rollos. Podés sobrescribirla por rollo abajo.
           </p>
-        )}
-      </div>
+          <SearchableCombobox
+            value={ubicacionGeneral}
+            onChange={setUbicacionGeneral}
+            options={ubicacionOptions}
+            placeholder="Sin ubicacion"
+            searchPlaceholder="Buscar ubicacion..."
+            emptyLabel="No hay ubicaciones"
+          />
+          {ubicacionPrevia && ubicacionGeneral === ubicacionPrevia && (
+            <p className="text-xs text-muted-foreground">
+              Pre-cargada desde el ingreso — cambiala si es necesario.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="rounded-lg border bg-white shadow-sm">
         <div className="border-b px-4 py-3">
@@ -254,33 +274,50 @@ export default function ConfirmarPartidaForm({
               <li key={r.id} className="space-y-2 px-4 py-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-mono text-sm font-medium">
-                    {r.numero_pieza}
+                    Rollo #{r.numero_pieza}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {[r.articulo, r.color].filter(Boolean).join(' · ') || '—'}
-                  </span>
+                  <div className="flex items-baseline gap-3 shrink-0">
+                    {r.kilos != null && (
+                      <span className="text-xs font-medium tabular-nums">
+                        {r.kilos.toLocaleString('es-AR', { maximumFractionDigits: 2 })} kg
+                      </span>
+                    )}
+                    <span className="truncate text-xs text-muted-foreground max-w-[12rem]">
+                      {[r.articulo, r.color].filter(Boolean).join(' · ') || '—'}
+                    </span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <SearchableCombobox
-                    value={o?.ubicacion ?? ''}
-                    onChange={(value) => setOverride(r.id, 'ubicacion', value)}
-                    options={ubicacionOptions}
-                    placeholder={
-                      ubicacionGeneral
-                        ? `Ubicacion de la partida (${ubicacionGeneral})`
-                        : 'Ubicacion de la partida'
-                    }
-                    searchPlaceholder="Buscar ubicacion..."
-                    emptyLabel="No hay ubicaciones"
-                  />
-                  <input
-                    value={o?.comentario ?? ''}
-                    onChange={(e) =>
-                      setOverride(r.id, 'comentario', e.target.value)
-                    }
-                    placeholder="Comentario (opcional)"
-                    className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Ubicación
+                    </label>
+                    <SearchableCombobox
+                      value={o?.ubicacion ?? ''}
+                      onChange={(value) => setOverride(r.id, 'ubicacion', value)}
+                      options={ubicacionOptions}
+                      placeholder={
+                        ubicacionGeneral
+                          ? `Partida (${ubicacionGeneral})`
+                          : 'Ubicación de la partida'
+                      }
+                      searchPlaceholder="Buscar ubicacion..."
+                      emptyLabel="No hay ubicaciones"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Comentario
+                    </label>
+                    <input
+                      value={o?.comentario ?? ''}
+                      onChange={(e) =>
+                        setOverride(r.id, 'comentario', e.target.value)
+                      }
+                      placeholder="Opcional"
+                      className="w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </div>
                 </div>
               </li>
             )
