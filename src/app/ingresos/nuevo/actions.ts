@@ -359,10 +359,15 @@ export async function crearIngreso(input: IngresoInput) {
 
   const otTrimmed = input.ot?.trim()
   if (otTrimmed) {
+    // Puede haber OTs duplicadas históricas (antes no se validaba), así que
+    // tomamos solo la primera fila: `.maybeSingle()` solo tira error si la
+    // query devuelve >1 fila, lo que dejaría pasar el duplicado sin querer.
     const { data: ingresoExistente } = await supabase
       .from('ingresos')
       .select('id')
       .eq('ot', otTrimmed)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle()
     if (ingresoExistente) {
       return {
