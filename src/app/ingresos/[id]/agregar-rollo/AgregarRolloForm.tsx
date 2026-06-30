@@ -3,8 +3,10 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { QrCode, Barcode } from 'lucide-react'
 import SearchableCombobox from '@/components/SearchableCombobox'
-import CodeScanner, { type CodeScannerResult } from '@/components/CodeScanner'
+import ScannerByReaderType from '@/components/ScannerByReaderType'
+import type { CodeScannerResult } from '@/components/CodeScanner'
 import { ubicacionesToOptions, type UbicacionOption } from '@/lib/ubicaciones'
 import { extraerCodigoCandidato, type PatronCodigo } from '@/lib/scanner'
 import { agregarRolloAIngreso } from './actions'
@@ -40,7 +42,7 @@ export default function AgregarRolloForm({
   const [metrosStr, setMetrosStr] = useState('')
   const [ubicacion, setUbicacion] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [mostrarScanner, setMostrarScanner] = useState(false)
+  const [scannerTipo, setScannerTipo] = useState<'qr' | 'barcode' | null>(null)
   const [agregados, setAgregados] = useState(0)
   const numeroRef = useRef<HTMLInputElement>(null)
 
@@ -57,7 +59,7 @@ export default function AgregarRolloForm({
       codigo = extraerCodigoCandidato(result.texto, patrones) ?? result.texto.trim()
     }
     setNumeroPieza(codigo)
-    setMostrarScanner(false)
+    setScannerTipo(null)
     toast.info(`Código capturado: ${codigo} — corregilo si hace falta.`)
   }
 
@@ -71,7 +73,7 @@ export default function AgregarRolloForm({
       return
     }
 
-    const kilos = kilosStr ? parseFloat(kilosStr) : NaN
+    const kilos = kilosStr ? parseFloat(kilosStr.replace(',', '.')) : NaN
     if (!Number.isFinite(kilos) || kilos <= 0) {
       toast.error('Los kilos son obligatorios y deben ser mayores a cero.')
       return
@@ -84,7 +86,7 @@ export default function AgregarRolloForm({
         articulo_id: articuloId || null,
         color_id: colorId || null,
         kilos,
-        metros: metrosStr ? parseFloat(metrosStr) : null,
+        metros: metrosStr ? parseFloat(metrosStr.replace(',', '.')) : null,
         ubicacion: ubicacion || null,
       })
 
@@ -101,7 +103,7 @@ export default function AgregarRolloForm({
         setNumeroPieza('')
         setKilosStr('')
         setMetrosStr('')
-        setMostrarScanner(false)
+        setScannerTipo(null)
         numeroRef.current?.focus()
         router.refresh()
       } else {
@@ -126,31 +128,49 @@ export default function AgregarRolloForm({
           <label className="text-sm font-medium">
             Número de pieza <span className="text-destructive">*</span>
           </label>
+          <input
+            ref={numeroRef}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={numeroPieza}
+            onChange={(e) => setNumeroPieza(e.target.value)}
+            placeholder="Ej: 204021911"
+            className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            autoFocus
+          />
           <div className="flex gap-2">
-            <input
-              ref={numeroRef}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={numeroPieza}
-              onChange={(e) => setNumeroPieza(e.target.value)}
-              placeholder="Ej: 204021911"
-              className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              autoFocus
-            />
             <button
               type="button"
-              onClick={() => setMostrarScanner((v) => !v)}
-              className="rounded-md border px-3 py-2 text-sm hover:bg-zinc-50 transition-colors"
+              onClick={() => setScannerTipo(scannerTipo === 'qr' ? null : 'qr')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                scannerTipo === 'qr'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'hover:bg-zinc-50'
+              }`}
             >
-              {mostrarScanner ? 'Cerrar' : 'Escanear'}
+              <QrCode className="h-4 w-4" />
+              Código QR
+            </button>
+            <button
+              type="button"
+              onClick={() => setScannerTipo(scannerTipo === 'barcode' ? null : 'barcode')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                scannerTipo === 'barcode'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'hover:bg-zinc-50'
+              }`}
+            >
+              <Barcode className="h-4 w-4" />
+              Código de barras
             </button>
           </div>
-          {mostrarScanner && (
+          {scannerTipo && (
             <div className="mt-2">
-              <CodeScanner
+              <ScannerByReaderType
+                readerType={scannerTipo}
                 onRead={handleScan}
-                title="Escanear número de rollo"
+                title={scannerTipo === 'qr' ? 'Escanear código QR' : 'Escanear código de barras'}
                 manualLabel="Ingresar código manualmente"
                 manualPlaceholder="Ej: 204021911"
               />
@@ -188,26 +208,22 @@ export default function AgregarRolloForm({
               Kilos <span className="text-destructive">*</span>
             </label>
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.01"
-              min={0.01}
               value={kilosStr}
               onChange={(e) => setKilosStr(e.target.value)}
-              placeholder="Ej: 12.50"
+              placeholder="Ej: 12,50"
               className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Metros</label>
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.01"
-              min={0}
               value={metrosStr}
               onChange={(e) => setMetrosStr(e.target.value)}
-              placeholder="Ej: 45.00"
+              placeholder="Ej: 45,00"
               className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>

@@ -1781,7 +1781,7 @@ Cuando otra persona del equipo (compañero, futuro contributor) toma una tarea:
 4. Pedirle a Trinidad el `.env.local` (canal seguro) — contiene `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`. Cada dev puede generar SU propia `GEMINI_API_KEY` gratis en https://aistudio.google.com (es preferible para tracking de quotas).
 5. `npm install` (Node 24 LTS, npm 11)
 6. `npm run dev` → http://localhost:3000
-7. Para cambios en DB schema: las migraciones en `supabase/migrations/` se aplican manualmente en Supabase SQL Editor (ya están aplicadas las 001-046 en el proyecto compartido — solo aplicar nuevas que se agreguen).
+7. Para cambios en DB schema: las migraciones en `supabase/migrations/` se aplican manualmente en Supabase SQL Editor (ya están aplicadas las 001-062 en el proyecto compartido — solo aplicar nuevas que se agreguen).
 
 **Para retomar contexto en chat con asistente**:
 1. Pegá este documento (`docs/CONTEXTO.md`) entero al inicio del chat.
@@ -1801,7 +1801,7 @@ patrones regex por tintorería.
 - Login con username + alta sin email para operario/ventas (ver
   Sección 10.5, "Login con username").
 - Setup Resend SMTP (bloqueante para onboarding masivo de empresas).
-- Regenerar `supabase/schema.sql` con migraciones 012..046.
+- `supabase/schema.sql` cubre solo mig 001-011 (deuda técnica). Para una DB nueva correr todas las migraciones 001-062 en orden; para una DB existente solo aplicar las que falten.
 - Valorización del stock, control de calidad avanzado, módulo chofer,
   multi-idioma (ver Sección 10.5, "Lo que NO está en el MVP").
 
@@ -1876,3 +1876,137 @@ detalle del rollo en `/stock`).
   confirmadas a medias con el scanner viejo. Hay tolerancia en la suma de kilos
   y un **cross-check Kilos vs Metros/Rdto** que marca rollos con posible error
   de lectura.
+
+---
+
+## 10.13. Iteración 2026-06 — Refactor de pedidos por partida + ubicaciones + picking flexible
+
+Ronda mayor post-reportes. Reemplaza el modelo de pedidos "selección directa de rollos" por un modelo de **demanda por partida** donde ventas declara cuántos rollos quiere de cada partida/artículo/color y depósito pickea luego los rollos físicos.
+
+### Bloque A — Pedidos por partida (migración 048)
+
+**Motivación**: ventas no sabe qué rollo físico es cada uno — solo sabe "quiero 5 rollos de ML70 negro de la partida de Galfione del 15/05". El picking lo resuelve depósito.
+
+- **Nueva tabla `pedido_partidas`**: (pedido_id, ingreso_id, articulo_id, color_id, rollos_solicitados, kilos_estimados). UNIQUE (pedido_id, ingreso_id, articulo_id, color_id).
+- **Nueva RPC `crear_pedido_por_partidas(cliente_id, remito_externo, items_jsonb, fecha_entrega)`**: valida disponibilidad considerando reservas de otros pedidos activos, crea el pedido y las líneas `pedido_partidas`. Reemplaza a `crear_pedido`.
+- **`pedido_rollos.rollo_id` pasa a NULLable** + nueva columna `pedido_partida_id` FK. Un `pedido_rollo` sin `rollo_id` es una intención pendiente de picking.
+- **`pickear_rollo` reescrita**: busca la `pedido_partida` con matching articulo+color pendiente. Si hay varias partidas posibles prioriza la que coincide con el `ingreso_id` del rollo.
+- Flujo: `pendiente → en_preparacion → lista → confirmada_egreso`.
+
+### Bloque B — Ubicaciones administrables (migración 049)
+
+- **Nueva tabla `ubicaciones`**: (empresa_id, codigo, descripcion, tipo, capacidad_rollos, capacidad_kg, orden, activa). UNIQUE (empresa_id, codigo). Tipos: `general`, `rack`, `piso`, `preparacion`, `devolucion`, `otro`.
+- Seed automático: crea racks A1-A30 ... F1-F30, "A ordenar", "Sin ubicar" para todas las empresas. Migra ubicaciones existentes de `rollos` al catálogo.
+- RLS: admin gestiona, todos los autenticados de la empresa leen.
+- Front: `/admin/ubicaciones` para gestionar el catálogo. Formularios de ingreso y etiquetado manual usan el catálogo como `<select>`.
+
+### Bloque C — Edición de pedidos + reemplazo en picking (migración 050)
+
+- **`actualizar_pedido_remito`**: editar remito externo de pedido abierto (ventas/admin).
+- **`agregar_partidas_a_pedido`**: agregar líneas a un pedido ya existente. Si la combinación partida/art/color ya existe, suma la cantidad. Si el pedido estaba `lista`, lo regresa a `en_preparacion`.
+- **`reemplazar_rollo_picking`**: sustituir un rollo ya pickeado por otro (mismo articulo+color). Logea en `movimientos`.
+
+### Bloque D — Picking en borrador + "Aceptar pedido" (migración 058)
+
+- El operario construye el picking localmente (state del componente) y lo confirma todo de una vez.
+- `pedidos.picking_session_por` / `picking_session_at`: heartbeat de sesión activa para aviso liviano de multi-sesión.
+- **`aplicar_picking_borrador(pedido_id, items_jsonb)`**: aplica la lista completa de (pedido_partida_id, numero_pieza) atómicamente. Valida disponibilidad y cierra a `lista` si completo.
+
+### Bloque E — Ventas quita rollos + notif al operario (migración 059)
+
+- Ventas/admin pueden quitar rollos del picking de un pedido activo. El rollo vuelve a `en_stock` marcado "Sin ubicar".
+- **Tipo `'rollo_liberado'`** en notificaciones: notificación persistida para el operario cada vez que ventas libera un rollo. Nueva policy RLS para que el operario vea solo `rollo_liberado` (y luego `rollo_devuelto`).
+
+### Bloque F — Mejoras de catálogo (migraciones 051, 053, 054)
+
+- **051** — Auto-propagación bidireccional colores ↔ artículos: un color nuevo se asocia a todos los artículos activos de la empresa (y viceversa). Backfill de combinaciones faltantes.
+- **053** — Colores "fijados" (pin) por artículo: aparecen primero en los dropdowns, ordenados alfabéticamente antes que el resto.
+- **054** — Comentario libre por ingreso: campo `ingresos.comentario` editable desde el detalle.
+
+### Bloque G — Fixes menores (migraciones 052, 055, 056/057)
+
+- **052** — Galfione: `reader_type` pasa de `'qr'` a `'barcode'`.
+- **055** — Patrón regex para Lecotex (primer número de 9 dígitos del payload).
+- **056/057** — Unicidad de `numero_pedido`: de UNIQUE global a UNIQUE `(empresa_id, numero_pedido)`.
+
+---
+
+## 10.14. Iteración 2026-06 — Etiquetado manual (módulo rollos-sin-etiqueta)
+
+Módulo completamente nuevo para generar e imprimir etiquetas de rollos que llegan sin etiqueta o cuya etiqueta está dañada.
+
+### Flujo general
+
+1. El operario accede a `/rollos-sin-etiqueta/nuevo` (link en sidebar operario/admin).
+2. Elige entre **Partida existente** (selecciona una OT) o **Nueva partida** (carga tintorería + fecha, la OT es opcional).
+3. Selecciona artículo y color (colores ordenados alfabéticamente con `localeCompare`).
+4. Carga la lista de rollos: número auto (asignado por el sistema), kilos, ubicación. En mobile se muestran labels encima de cada input (`sm:hidden`).
+5. Guarda → `createRollosSinEtiqueta` (Server Action) crea los rollos → redirige a `/rollos-sin-etiqueta/etiqueta?ids=...`.
+6. La página de etiquetas carga datos y renderiza `<EtiquetaLabel />`.
+7. El operario imprime o exporta PDF. En mobile, botones muestran solo ícono (`hidden sm:inline` en los textos).
+
+### Re-etiquetado de rollos existentes
+
+`/stock` → `RolloDetailDialog` → botón **"Imprimir etiqueta"** → navega a `/rollos-sin-etiqueta/etiqueta?ids={rollo_id}`.
+El peso del rollo ya refleja muestras extraídas (la RPC `registrar_muestra` decrementa `rollos.kilos` atómicamente).
+
+### Configuración de medidas (migración 060)
+
+- **Tabla `empresa_etiqueta_config`**: una fila por empresa con `ancho_mm`, `alto_mm`, `padding_mm`, `qr_mm`, `factor_escala`. RLS: operario+admin pueden editar.
+- **`factor_escala`**: compensa reescalado del driver de impresora. Al imprimir: página CSS se dimensiona `ancho_mm × factor_escala` + `transform: scale(factor_escala)` en cada etiqueta.
+- **`/rollos-sin-etiqueta/ajustes`**: formulario con inputs + preview en vivo.
+
+### EtiquetaLabel — detalles técnicos
+
+- Caja en mm con `containerType: 'size'`. Contenido en `cqmin` → escala proporcional a cualquier medida.
+- **`padNumero(n)`**: ≥ 1000 → sin padding; < 1000 → 3 dígitos (`007`, `123`).
+- **`numFontSize(padded)`**: ≤ 3 → `26cqmin`, 4 → `20cqmin`, 5+ → `15cqmin`. Soporta números de 4 y 5 dígitos sin overflow.
+- El QR codifica `rollo.numero_pieza` — el operario puede escanear la etiqueta generada en confirmar/picking.
+- Muestra: empresa/tintorería (header), QR + número grande (centro), OT, color, tela, kilos, ubicación, fecha (pie).
+
+### Archivos del módulo
+
+```
+src/app/rollos-sin-etiqueta/
+  nuevo/
+    page.tsx                 — Server Component: carga ingresos, tintorías, artículos, ubicaciones
+    actions.ts               — createRollosSinEtiqueta (Server Action)
+    RollosSinEtiquetaForm.tsx — Client Component (formulario completo)
+  etiqueta/
+    page.tsx                 — Client Component: carga datos, renderiza etiquetas, botones print/PDF
+  ajustes/
+    page.tsx                 — Formulario de config de medidas (Client Component)
+    actions.ts               — saveEtiquetaConfig (Server Action)
+  EtiquetaLabel.tsx          — Componente de etiqueta (usa react-qr-code)
+  etiqueta-config.ts         — Types + DEFAULT_ETIQUETA_CONFIG + loadEtiquetaConfig helper
+  layout.tsx                 — Guard operario+admin
+```
+
+---
+
+## 10.15. Iteración 2026-06 — Notificaciones nuevas + devolución parcial de pedidos
+
+### Bloque A — Notificación al admin cuando se elimina un rollo (migración 061)
+
+- Nuevo tipo `'rollo_eliminado'` en el CHECK constraint de `notificaciones.tipo`.
+- **`notificar_rollo_eliminado(empresa_id, numero_pieza, articulo, color, usuario_nombre)`** (SECURITY DEFINER): la server action `eliminarRollo()` la llama vía RPC después del DELETE exitoso. Los admins la ven en la campanita.
+
+### Bloque B — Devolución parcial de rollos de un pedido entregado (migración 062)
+
+**Caso de uso**: el cliente devuelve físicamente rollos después del egreso (`confirmada_egreso`). El operario los registra en el sistema.
+
+**Schema**:
+- `pedido_rollos.devuelto_at timestamptz` y `pedido_rollos.devuelto_motivo text`.
+- Nuevo tipo `'rollo_devuelto'` en notificaciones. Policy RLS para que el operario vea `rollo_liberado` y `rollo_devuelto`.
+
+**RPCs**:
+- **`devolver_rollos_pedido(pedido_id, pedido_rollo_ids[], motivo)`**: para ventas/admin desde la página del pedido. El pedido debe estar en `confirmada_egreso`. Por cada rollo: marca `devuelto_at`, pone en `en_stock` con ubicación "Sin ubicar", inserta notificación al operario, logea en `movimientos`.
+- **`devolver_rollo_por_rollo_id(rollo_id, motivo)`**: para el operario desde `RolloDetailDialog`. Busca el pedido activo del rollo automáticamente.
+
+**UI**:
+- **`/pedidos/[id]`**: sección "Devolución parcial" visible cuando `estado = 'confirmada_egreso'`, lista rollos activos con checkboxes + campo motivo.
+- **`RolloDetailDialog`**: botón "Devolver al stock" para rollos en estado `entregado`.
+
+### Estado del branch (2026-06-29)
+
+`development` fue mergeado a `main` con `--no-ff`. Main está al día. Vercel redesplegó automático. Migraciones 001-062 aplicadas en el proyecto Supabase compartido.

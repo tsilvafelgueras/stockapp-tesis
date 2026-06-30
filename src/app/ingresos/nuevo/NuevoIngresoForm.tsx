@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Camera, QrCode, Barcode, X, RefreshCw } from 'lucide-react'
 import {
@@ -241,8 +242,12 @@ export default function NuevoIngresoForm({
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [otDuplicadaId, setOtDuplicadaId] = useState<string | null>(null)
 
   const [scannerTipo, setScannerTipo] = useState<'qr' | 'barcode' | null>(null)
+  const [scanFlowState, setScanFlowState] = useState<'form' | 'editing_rollo'>('form')
+  const [lastScannedIdx, setLastScannedIdx] = useState<number | null>(null)
+  const [lastScannerTipo, setLastScannerTipo] = useState<'qr' | 'barcode' | null>(null)
   const ubicacionOptions = useMemo(
     () => ubicacionesToOptions(ubicaciones),
     [ubicaciones]
@@ -747,6 +752,15 @@ export default function NuevoIngresoForm({
     }
     lastScanRef.current = { code: raw, at: ahora }
 
+    const limiteRollos = parseInt(totalRollosDeclarado) || null
+    if (limiteRollos !== null) {
+      const yaEscaneados = rollosRef.current.filter(r => r.numero_pieza.trim()).length
+      if (yaEscaneados >= limiteRollos) {
+        toast.error(`Ya cargaste los ${limiteRollos} rollos declarados.`)
+        return
+      }
+    }
+
     // 1. Extraer numero_pieza usando patrones de la tintorería seleccionada
     const patronesFiltrados = patrones.filter(
       (p) => p.tintoreria_id === tintoreriaId || p.tintoreria_id === null
@@ -822,22 +836,24 @@ export default function NuevoIngresoForm({
       return
     }
 
+    // Calcular el índice del nuevo rollo antes de actualizar el estado
+    const rollosActuales = rollosRef.current
+    const ultimoActual = rollosActuales[rollosActuales.length - 1]
+    // Una fila es "reemplazable" si no tiene numero_pieza. El artículo/color/ubicación
+    // aplicados en bulk son defaults y no convierten la fila en "usada".
+    const reemplazaUltimo = !ultimoActual.numero_pieza.trim()
+    const newIdx = reemplazaUltimo ? rollosActuales.length - 1 : rollosActuales.length
+
     setRollos((prev) => {
       const ultimo = prev[prev.length - 1]
-      const ultimoVacio = !ultimo.numero_pieza && !ultimo.kilos && !ultimo.articulo_id
+      const ultimoVacio = !ultimo.numero_pieza.trim()
       if (ultimoVacio) return [...prev.slice(0, -1), nuevoRollo]
       return [...prev, nuevoRollo]
     })
 
-    const extraidos = [
-      numeroPieza && 'N° pieza',
-      kilosStr && 'kilos',
-      articuloFinal && 'artículo',
-      colorFinal && 'color',
-    ].filter(Boolean)
-    toast.success(
-      `Rollo escaneado${extraidos.length ? ` — ${extraidos.join(', ')}` : ''}. Verificá los datos.`
-    )
+    setLastScannedIdx(newIdx)
+    setScanFlowState('editing_rollo')
+    setScannerTipo(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -888,6 +904,9 @@ export default function NuevoIngresoForm({
 
     if (result?.error) {
       setSubmitError(result.error)
+      if ('ingresoExistente_id' in result && result.ingresoExistente_id) {
+        setOtDuplicadaId(result.ingresoExistente_id as string)
+      }
       setSubmitting(false)
     }
   }
@@ -907,6 +926,9 @@ export default function NuevoIngresoForm({
     validations.totalRollosVacio ||
     !validations.cantidadCoincide ||
     !validations.kilosCoinciden
+
+  const totalRollosNum = parseInt(totalRollosDeclarado) || null
+  const rollosSaturado = totalRollosNum !== null && validations.cantidadRollos >= totalRollosNum
 
   const tintoreriaBloqueada = modo === 'ia' && archivo !== null
 
@@ -937,6 +959,32 @@ export default function NuevoIngresoForm({
           Planilla con IA
         </button>
       </div>
+
+      {scanFlowState === 'editing_rollo' && lastScannedIdx !== null ? (
+        <EditingRolloView
+          rollo={rollos[lastScannedIdx]}
+          scannerTipo={lastScannerTipo}
+          articulos={articulos}
+          colores={colores}
+          ubicacionOptions={ubicacionOptions}
+          fotoFalla={fotosFalla[lastScannedIdx]}
+          confianzas={confianzas?.rollos[lastScannedIdx]}
+          onUpdate={(f, v) => updateRollo(lastScannedIdx, f, v)}
+          onChangeArticulo={(id) => setRolloArticulo(lastScannedIdx, id)}
+          onToggleSegunda={(v) => toggleSegunda(lastScannedIdx, v)}
+          onFotoFalla={(f) => setFotoFalla(lastScannedIdx, f)}
+          onSiguienteRollo={() => {
+            setScanFlowState('form')
+            setScannerTipo(lastScannerTipo)
+          }}
+          onVerTodos={() => {
+            setScanFlowState('form')
+            setScannerTipo(null)
+          }}
+          rolloNumber={lastScannedIdx + 1}
+          totalRollos={rollos.filter((r) => r.numero_pieza.trim()).length}
+        />
+      ) : (<>
 
       {/* Modo IA */}
       {modo === 'ia' && (
@@ -1174,7 +1222,7 @@ export default function NuevoIngresoForm({
             <input
               type="text"
               value={ot}
-              onChange={(e) => setOt(e.target.value)}
+              onChange={(e) => { setOt(e.target.value); setOtDuplicadaId(null) }}
               placeholder="Orden de trabajo"
               className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.ot)}`}
             />
@@ -1357,8 +1405,13 @@ export default function NuevoIngresoForm({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setScannerTipo(scannerTipo === 'qr' ? null : 'qr')}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
+                disabled={rollosSaturado}
+                onClick={() => {
+                  const next = scannerTipo === 'qr' ? null : ('qr' as const)
+                  setScannerTipo(next)
+                  if (next) setLastScannerTipo(next)
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   scannerTipo === 'qr'
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-white border-input hover:bg-zinc-50'
@@ -1369,8 +1422,13 @@ export default function NuevoIngresoForm({
               </button>
               <button
                 type="button"
-                onClick={() => setScannerTipo(scannerTipo === 'barcode' ? null : 'barcode')}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${
+                disabled={rollosSaturado}
+                onClick={() => {
+                  const next = scannerTipo === 'barcode' ? null : ('barcode' as const)
+                  setScannerTipo(next)
+                  if (next) setLastScannerTipo(next)
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   scannerTipo === 'barcode'
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-white border-input hover:bg-zinc-50'
@@ -1406,8 +1464,8 @@ export default function NuevoIngresoForm({
         )}
 
         {/* Mobile */}
-        <div className="sm:hidden divide-y">
-          {rollos.map((r, i) => (
+        <div className="sm:hidden divide-y-2 divide-zinc-200">
+          {[...rollos].map((r, i) => ({ r, i })).reverse().map(({ r, i }) => (
             <RolloCardMobile
               key={i}
               rollo={r}
@@ -1449,7 +1507,7 @@ export default function NuevoIngresoForm({
               </tr>
             </thead>
             <tbody>
-              {rollos.map((r, i) => {
+              {[...rollos].map((r, i) => ({ r, i })).reverse().map(({ r, i }) => {
                 const conf = confianzas?.rollos[i]
                 const isDuplicate =
                   r.numero_pieza.trim() &&
@@ -1457,7 +1515,7 @@ export default function NuevoIngresoForm({
                 return (
                   <Fragment key={i}>
                     <tr
-                      className={`border-b last:border-0 ${
+                      className={`border-b-2 border-zinc-200 last:border-0 ${
                         isDuplicate ? 'bg-destructive/5' : ''
                       } ${r.segunda ? 'bg-amber-50/40' : ''}`}
                     >
@@ -1729,7 +1787,20 @@ export default function NuevoIngresoForm({
         </div>
       )}
 
-      {submitError && <p className="text-sm text-destructive">{submitError}</p>}
+      {otDuplicadaId ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">Ya existe un ingreso con la OT &ldquo;{ot.trim()}&rdquo;.</p>
+          <p className="mt-1">
+            Para agregar rollos faltantes,{' '}
+            <Link href={`/ingresos/${otDuplicadaId}`} className="underline font-medium">
+              ir al ingreso existente
+            </Link>{' '}
+            y usar &ldquo;Agregar rollo faltante&rdquo;.
+          </p>
+        </div>
+      ) : submitError ? (
+        <p className="text-sm text-destructive">{submitError}</p>
+      ) : null}
 
       <div className="flex flex-col-reverse sm:flex-row gap-3">
         <button
@@ -1747,6 +1818,7 @@ export default function NuevoIngresoForm({
           {submitting ? 'Guardando...' : 'Guardar ingreso'}
         </button>
       </div>
+      </>)}
     </form>
   )
 }
@@ -2060,6 +2132,251 @@ function RolloCardMobile({
           onFoto={onFotoFalla}
         />
       )}
+    </div>
+  )
+}
+
+// ── Vista de edición post-escaneo ──────────────────────────
+
+function EditingRolloView({
+  rollo,
+  scannerTipo,
+  articulos,
+  colores,
+  ubicacionOptions,
+  fotoFalla,
+  confianzas,
+  onUpdate,
+  onChangeArticulo,
+  onToggleSegunda,
+  onFotoFalla,
+  onSiguienteRollo,
+  onVerTodos,
+  rolloNumber,
+  totalRollos,
+}: {
+  rollo: RolloInput
+  scannerTipo: 'qr' | 'barcode' | null
+  articulos: ArticuloCatalog[]
+  colores: Catalog[]
+  ubicacionOptions: ReturnType<typeof ubicacionesToOptions>
+  fotoFalla: FotoPendiente | undefined
+  confianzas:
+    | {
+        numero_pieza: number
+        kilos: number
+        metros: number
+        rinde: number
+        gramaje_planilla: number
+        articulo: number
+        color: number
+      }
+    | undefined
+  onUpdate: <K extends keyof RolloInput>(field: K, value: RolloInput[K]) => void
+  onChangeArticulo: (id: string | null) => void
+  onToggleSegunda: (v: boolean) => void
+  onFotoFalla: (file: File | null) => void
+  onSiguienteRollo: () => void
+  onVerTodos: () => void
+  rolloNumber: number
+  totalRollos: number
+}) {
+  const faltaArticulo = !rollo.articulo_id
+  const faltaColor = !rollo.color_id
+  const kilosInvalidos = (() => {
+    const k = parseDecimalInput(rollo.kilos)
+    return k == null || Number.isNaN(k) || k <= 0
+  })()
+  const faltaUbicacion = !rollo.ubicacion.trim()
+
+  return (
+    <div className="space-y-4">
+      {/* Header: tipo de scanner + contador */}
+      <div className="rounded-lg border bg-white p-3 shadow-sm flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary border-primary/20">
+          {scannerTipo === 'qr' ? (
+            <><QrCode className="size-3" /> Código QR</>
+          ) : (
+            <><Barcode className="size-3" /> Código de barras</>
+          )}
+        </span>
+        <span className="text-sm text-muted-foreground">
+          Rollo {rolloNumber} de {totalRollos}
+        </span>
+      </div>
+
+      {/* Datos del rollo */}
+      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b bg-zinc-50">
+          <h2 className="font-semibold text-sm">Datos del rollo escaneado</h2>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-foreground">N° Pieza</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={rollo.numero_pieza}
+              onChange={(e) => onUpdate('numero_pieza', e.target.value)}
+              placeholder="204021911"
+              className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.numero_pieza)}`}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-foreground">Artículo *</label>
+            <select
+              value={rollo.articulo_id ?? ''}
+              onChange={(e) => onChangeArticulo(e.target.value || null)}
+              className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+                faltaArticulo ? 'border-destructive' : celdaCls(confianzas?.articulo)
+              }`}
+            >
+              <option value="">Seleccionar...</option>
+              {articulos.map((a) => (
+                <option key={a.id} value={a.id}>{a.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-foreground">Color *</label>
+            <select
+              value={rollo.color_id ?? ''}
+              onChange={(e) => onUpdate('color_id', e.target.value || null)}
+              className={`w-full rounded border bg-background px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+                faltaColor ? 'border-destructive' : celdaCls(confianzas?.color)
+              }`}
+            >
+              <option value="">Seleccionar...</option>
+              {colores.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground">Kilos *</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={rollo.kilos}
+                onChange={(e) => onUpdate('kilos', e.target.value)}
+                placeholder="20.5 o 20,5"
+                className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${
+                  kilosInvalidos ? 'border-destructive' : celdaCls(confianzas?.kilos)
+                }`}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground">Metros</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                value={rollo.metros}
+                onChange={(e) => onUpdate('metros', e.target.value)}
+                placeholder="50"
+                className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.metros)}`}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground">Rinde</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                value={rollo.rinde}
+                onChange={(e) => onUpdate('rinde', e.target.value)}
+                placeholder="2.4"
+                className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.rinde)}`}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground">Gramaje</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                value={rollo.gramaje_planilla ?? ''}
+                onChange={(e) => onUpdate('gramaje_planilla', e.target.value)}
+                placeholder="142"
+                className={`w-full rounded border px-3 py-2 text-base focus:outline-none focus:ring-1 focus:ring-ring ${celdaCls(confianzas?.gramaje_planilla)}`}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-foreground">Ubicación *</label>
+            <SearchableCombobox
+              value={rollo.ubicacion}
+              onChange={(value) => onUpdate('ubicacion', value)}
+              options={ubicacionOptions}
+              placeholder="Seleccionar..."
+              searchPlaceholder="Buscar ubicacion..."
+              emptyLabel="No hay ubicaciones"
+              allowClear={false}
+            />
+          </div>
+
+          <div>
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={!!rollo.segunda}
+                onChange={(e) => onToggleSegunda(e.target.checked)}
+                className="size-4 rounded border-input text-action focus:ring-1 focus:ring-ring"
+              />
+              Segunda calidad
+            </label>
+          </div>
+
+          {rollo.segunda && (
+            <SegundaCalidadFields
+              rollo={rollo}
+              foto={fotoFalla}
+              onUpdate={onUpdate}
+              onFoto={onFotoFalla}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Alertas inline (informativas, no bloquean) */}
+      {(faltaArticulo || faltaColor || kilosInvalidos || faltaUbicacion) && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 space-y-1 text-sm">
+          {faltaArticulo && <p>⚠ Falta asignar artículo.</p>}
+          {faltaColor && <p>⚠ Falta asignar color.</p>}
+          {kilosInvalidos && <p>⚠ Kilos inválidos o vacíos.</p>}
+          {faltaUbicacion && <p>⚠ Falta asignar ubicación.</p>}
+          <p className="text-xs text-muted-foreground">
+            Podés completarlo ahora o desde &quot;Ver todos los rollos&quot;.
+          </p>
+        </div>
+      )}
+
+      {/* Acciones */}
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={onSiguienteRollo}
+          className="w-full rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          Cargar siguiente rollo →
+        </button>
+        <button
+          type="button"
+          onClick={onVerTodos}
+          className="w-full rounded-md border bg-white px-5 py-3 text-sm font-medium hover:bg-zinc-50 transition-colors"
+        >
+          Ver todos los rollos
+        </button>
+      </div>
     </div>
   )
 }
