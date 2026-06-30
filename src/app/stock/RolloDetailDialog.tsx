@@ -14,6 +14,7 @@ import {
   listarFotosRollo,
   editarRollo,
   devolverRolloAStock,
+  reactivarRollo,
   type RolloFotoConUrl,
 } from './actions'
 import { actualizarOtIngreso } from '@/app/ingresos/otActions'
@@ -59,7 +60,7 @@ export default function RolloDetailDialog({
   articuloColores: Record<string, { id: string; nombre: string }[]>
 }) {
   const [mode, setMode] = useState<
-    'view' | 'mover' | 'baja' | 'eliminar' | 'segunda' | 'confirmar' | 'editar' | 'devolver'
+    'view' | 'mover' | 'baja' | 'eliminar' | 'segunda' | 'confirmar' | 'editar' | 'devolver' | 'reactivar'
   >(initialMode ?? 'view')
   const [ubicacion, setUbicacion] = useState(rollo.ubicacion ?? '')
   const [confirmUbicacion, setConfirmUbicacion] = useState('')
@@ -169,6 +170,7 @@ export default function RolloDetailDialog({
   const puedeEditar =
     esOperarioOAdmin && rollo.estado !== 'baja' && rollo.estado !== 'entregado'
   const puedeDevolver = esOperarioOAdmin && rollo.estado === 'entregado'
+  const puedeReactivar = esOperarioOAdmin && (rollo.estado === 'baja' || rollo.estado === 'entregado')
 
   function handleGuardarOt() {
     const ingresoId = rollo.ingresos?.id
@@ -399,6 +401,29 @@ export default function RolloDetailDialog({
           e instanceof Error
             ? `Error: ${e.message}`
             : 'Error inesperado al devolver el rollo. Mirá la consola.'
+        )
+      }
+    })
+  }
+
+  function handleReactivar() {
+    startTransition(async () => {
+      try {
+        const res = await reactivarRollo(rollo.id)
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success(
+          `Pieza ${rollo.numero_pieza} reactivada y puesta en stock como "Sin ubicar".`
+        )
+        onClose()
+      } catch (e) {
+        console.error('[reactivarRollo] error inesperado', e)
+        toast.error(
+          e instanceof Error
+            ? `Error: ${e.message}`
+            : 'Error inesperado al reactivar el rollo. Mirá la consola.'
         )
       }
     })
@@ -670,6 +695,15 @@ export default function RolloDetailDialog({
                     className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:bg-success/90 transition-colors"
                   >
                     Devolver al stock
+                  </button>
+                )}
+                {puedeReactivar && (
+                  <button
+                    type="button"
+                    onClick={() => setMode('reactivar')}
+                    className="rounded-md border border-amber-400/50 text-amber-700 px-4 py-2 text-sm font-medium hover:bg-amber-50 transition-colors"
+                  >
+                    Corrección de estado
                   </button>
                 )}
                 {puedeConfirmar && (
@@ -1231,6 +1265,37 @@ export default function RolloDetailDialog({
                   className="rounded-md bg-success text-success-foreground px-4 py-2 text-sm font-medium hover:bg-success/90 disabled:opacity-50"
                 >
                   {pending ? 'Devolviendo…' : 'Confirmar devolución'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'reactivar' && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-sm">
+                Corrección de estado: pieza <strong>{rollo.numero_pieza}</strong>.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                El rollo va a pasar a &ldquo;En stock&rdquo; y su ubicación se va a
+                poner como &ldquo;Sin ubicar&rdquo;. Usá esta opción solo para
+                corregir errores de datos.
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  disabled={pending}
+                  className="text-sm px-3 py-2 hover:bg-zinc-100 rounded-md disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReactivar}
+                  disabled={pending}
+                  className="rounded-md border border-amber-400/50 bg-amber-50 text-amber-700 px-4 py-2 text-sm font-medium hover:bg-amber-100 disabled:opacity-50"
+                >
+                  {pending ? 'Reactivando…' : 'Poner en stock'}
                 </button>
               </div>
             </div>

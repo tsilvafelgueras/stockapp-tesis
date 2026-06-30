@@ -761,3 +761,59 @@ export async function listarFotosRollo(
     }
   }
 }
+
+export async function reactivarRollo(
+  rolloId: string
+): Promise<StockActionResult> {
+  try {
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Tu sesión expiró. Volvé a entrar.' }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, empresa_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin' && profile?.role !== 'operario') {
+      return { ok: false, error: 'No tenés permiso para corregir el estado de rollos.' }
+    }
+
+    const { data: rollo, error: fetchError } = await supabase
+      .from('rollos')
+      .select('id, estado, empresa_id')
+      .eq('id', rolloId)
+      .eq('empresa_id', profile.empresa_id)
+      .single()
+
+    if (fetchError || !rollo) {
+      return { ok: false, error: 'No se encontró el rollo.' }
+    }
+
+    if (rollo.estado !== 'entregado' && rollo.estado !== 'baja') {
+      return {
+        ok: false,
+        error: 'Solo se puede reactivar un rollo entregado o dado de baja.',
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('rollos')
+      .update({ estado: 'en_stock', ubicacion: 'Sin ubicar' })
+      .eq('id', rolloId)
+
+    if (updateError) return { ok: false, error: updateError.message }
+
+    revalidatePath('/stock')
+    return { ok: true }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error inesperado al reactivar el rollo.',
+    }
+  }
+}

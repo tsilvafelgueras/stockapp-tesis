@@ -357,6 +357,21 @@ export async function crearIngreso(input: IngresoInput) {
   } = await supabase.auth.getUser()
   if (!user) return { error: 'Sesión expirada — volvé a iniciar sesión.' }
 
+  const otTrimmed = input.ot?.trim()
+  if (otTrimmed) {
+    const { data: ingresoExistente } = await supabase
+      .from('ingresos')
+      .select('id')
+      .eq('ot', otTrimmed)
+      .maybeSingle()
+    if (ingresoExistente) {
+      return {
+        error: `Ya existe un ingreso con la OT "${otTrimmed}".`,
+        ingresoExistente_id: ingresoExistente.id,
+      }
+    }
+  }
+
   // Estado del ingreso derivado del origen:
   // - planilla_ia → `auditado` (rollos quedan `pendiente`, se confirman por
   //   conteo físico en depósito, en /confirmar).

@@ -677,7 +677,7 @@ export default function PickingScanner({
             confirmarlos.
           </p>
           <ul className="space-y-2 text-sm">
-            {nuevosLocales.map((d) => (
+            {[...nuevosLocales].reverse().map((d) => (
               <li
                 key={d.rolloId}
                 className={`flex items-center justify-between gap-2 rounded-md border px-3 py-2 ${
@@ -757,8 +757,8 @@ export default function PickingScanner({
                   </tr>
                 </thead>
                 <tbody>
-                  {itemsLocales.map((r) => (
-                    <tr key={`${r.rollo_id}-${r.pickeado_at}`} className="border-b last:border-0">
+                  {[...itemsLocales].reverse().map((r) => (
+                    <tr key={`${r.rollo_id}-${r.pickeado_at}`} className="border-b-2 border-zinc-200 last:border-0">
                       <td className="py-2 pr-3 font-mono font-medium">
                         {r.numero_pieza}
                       </td>

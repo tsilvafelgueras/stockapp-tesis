@@ -1,21 +1,19 @@
 -- ============================================================
--- StockApp — Schema canónico (post Etapa 7D, 2026-05)
+-- StockApp — Schema canónico (DESACTUALIZADO — solo cubre 001..011)
 --
--- Este archivo refleja el estado completo del schema después
--- de aplicar las migraciones 001..011 en orden.
+-- ⚠ ATENCIÓN: Este archivo está significativamente desactualizado.
+-- Cubre las migraciones 001..011 (post Etapa 7D, 2026-05).
+-- El proyecto está actualmente en la migración 062 (2026-06-29).
 --
--- Para una DB nueva, podés correr:
---   1) este archivo (schema.sql), o
---   2) las migraciones en orden numérico (001..011).
+-- Para una DB nueva, correr todas las migraciones en orden:
+--   supabase/migrations/001_*.sql → 062_*.sql
 --
--- Las dos opciones dejan la DB en el mismo estado funcional.
--- Las migraciones siguen siendo la fuente histórica autoritativa
--- (cada una explica el "por qué" del cambio); este archivo es
--- el "cómo está hoy" para arrancar fresh.
+-- Para una DB existente, aplicar solo las migraciones que falten.
+-- Las migraciones son la fuente histórica autoritativa.
 --
--- Las RPCs (crear_pedido, cancelar_pedido, entregar_pedido,
--- pickear_rollo, registrar_muestra) NO están duplicadas acá:
--- aplicar las migraciones 009-011 después de este archivo.
+-- Este archivo NO se mantiene actualizado como snapshot completo.
+-- Si necesitás ver el schema actual, consultá directamente las
+-- migraciones o el Supabase Studio del proyecto compartido.
 -- ============================================================
 
 
