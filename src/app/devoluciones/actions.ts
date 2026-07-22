@@ -112,7 +112,10 @@ export async function buscarPartidasConEntregados(
     p_query: query.trim(),
   })
 
-  if (error) return []
+  if (error) {
+    console.error('[buscarPartidasConEntregados] RPC error:', error)
+    return []
+  }
   return (data ?? []) as PartidaConEntregadosRow[]
 }
 
@@ -125,7 +128,10 @@ export async function getRollosEntregadosByIngreso(
     p_ingreso_id: ingresoId,
   })
 
-  if (error) return []
+  if (error) {
+    console.error('[getRollosEntregadosByIngreso] RPC error:', error)
+    return []
+  }
 
   type RpcRow = {
     rollo_id: string
