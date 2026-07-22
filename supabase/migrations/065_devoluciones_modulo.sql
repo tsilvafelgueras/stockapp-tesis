@@ -160,7 +160,6 @@ RETURNS TABLE (
   fecha_despacho    date,
   tintoreria_nombre text,
   articulo_nombre   text,
-  color_id          uuid,
   numero_lote       text,
   rollos_entregados bigint
 )
@@ -176,7 +175,6 @@ AS $$
     i.fecha_despacho,
     t.nombre                            AS tintoreria_nombre,
     a.nombre                            AS articulo_nombre,
-    i.color_id,
     i.numero_lote,
     COUNT(r.id)                         AS rollos_entregados
   FROM ingresos i
@@ -192,7 +190,7 @@ AS $$
       OR i.numero_lote   ILIKE '%' || p_query || '%'
     )
   GROUP BY i.id, i.ot, i.numero_remito, i.fecha_despacho,
-           t.nombre, a.nombre, i.color_id, i.numero_lote
+           t.nombre, a.nombre, i.numero_lote
   HAVING COUNT(r.id) > 0
   ORDER BY i.fecha_despacho DESC
   LIMIT 50;
