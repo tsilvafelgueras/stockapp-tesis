@@ -273,15 +273,25 @@ function StepBuscarPartida({
   onPartidaSeleccionada: (ingresoId: string) => void
 }) {
   const [query, setQuery] = useState('')
+  const [buscado, setBuscado] = useState('')
   const [resultados, setResultados] = useState<PartidaConEntregadosRow[] | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [searching, startSearch] = useTransition()
 
   function handleBuscar(e: React.FormEvent) {
     e.preventDefault()
-    if (!query.trim()) return
+    const q = query.trim()
+    if (!q) return
+    setErrorMsg(null)
     startSearch(async () => {
-      const data = await buscarPartidasConEntregados(query)
-      setResultados(data)
+      const res = await buscarPartidasConEntregados(q)
+      if (!res.ok) {
+        setErrorMsg(res.error)
+        setResultados(null)
+        return
+      }
+      setBuscado(q)
+      setResultados(res.rows)
     })
   }
 
@@ -307,9 +317,16 @@ function StepBuscarPartida({
         </button>
       </form>
 
-      {resultados !== null && resultados.length === 0 && (
+      {errorMsg && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <p>{errorMsg}</p>
+        </div>
+      )}
+
+      {!errorMsg && resultados !== null && resultados.length === 0 && (
         <p className="rounded-lg border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-          No se encontraron partidas con rollos entregados para "{query}".
+          No se encontraron partidas con rollos entregados para "{buscado}".
         </p>
       )}
 
