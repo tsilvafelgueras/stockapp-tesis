@@ -188,6 +188,16 @@ AS $$
       OR i.ot            ILIKE '%' || p_query || '%'
       OR i.numero_remito ILIKE '%' || p_query || '%'
       OR i.numero_lote   ILIKE '%' || p_query || '%'
+      OR EXISTS (
+        SELECT 1
+          FROM rollos      r2
+          JOIN pedido_rollos pr2 ON pr2.rollo_id = r2.id
+          JOIN pedidos       p2  ON p2.id = pr2.pedido_id
+         WHERE r2.ingreso_id = i.id
+           AND r2.estado     = 'entregado'
+           AND p2.numero_pedido ILIKE '%' || p_query || '%'
+           AND p2.empresa_id    = i.empresa_id
+      )
     )
   GROUP BY i.id, i.ot, i.numero_remito, i.fecha_despacho,
            t.nombre, a.nombre, i.numero_lote
