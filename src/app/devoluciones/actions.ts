@@ -36,6 +36,10 @@ export type DevolucionResult =
   | { ok: true; devueltos: number; errores: { rollo_id: string; error: string }[] }
   | { ok: false; error: string }
 
+export type BuscarPartidasResult =
+  | { ok: true; rows: PartidaConEntregadosRow[] }
+  | { ok: false; error: string }
+
 export async function getRolloEntregado(
   numeroPieza: string
 ): Promise<{ ok: true; rollo: RolloEntregadoInfo } | { ok: false; error: string }> {
@@ -105,7 +109,7 @@ export async function getRolloEntregado(
 
 export async function buscarPartidasConEntregados(
   query: string
-): Promise<PartidaConEntregadosRow[]> {
+): Promise<BuscarPartidasResult> {
   const supabase = await createClient()
 
   const { data, error } = await supabase.rpc('buscar_partidas_con_entregados', {
@@ -114,9 +118,12 @@ export async function buscarPartidasConEntregados(
 
   if (error) {
     console.error('[buscarPartidasConEntregados] RPC error:', error)
-    return []
+    return {
+      ok: false,
+      error: `Error al buscar partidas: ${error.message}${error.code ? ` (${error.code})` : ''}`,
+    }
   }
-  return (data ?? []) as PartidaConEntregadosRow[]
+  return { ok: true, rows: (data ?? []) as PartidaConEntregadosRow[] }
 }
 
 export async function getRollosEntregadosByIngreso(
