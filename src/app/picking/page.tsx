@@ -1,18 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import DashboardBackButton from '@/components/DashboardBackButton'
-import { estadoPedidoBadge } from '@/lib/estadoPedido'
-
-type Row = {
-  id: string
-  numero_pedido: string | null
-  cliente: string
-  estado: string
-  created_at: string
-  pedido_partidas:
-    | { id: string; rollos_solicitados: number; pedido_rollos: { id: string; liberado_at: string | null }[] | null }[]
-    | null
-}
+import PickingListaFilters, {
+  PedidoCard,
+  type PedidoListItem,
+} from './PickingListaFilters'
 
 export default async function PickingListPage() {
   const supabase = await createClient()
@@ -36,7 +28,7 @@ export default async function PickingListPage() {
     .in('estado', ['pendiente', 'en_preparacion', 'lista'])
     .order('created_at', { ascending: true })
 
-  const rows = (pedidos ?? []) as unknown as Row[]
+  const rows = (pedidos ?? []) as unknown as PedidoListItem[]
   const listos = rows.filter((p) => p.estado === 'lista')
   const aPreparar = rows.filter((p) => p.estado !== 'lista')
 
@@ -112,10 +104,8 @@ export default async function PickingListPage() {
               {listos.length}
             </span>
           </div>
-          <div className="mt-3 space-y-2">
-            {listos.map((p) => (
-              <PedidoCard key={p.id} pedido={p} cta="Confirmar salida" />
-            ))}
+          <div className="mt-3">
+            <PickingListaFilters listos={listos} />
           </div>
         </section>
       )}
@@ -144,55 +134,5 @@ export default async function PickingListPage() {
         </section>
       )}
     </div>
-  )
-}
-
-function PedidoCard({ pedido, cta }: { pedido: Row; cta?: string }) {
-  const estado = estadoPedidoBadge(pedido.estado)
-  const total =
-    pedido.pedido_partidas?.reduce(
-      (acc, pp) => acc + Number(pp.rollos_solicitados ?? 0),
-      0
-    ) ?? 0
-  const pickeados =
-    pedido.pedido_partidas?.reduce(
-      (acc, pp) =>
-        acc +
-        (pp.pedido_rollos?.filter((pr) => pr.liberado_at == null).length ?? 0),
-      0
-    ) ?? 0
-  const pct = total > 0 ? Math.round((pickeados / total) * 100) : 0
-
-  return (
-    <Link
-      href={`/picking/${pedido.id}`}
-      className="block rounded-lg border bg-white p-4 shadow-sm transition-colors hover:bg-zinc-50 active:bg-zinc-100"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium truncate">{pedido.cliente}</p>
-          <p className="text-xs text-muted-foreground">
-            Pedido {pedido.numero_pedido ?? '-'} -{' '}
-            {new Date(pedido.created_at).toLocaleDateString('es-AR')}
-          </p>
-        </div>
-        <span className={`shrink-0 text-xs rounded-full px-2 py-0.5 ${estado.className}`}>
-          {cta ?? estado.text}
-        </span>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>
-          {pickeados} de {total} rollos pickeados
-        </span>
-        <span>{pct}%</span>
-      </div>
-      <div className="mt-1 h-1.5 w-full rounded-full bg-zinc-100">
-        <div
-          className="h-1.5 rounded-full bg-primary transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </Link>
   )
 }
