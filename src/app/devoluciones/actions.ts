@@ -22,7 +22,6 @@ export type PartidaConEntregadosRow = {
   fecha_despacho: string | null
   tintoreria_nombre: string
   articulo_nombre: string
-  color_id: string | null
   numero_lote: string | null
   rollos_entregados: number
 }
