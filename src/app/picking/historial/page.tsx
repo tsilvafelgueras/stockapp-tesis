@@ -1,6 +1,10 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import BackButton from '@/components/BackButton'
 import { createClient } from '@/lib/supabase/server'
+import HistorialFilters from './HistorialFilters'
+
+const PAGE_SIZE = 20
 
 type PedidoHistorial = {
   id: string
@@ -14,10 +18,24 @@ type PedidoHistorial = {
   pedido_rollos: { id: string; rollo_id: string | null }[] | null
 }
 
-export default async function PickingHistorialPage() {
+export default async function PickingHistorialPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    page?: string
+    cliente?: string
+    desde?: string
+    hasta?: string
+  }>
+}) {
+  const { page: pageParam, cliente, desde, hasta } = await searchParams
+
+  const currentPage = Math.max(1, parseInt(pageParam ?? '1', 10))
+  const offset = (currentPage - 1) * PAGE_SIZE
+
   const supabase = await createClient()
 
-  const { data } = await supabase
+  let query = supabase
     .from('pedidos')
     .select(
       `
@@ -30,14 +48,39 @@ export default async function PickingHistorialPage() {
         numero_remito_externo,
         numero_remito_salida,
         pedido_rollos ( id, rollo_id )
-      `
+      `,
+      { count: 'exact' }
     )
     .in('estado', ['confirmada_egreso', 'cancelada', 'entregada'])
     .order('confirmada_egreso_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
-    .limit(60)
+    .range(offset, offset + PAGE_SIZE - 1)
+
+  if (cliente?.trim()) {
+    query = query.ilike('cliente', `%${cliente.trim()}%`)
+  }
+  if (desde) {
+    query = query.gte('confirmada_egreso_at', desde)
+  }
+  if (hasta) {
+    query = query.lte('confirmada_egreso_at', hasta + 'T23:59:59')
+  }
+
+  const { data, count } = await query
 
   const pedidos = (data ?? []) as unknown as PedidoHistorial[]
+  const total = count ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  function buildHref(page: number) {
+    const params = new URLSearchParams()
+    if (page > 1) params.set('page', String(page))
+    if (cliente?.trim()) params.set('cliente', cliente.trim())
+    if (desde) params.set('desde', desde)
+    if (hasta) params.set('hasta', hasta)
+    const qs = params.toString()
+    return `/picking/historial${qs ? '?' + qs : ''}`
+  }
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
@@ -47,13 +90,28 @@ export default async function PickingHistorialPage() {
           Historial de depósito
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Últimos pedidos con salida confirmada o cancelados.
+          Pedidos con salida confirmada, entregados o cancelados.
         </p>
       </div>
 
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <Suspense fallback={null}>
+          <HistorialFilters />
+        </Suspense>
+      </section>
+
       <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
-        <div className="border-b bg-zinc-50 px-4 py-3">
-          <h2 className="text-sm font-semibold">Pedidos recientes</h2>
+        <div className="flex items-center justify-between border-b bg-zinc-50 px-4 py-3">
+          <h2 className="text-sm font-semibold">
+            {total > 0
+              ? `${total} pedido${total !== 1 ? 's' : ''}`
+              : 'Pedidos'}
+          </h2>
+          {totalPages > 1 && (
+            <p className="text-xs text-muted-foreground">
+              Página {currentPage} de {totalPages}
+            </p>
+          )}
         </div>
         <div className="divide-y">
           {pedidos.length > 0 ? (
@@ -89,10 +147,38 @@ export default async function PickingHistorialPage() {
             })
           ) : (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              Todavía no hay pedidos en el historial.
+              Ningún pedido coincide con los filtros.
             </div>
           )}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t bg-zinc-50 px-4 py-3">
+            {currentPage > 1 ? (
+              <Link
+                href={buildHref(currentPage - 1)}
+                className="rounded-md border bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
+              >
+                ← Anterior
+              </Link>
+            ) : (
+              <span />
+            )}
+            <p className="text-xs text-muted-foreground">
+              {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} de {total}
+            </p>
+            {currentPage < totalPages ? (
+              <Link
+                href={buildHref(currentPage + 1)}
+                className="rounded-md border bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
+              >
+                Siguiente →
+              </Link>
+            ) : (
+              <span />
+            )}
+          </div>
+        )}
       </section>
     </div>
   )

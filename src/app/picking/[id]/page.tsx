@@ -40,7 +40,7 @@ type PedidoRolloRaw = {
     articulo_id: string | null
     color_id: string | null
     articulos: { nombre: string } | null
-    ingresos: { numero_lote: string | null } | null
+    ingresos: { numero_lote: string | null; ot: string | null } | null
   } | null
 }
 
@@ -102,7 +102,7 @@ export default async function PickingDetailPage({
               articulo_id,
               color_id,
               articulos ( nombre ),
-              ingresos ( numero_lote )
+              ingresos ( numero_lote, ot )
             )
           `
         )
@@ -184,6 +184,7 @@ export default async function PickingDetailPage({
         color_id: r.rollos!.color_id,
         articulo: r.rollos!.articulos?.nombre ?? null,
         color: r.rollos!.color_id ? colorById.get(r.rollos!.color_id) ?? null : null,
+        ot: r.rollos!.ingresos?.ot ?? null,
         partidaRealLote,
         partidaSolicitadaLote,
         esSustitucionPartida:
@@ -299,6 +300,9 @@ function ResumenPedidoPicking({
         <ul className="mt-3 space-y-2 text-sm">
           {partidas.map((p) => {
             const faltan = Math.max(0, p.rollosSolicitados - p.rollosAsignados)
+            const kilosPartida = items
+              .filter((r) => r.pedido_partida_id === p.id)
+              .reduce((acc, r) => acc + Number(r.kilos ?? 0), 0)
             return (
               <li key={p.id} className="rounded-md border bg-zinc-50 px-3 py-2">
                 <div className="flex items-start justify-between gap-2">
@@ -317,6 +321,9 @@ function ResumenPedidoPicking({
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {faltan === 0 ? 'Completa' : `Faltan ${faltan} rollos`}
+                  {kilosPartida > 0 && (
+                    <span className="ml-1">· {kilosPartida.toFixed(2)} kg</span>
+                  )}
                 </p>
               </li>
             )
@@ -338,6 +345,7 @@ function ResumenPedidoPicking({
                   <th className="py-2 pr-3 font-medium">Pieza</th>
                   <th className="py-2 pr-3 font-medium">Articulo</th>
                   <th className="py-2 pr-3 font-medium">Partida</th>
+                  <th className="py-2 pr-3 font-medium">OT</th>
                   <th className="py-2 pr-3 font-medium">Ubic.</th>
                   <th className="py-2 text-right font-medium">Kg</th>
                 </tr>
@@ -361,6 +369,7 @@ function ResumenPedidoPicking({
                         </span>
                       )}
                     </td>
+                    <td className="py-2 pr-3 text-xs">{r.ot ?? '-'}</td>
                     <td className="py-2 pr-3">{r.ubicacion ?? '-'}</td>
                     <td className="py-2 text-right tabular-nums">
                       {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}

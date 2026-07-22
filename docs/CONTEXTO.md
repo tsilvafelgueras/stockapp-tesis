@@ -382,8 +382,9 @@ Todas idempotentes, todas pegadas en Supabase SQL Editor.
 | 044 | **Revertir impersonation de super-admin** (iteración 2026-06). Revierte la suplantación de empresa por el super-admin y reescribe/consolida las RPCs `crear_pedido`, `confirmar_egreso_pedido`, `cancelar_pedido` y `entregar_pedido` (esta última deja los rollos en `entregado`). No existe migración 043. |
 | 045 | **Confirmar partida por conteo** (iteración 2026-06-02, feedback visita cliente Muter). Soporta el nuevo flujo de confirmación de llegadas (ya no se escanea rollo por rollo, ver Sección 10.x). Agrega `rollos.comentario TEXT` (detalle puntual por rollo), `ingresos.conteo_fisico INT` (cuántos rollos contó el operario) y `ingresos.conteo_nota TEXT` (nota de discrepancia cuando el conteo no coincide con la planilla y se confirma igual). Idempotente, sin TRUNCATE. |
 | 046 | **Kilos de crudo por partida (merma real)** (iteración 2026-06-03). `ingresos.kilos_crudo_enviado` (total de kg de crudo que salió a teñir, **un total por partida**, no por rollo) + `kilos_crudo_cargado_at`/`kilos_crudo_cargado_por`. Habilita el cálculo de la **merma real del proceso de teñido** (crudo enviado vs teñido recibido = suma de rollos), que el modelo viejo no podía calcular. Se carga en el detalle del ingreso (`/ingresos/[id]`). Idempotente, sin TRUNCATE. |
+| 063 | **Fix: devolución parcial libera el índice único de picking** (iteración 2026-07-21). `devolver_rollos_pedido` y `devolver_rollo_por_rollo_id` ahora también setean `liberado_at = now()` y `liberado_motivo = 'devolucion_cliente'` al marcar la devolución. Sin esto, la fila de `pedido_rollos` seguía activa para el índice único `pedidos_rollos_rollo_id_activo_key` (`WHERE liberado_at IS NULL`) y bloqueaba el picking del mismo rollo en un pedido nuevo. Incluye backfill de filas ya devueltas con `liberado_at IS NULL`. |
 
-**Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual (post-039). Para DB nueva: correr `schema.sql` y después las migraciones `040`..`046` en orden.
+**Schema canónico**: ✅ `supabase/schema.sql` refleja el modelo actual (post-039). Para DB nueva: correr `schema.sql` y después las migraciones `040`..`063` en orden.
 
 ---
 
@@ -1801,7 +1802,7 @@ patrones regex por tintorería.
 - Login con username + alta sin email para operario/ventas (ver
   Sección 10.5, "Login con username").
 - Setup Resend SMTP (bloqueante para onboarding masivo de empresas).
-- `supabase/schema.sql` cubre solo mig 001-011 (deuda técnica). Para una DB nueva correr todas las migraciones 001-062 en orden; para una DB existente solo aplicar las que falten.
+- `supabase/schema.sql` cubre solo mig 001-011 (deuda técnica). Para una DB nueva correr todas las migraciones 001-063 en orden; para una DB existente solo aplicar las que falten.
 - Valorización del stock, control de calidad avanzado, módulo chofer,
   multi-idioma (ver Sección 10.5, "Lo que NO está en el MVP").
 
@@ -2010,3 +2011,40 @@ src/app/rollos-sin-etiqueta/
 ### Estado del branch (2026-06-29)
 
 `development` fue mergeado a `main` con `--no-ff`. Main está al día. Vercel redesplegó automático. Migraciones 001-062 aplicadas en el proyecto Supabase compartido.
+
+---
+
+## 10.16. Iteración 2026-07-21 — Fix picking de rollos devueltos + mejoras al módulo de picking
+
+### Bug fix: picking bloqueado después de devolución parcial (migración 063)
+
+**Síntoma**: después de una devolución parcial de pedido, el rollo volvía al stock (`en_stock`) pero al intentar pickearlos para un nuevo pedido el sistema lanzaba `duplicate key value violates unique constraint "pedidos_rollos_rollo_id_activo_key"`.
+
+**Causa**: las RPCs `devolver_rollos_pedido` y `devolver_rollo_por_rollo_id` (mig 062) seteaban `devuelto_at` pero no `liberado_at`. El índice único parcial `WHERE liberado_at IS NULL AND rollo_id IS NOT NULL` seguía viendo la fila vieja como activa, bloqueando el INSERT del nuevo pedido.
+
+**Fix**: ambas RPCs ahora setean `liberado_at = now()` + `liberado_motivo = 'devolucion_cliente'` junto con `devuelto_at`. La migración incluye un backfill que corrige todas las filas afectadas existentes.
+
+### Mejoras al módulo de picking (solo frontend, sin migración)
+
+**Partidas solicitadas — kg pickeados por partida**: cada partida ahora muestra la suma de kg de los rollos confirmados + borrador asignados a ella, al lado del estado "Completa / Faltan N rollos". El total global de kg (encabezado) se mantiene.
+
+**Listos para salida física — sort + buscador**: nuevo `PickingListaFilters.tsx` (Client Component). La sección "Listos para salida física" ahora tiene un input de búsqueda (por cliente o número de pedido) y un toggle de ordenamiento (más nuevos / más antiguos). El PedidoCard se extrajo al mismo archivo para compartirlo con el server component.
+
+**Rollos confirmados — columna OT**: se agrega la columna OT entre "Partida" y "Ubic." en la tabla de rollos confirmados (tanto en la vista activa de picking como en el fallback estático). El dato se trae de `rollos.ingresos.ot` en la query de `pedido_rollos`.
+
+**Historial — paginación y filtros completos**: `/picking/historial` reemplaza el límite fijo de 60 registros por paginación de 20 por página con botones Anterior/Siguiente (links de servidor que preservan filtros activos). Nuevo `HistorialFilters.tsx` (Client Component) con input de cliente y date pickers de desde/hasta. Los filtros se aplican en la query de Supabase (server-side). La URL es compartible: `?page=2&cliente=muter&desde=2026-07-01`.
+
+**Archivos nuevos**:
+- `src/app/picking/PickingListaFilters.tsx`
+- `src/app/picking/historial/HistorialFilters.tsx`
+- `supabase/migrations/063_fix_devolucion_liberar_rollo.sql`
+
+**Archivos modificados**:
+- `src/app/picking/page.tsx`
+- `src/app/picking/[id]/page.tsx` (`ot` en query + tipo + ResumenPedidoPicking)
+- `src/app/picking/[id]/PickingScanner.tsx` (`PickRollo.ot`, columna OT, kg por partida)
+- `src/app/picking/historial/page.tsx`
+
+### Estado del branch (2026-07-21)
+
+`development` mergeado a `main` con `--no-ff`. Vercel redesplegó automático. **Migración 063 pendiente de aplicar en Supabase** (SQL Editor del proyecto).

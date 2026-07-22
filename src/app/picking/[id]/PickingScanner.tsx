@@ -44,6 +44,7 @@ export type PickRollo = {
   color_id: string | null
   articulo: string | null
   color: string | null
+  ot: string | null
   partidaRealLote: string | null
   partidaSolicitadaLote: string | null
   esSustitucionPartida: boolean
@@ -386,6 +387,7 @@ export default function PickingScanner({
               color_id: res.colorId,
               articulo: partida?.articulo ?? item.articulo,
               color: partida?.color ?? item.color,
+              ot: null,
               partidaRealLote: res.partidaRealLote,
               partidaSolicitadaLote: res.partidaSolicitadaLote,
               esSustitucionPartida: res.esSustitucionPartida,
@@ -480,6 +482,7 @@ export default function PickingScanner({
             color_id: a.colorId,
             articulo: partida?.articulo ?? null,
             color: partida?.color ?? null,
+            ot: null,
             partidaRealLote: a.partidaRealLote,
             partidaSolicitadaLote: a.partidaSolicitadaLote,
             esSustitucionPartida: a.esSustitucionPartida,
@@ -581,6 +584,13 @@ export default function PickingScanner({
             {partidasLocales.map((p) => {
               const asignadosTotal = p.rollosAsignados + (asignadosBorrador[p.id] ?? 0)
               const faltan = Math.max(0, p.rollosSolicitados - asignadosTotal)
+              const kilosPartida =
+                itemsLocales
+                  .filter((r) => r.pedido_partida_id === p.id)
+                  .reduce((acc, r) => acc + Number(r.kilos ?? 0), 0) +
+                draftValidos
+                  .filter((d) => d.pedidoPartidaId === p.id)
+                  .reduce((acc, d) => acc + Number(d.kilos ?? 0), 0)
               return (
                 <li key={p.id} className="rounded-md border bg-zinc-50 px-3 py-2">
                   <div className="flex items-start justify-between gap-2">
@@ -605,6 +615,9 @@ export default function PickingScanner({
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {faltan === 0 ? 'Completa' : `Faltan ${faltan} rollos`}
+                    {kilosPartida > 0 && (
+                      <span className="ml-1">· {kilosPartida.toFixed(2)} kg</span>
+                    )}
                   </p>
                   {p.ubicacionesSugeridas.length > 0 && faltan > 0 && (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -751,6 +764,7 @@ export default function PickingScanner({
                     <th className="py-2 pr-3 font-medium">Articulo</th>
                     <th className="py-2 pr-3 font-medium">Color</th>
                     <th className="py-2 pr-3 font-medium">Partida</th>
+                    <th className="py-2 pr-3 font-medium">OT</th>
                     <th className="py-2 pr-3 font-medium">Ubic.</th>
                     <th className="py-2 text-right font-medium">Kg</th>
                     <th className="py-2 pl-3 text-right font-medium"></th>
@@ -774,6 +788,7 @@ export default function PickingScanner({
                           </span>
                         )}
                       </td>
+                      <td className="py-2 pr-3 text-xs">{r.ot ?? '-'}</td>
                       <td className="py-2 pr-3">{r.ubicacion ?? '-'}</td>
                       <td className="py-2 text-right tabular-nums">
                         {r.kilos != null ? Number(r.kilos).toFixed(2) : '-'}
