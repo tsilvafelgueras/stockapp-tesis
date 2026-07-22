@@ -293,7 +293,7 @@ function StepBuscarPartida({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por OT, remito o lote..."
+            placeholder="Buscar por OT, remito, lote o número de pedido..."
             className="w-full rounded-lg border border-input bg-white py-2.5 pl-9 pr-3 text-sm"
             autoFocus
           />
