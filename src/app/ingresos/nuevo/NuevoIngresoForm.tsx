@@ -15,10 +15,10 @@ import {
 } from './actions'
 import { createColor, solicitarColor } from '@/app/admin/colores/actions'
 import { createClient } from '@/lib/supabase/client'
-import {
-  UMBRAL_BAJA_CONFIANZA,
-  type IngresoExtraido,
-  type Field,
+import { UMBRAL_BAJA_CONFIANZA } from '@/lib/extraccion/constantes'
+import type {
+  IngresoExtraido,
+  Field,
 } from '@/lib/extraccion/extraerPlanilla'
 import { ubicacionesToOptions, type UbicacionOption } from '@/lib/ubicaciones'
 import ScannerByReaderType from '@/components/ScannerByReaderType'
@@ -28,6 +28,8 @@ import { extraerCodigoCandidato } from '@/lib/scanner'
 import type { PatronCodigo } from '@/lib/scanner'
 import { resolverColorCatalogo } from '@/lib/coloresMatching'
 import { resolverArticuloCatalogo } from '@/lib/articulosMatching'
+import { agruparArticulosSinAsignar, claveArticuloSugerido } from '@/lib/articulosPendientes'
+import ArticulosDetectados from './ArticulosDetectados'
 import {
   formatBytes,
   MAX_PLANILLA_BYTES,
@@ -39,7 +41,7 @@ import {
 type PatronConTintoreria = PatronCodigo & { tintoreria_id: string | null }
 
 type Catalog = { id: string; nombre: string }
-type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
+type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[]; pendiente?: boolean }
 
 type Modo = 'manual' | 'ia'
 
@@ -207,7 +209,6 @@ export default function NuevoIngresoForm({
 }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const textoOcrRef = useRef<string | null>(null)
 
   const tintorerias = initialTintorerias
   const [articulos, setArticulos] = useState(initialArticulos)
@@ -221,12 +222,8 @@ export default function NuevoIngresoForm({
   const [imagenPath, setImagenPath] = useState<string | null>(null)
   const [extrayendo, setExtrayendo] = useState(false)
   const [etapaIA, setEtapaIA] = useState<
-    'ocr' | 'subiendo' | 'procesando' | null
+    'subiendo' | 'procesando' | null
   >(null)
-  const [progresoOcr, setProgresoOcr] = useState<{
-    porcentaje: number
-    detalle: string
-  } | null>(null)
   const [extraccionError, setExtraccionError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [confianzas, setConfianzas] = useState<Confianzas | null>(null)
@@ -287,7 +284,7 @@ export default function NuevoIngresoForm({
   function setRolloArticulo(idx: number, nuevoArticuloId: string | null) {
     setRollos((prev) =>
       prev.map((r, i) =>
-        i === idx ? { ...r, articulo_id: nuevoArticuloId } : r
+        i === idx ? { ...r, articulo_id: nuevoArticuloId, articulo_pendiente: articulos.find(a => a.id === nuevoArticuloId)?.pendiente ?? false } : r
       )
     )
   }
@@ -297,7 +294,10 @@ export default function NuevoIngresoForm({
   // ya viene con esos defaults, sin tener que apretar "Aplicar" cada vez.
   function rolloConDefaults(): RolloInput {
     const base = emptyRollo()
-    if (bulkArticuloId) base.articulo_id = bulkArticuloId
+    if (bulkArticuloId) {
+      base.articulo_id = bulkArticuloId
+      base.articulo_pendiente = articulos.find(a => a.id === bulkArticuloId)?.pendiente ?? false
+    }
     if (bulkColorId) base.color_id = bulkColorId
     if (bulkUbicacion.trim()) base.ubicacion = bulkUbicacion.trim()
     return base
@@ -351,7 +351,7 @@ export default function NuevoIngresoForm({
             .map(({ id, nombre }) => ({ id, nombre }))
           return { id: a.id, nombre: a.nombre, colores: cols }
         })
-        setArticulos(arts)
+        setArticulos(prev => [...arts, ...prev.filter(a => a.pendiente && !arts.some(actual => actual.id === a.id))])
       }
       toast.success('Colores actualizados.')
     } catch {
@@ -434,7 +434,7 @@ export default function NuevoIngresoForm({
     const articulo = articulos.find((a) => a.id === bulkArticuloId)
     // El color es independiente del artículo, así que lo mantenemos tal cual.
     setRollos((prev) =>
-      prev.map((r) => ({ ...r, articulo_id: bulkArticuloId }))
+      prev.map((r) => ({ ...r, articulo_id: bulkArticuloId, articulo_pendiente: articulo?.pendiente ?? false }))
     )
     toast.success(
       `Artículo "${articulo?.nombre ?? ''}" asignado a ${rollos.length} ${rollos.length === 1 ? 'rollo' : 'rollos'}.`
@@ -464,8 +464,6 @@ export default function NuevoIngresoForm({
     setImagenPath(null)
     setExtrayendo(false)
     setEtapaIA(null)
-    setProgresoOcr(null)
-    textoOcrRef.current = null
     setExtraccionError(null)
     setWarnings([])
     setConfianzas(null)
@@ -490,8 +488,6 @@ export default function NuevoIngresoForm({
     }
 
     setArchivo(file)
-    textoOcrRef.current = null
-    setProgresoOcr(null)
     setExtraccionError(null)
     setWarnings([])
     setConfianzas(null)
@@ -518,42 +514,6 @@ export default function NuevoIngresoForm({
 
     try {
       let path = pathExistente
-      let textoOcr: string | null = null
-
-      textoOcr = textoOcrRef.current
-      if (!textoOcr) {
-        setEtapaIA('ocr')
-        setProgresoOcr({
-          porcentaje: 0,
-          detalle: 'Preparando la lectura local',
-        })
-        try {
-          const { extraerTextoPlanillaLocal } = await import(
-            '@/lib/extraccion/ocrCliente'
-          )
-          const resultadoOcr = await extraerTextoPlanillaLocal(
-            file,
-            setProgresoOcr
-          )
-          textoOcr = resultadoOcr?.texto ?? null
-          textoOcrRef.current = textoOcr
-          if (resultadoOcr) {
-            console.info(
-              `[ocr] lectura local lista metodo=${resultadoOcr.metodo} paginas=${resultadoOcr.paginas} caracteres=${resultadoOcr.texto.length} confianza=${resultadoOcr.confianza ?? '?'}`
-            )
-          } else {
-            console.warn('[ocr] no se obtuvo texto suficiente; usando lectura visual')
-          }
-        } catch (error) {
-          textoOcrRef.current = null
-          textoOcr = null
-          console.warn(
-            '[ocr] falló la prelectura local; usando lectura visual',
-            error
-          )
-        }
-      }
-
       if (!path) {
         setEtapaIA('subiendo')
         const preparacion = await prepararSubidaPlanilla({
@@ -581,40 +541,11 @@ export default function NuevoIngresoForm({
       }
 
       setEtapaIA('procesando')
-      let result = await procesarPlanillaConIA({
+      const result = await procesarPlanillaConIA({
         imagen_path: path,
         mime_type: file.type,
         tintoreria_id: tintoreriaId,
-        texto_ocr: textoOcr,
       })
-
-      // Si la prelectura no alcanza o la estructura resultante no es
-      // guardable, hacemos automáticamente una segunda lectura sobre el
-      // archivo original. Entre ambos resultados conservamos el más completo.
-      const reintentarConArchivo =
-        textoOcr &&
-        (result.ok
-          ? result.requiere_revision
-          : result.codigo === 'FORMATO_INVALIDO' ||
-            result.codigo === 'JSON_INVALID')
-      if (reintentarConArchivo) {
-        const resultadoInicial = result
-        const resultadoArchivo = await procesarPlanillaConIA({
-          imagen_path: path,
-          mime_type: file.type,
-          tintoreria_id: tintoreriaId,
-          texto_ocr: null,
-        })
-
-        if (!resultadoInicial.ok) {
-          result = resultadoArchivo
-        } else if (
-          resultadoArchivo.ok &&
-          resultadoArchivo.puntaje_calidad > resultadoInicial.puntaje_calidad
-        ) {
-          result = resultadoArchivo
-        }
-      }
 
       if (!result.ok) {
         setExtraccionError(result.error)
@@ -633,7 +564,6 @@ export default function NuevoIngresoForm({
     } finally {
       setExtrayendo(false)
       setEtapaIA(null)
-      setProgresoOcr(null)
     }
   }
 
@@ -687,7 +617,8 @@ export default function NuevoIngresoForm({
 
     const rollosFromIA: RolloInput[] = datos.rollos.map((r) => {
       const articuloNombre = r.articulo?.value?.trim() ?? ''
-      const articuloId = articuloIdFromText(articuloNombre) ?? articuloHeaderId
+      // Un nombre nuevo explícito no debe quedar reemplazado por otro artículo del header.
+      const articuloId = articuloNombre ? articuloIdFromText(articuloNombre) : articuloHeaderId
       const colorRolloId = colorIdFromText(r.color?.value)
       const colorEfectivoId = colorRolloId ?? colorGlobalId
 
@@ -712,6 +643,8 @@ export default function NuevoIngresoForm({
         ubicacion: '',
         estado: 'pendiente',
         articulo_id: articuloId,
+        articulo_nombre_sugerido: articuloNombre,
+        articulo_pendiente: false,
         color_id: colorValido ? colorEfectivoId : null,
         confianza_ia: avg([
           r.numero_pieza.confidence,
@@ -748,6 +681,19 @@ export default function NuevoIngresoForm({
             : 1,
       })),
     })
+  }
+
+  const articulosSinAsignar = agruparArticulosSinAsignar(rollos)
+  const rollosArticuloPendiente = rollos.filter(r => r.articulo_id && r.articulo_pendiente).length
+
+  function asignarArticuloSolicitado(clave: string, articulo: { id: string; nombre: string; pendiente: boolean }) {
+    setArticulos(prev => prev.some(a => a.id === articulo.id) ? prev : [
+      ...prev, { id: articulo.id, nombre: articulo.nombre, colores, pendiente: articulo.pendiente },
+    ])
+    setRollos(prev => prev.map(r => !r.articulo_id && claveArticuloSugerido(r.articulo_nombre_sugerido ?? '') === clave
+      ? { ...r, articulo_id: articulo.id, articulo_pendiente: articulo.pendiente }
+      : r))
+    toast.success(articulo.pendiente ? 'Solicitud enviada. Ya podés guardar los rollos.' : 'Artículo existente asignado.')
   }
 
   const validations = useMemo(() => {
@@ -1161,18 +1107,14 @@ export default function NuevoIngresoForm({
                   <Spinner />
                   <div>
                     <p className="font-medium">
-                      {etapaIA === 'ocr'
-                        ? 'Preparando la planilla...'
-                        : etapaIA === 'subiendo'
+                      {etapaIA === 'subiendo'
                         ? 'Subiendo planilla de forma segura...'
-                        : 'Armando la estructura única de datos...'}
+                        : 'Leyendo los datos de la planilla...'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {etapaIA === 'ocr'
-                        ? `${progresoOcr?.detalle ?? 'Procesando en este dispositivo'}${progresoOcr?.porcentaje ? ` · ${progresoOcr.porcentaje}%` : ''}`
-                        : etapaIA === 'subiendo'
+                      {etapaIA === 'subiendo'
                         ? 'Podés usar la foto o PDF original, sin achicarlo.'
-                        : 'El mismo formato universal sirve para todas las tintorerías.'}
+                        : 'Al terminar vas a poder revisar los campos antes de confirmar.'}
                     </p>
                   </div>
                 </div>
@@ -1837,6 +1779,12 @@ export default function NuevoIngresoForm({
           </button>
         </div>
       </div>
+
+      <ArticulosDetectados grupos={articulosSinAsignar} onAsignar={asignarArticuloSolicitado} disabled={submitting || extrayendo} />
+      {rollosArticuloPendiente > 0 && <p className="rounded-md bg-warning/10 p-3 text-sm" role="status">
+        {rollosArticuloPendiente} rollo{rollosArticuloPendiente === 1 ? '' : 's'} con artículo pendiente de aprobación.
+        Podés guardar el ingreso; el administrador lo revisará desde Artículos.
+      </p>}
 
       {/* Validaciones */}
       {(validations.duplicados.length > 0 ||

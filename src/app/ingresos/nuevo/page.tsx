@@ -4,7 +4,7 @@ import BackButton from '@/components/BackButton'
 import { getUbicacionesActivas } from '@/lib/ubicacionesServer'
 import NuevoIngresoForm from './NuevoIngresoForm'
 
-// La extracción usa proveedores multimodales y puede hacer dos fallbacks.
+// Mistral realiza OCR y extracción estructurada sobre el archivo original.
 // Next propaga este límite a las Server Actions invocadas desde la página.
 export const maxDuration = 120
 
@@ -97,7 +97,7 @@ export default async function NuevoIngresoPage() {
 
   const role = (profile?.role ?? 'operario') as 'operario' | 'ventas' | 'admin' | 'super'
 
-  const sinCatalogos = !tintorerias.length || !articulos.length
+  const sinCatalogos = !tintorerias.length
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
@@ -112,8 +112,7 @@ export default async function NuevoIngresoPage() {
       {sinCatalogos ? (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-5">
           <p className="text-sm font-medium text-foreground">
-            Antes de crear un ingreso necesitás tener al menos un artículo y
-            una tintorería cargados.
+            Antes de crear un ingreso necesitás tener una tintorería cargada.
           </p>
           <div className="flex gap-3 mt-3 text-sm">
             {!articulos.length && (

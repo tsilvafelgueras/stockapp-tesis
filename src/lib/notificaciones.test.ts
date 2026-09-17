@@ -23,6 +23,11 @@ function notificacion(
 }
 
 describe('agregarAccionNotificacion', () => {
+  it('dirige solicitudes de artículo al administrador y espera su aprobación', () => {
+    expect(agregarAccionNotificacion(notificacion({ tipo: 'solicitud_articulo' }))).toMatchObject({
+      href: '/admin/articulos#solicitudes', actionLabel: 'Revisar artículo', dismissable: false,
+    })
+  })
   it.each(['rollo_liberado', 'rollo_devuelto'] as const)(
     'abre directamente la asignacion del rollo para %s',
     (tipo) => {

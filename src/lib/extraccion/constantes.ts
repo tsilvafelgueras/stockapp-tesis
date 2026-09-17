@@ -1,0 +1,1 @@
+export const UMBRAL_BAJA_CONFIANZA = 0.85

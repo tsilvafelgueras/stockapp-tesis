@@ -5,6 +5,7 @@ export type Notificacion = {
   tipo:
     | 'stock_minimo'
     | 'solicitud_color'
+    | 'solicitud_articulo'
     | 'ingreso_pendiente'
     | 'pedido_pendiente'
     | 'rollo_liberado'
@@ -32,6 +33,9 @@ const NOTIFICACION_SELECT =
 export function agregarAccionNotificacion(
   notificacion: Notificacion
 ): Notificacion {
+  if (notificacion.tipo === 'solicitud_articulo') {
+    return { ...notificacion, href: '/admin/articulos#solicitudes', actionLabel: 'Revisar artículo', dismissable: false }
+  }
   if (
     notificacion.tipo === 'rollo_liberado' ||
     notificacion.tipo === 'rollo_devuelto'

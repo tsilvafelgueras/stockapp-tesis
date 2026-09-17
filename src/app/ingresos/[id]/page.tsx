@@ -132,8 +132,17 @@ export default async function IngresoDetailPage({
   const totalKilos =
     rollos?.reduce((acc, r) => acc + Number(r.kilos ?? 0), 0) ?? 0
 
+  const { data: solicitudesArticulo } = articulosDelIngreso.length
+    ? await supabase.from('solicitudes_articulo').select('nombre_solicitado')
+      .in('articulo_id', articulosDelIngreso).eq('estado', 'pendiente')
+    : { data: [] }
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      {!!solicitudesArticulo?.length && <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
+        Ingreso cargado con artículos pendientes de aprobación: {solicitudesArticulo.map(a => a.nombre_solicitado).join(', ')}.
+        {esAdmin && <Link href="/admin/articulos#solicitudes" className="ml-2 underline">Revisar solicitudes</Link>}
+      </div>}
       {creado === '1' && (
         <div className="rounded-lg border bg-success/10 border-success/30 px-4 py-3 text-sm text-foreground">
           ✓ Ingreso guardado correctamente con {rollos?.length ?? 0} rollo

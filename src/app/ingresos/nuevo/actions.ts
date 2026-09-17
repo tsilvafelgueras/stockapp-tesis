@@ -17,7 +17,6 @@ import {
   type MimePlanilla,
 } from '@/lib/storage/planillaArchivo'
 import { validarUbicacionActiva } from '@/lib/ubicacionesServer'
-import { normalizarTextoOcr, textoOcrEsUtil } from '@/lib/extraccion/ocr'
 import { resolverColorCatalogo } from '@/lib/coloresMatching'
 import { resolverArticuloCatalogo } from '@/lib/articulosMatching'
 
@@ -33,6 +32,9 @@ export type RolloInput = {
   estado: 'en_stock' | 'pendiente'
   /** FK al artículo. Una planilla puede traer rollos de varios artículos. */
   articulo_id?: string | null
+  /** Nombre leído, conservado aunque todavía no exista en el catálogo. */
+  articulo_nombre_sugerido?: string
+  articulo_pendiente?: boolean
   /** FK al color. Debe pertenecer a `articulo_colores` del artículo elegido. */
   color_id?: string | null
   /** Confianza promedio reportada por la IA para este rollo (0-1). Solo se setea en flow IA. */
@@ -70,7 +72,7 @@ export type ProcesarPlanillaResult =
       imagen_path: string
       datos: IngresoExtraido
       warnings: string[]
-      metodo_lectura: 'ocr' | 'visual'
+      metodo_lectura: 'mistral'
       requiere_revision: boolean
       puntaje_calidad: number
     }
@@ -89,6 +91,7 @@ export type ProcesarPlanillaResult =
         | 'ROL_NO_AUTORIZADO'
         | 'STORAGE_ERROR'
         | 'GEMINI_ERROR'
+        | 'MISTRAL_ERROR'
         | 'OPENROUTER_ERROR'
         | 'AI_ALL_PROVIDERS_FAILED'
         | 'AI_QUOTA_EXCEEDED'
@@ -123,6 +126,7 @@ export type ProcesarPlanillaInput = {
   imagen_path: string
   mime_type: string
   tintoreria_id: string
+  /** Compatibilidad con clientes anteriores; Mistral siempre lee el archivo. */
   texto_ocr?: string | null
 }
 
@@ -193,9 +197,8 @@ export async function prepararSubidaPlanilla(input: {
 
 /**
  * Procesa una planilla con IA aplicando el contrato universal y las pistas de
- * layout/alias de la tintorería elegida. El archivo ya está en Storage. Si el
- * navegador logró una prelectura OCR, también recibe ese texto acotado; si no,
- * conserva la lectura visual anterior.
+ * layout/alias de la tintorería elegida. El archivo ya está en Storage.
+ * Mistral realiza OCR y extracción estructurada sobre el archivo original.
  */
 export async function procesarPlanillaConIA(
   input: ProcesarPlanillaInput
@@ -203,14 +206,6 @@ export async function procesarPlanillaConIA(
   const imagenPath = input?.imagen_path?.trim()
   const mimeType = input?.mime_type?.trim()
   const tintoreriaId = input?.tintoreria_id?.trim()
-  const textoOcrNormalizado =
-    typeof input?.texto_ocr === 'string'
-      ? normalizarTextoOcr(input.texto_ocr)
-      : ''
-  const textoOcr = textoOcrEsUtil(textoOcrNormalizado)
-    ? textoOcrNormalizado
-    : null
-
   if (!imagenPath) {
     return { ok: false, error: 'No se recibió el archivo subido.', codigo: 'NO_PATH' }
   }
@@ -388,8 +383,7 @@ Cuando la planilla muestre un nombre, código o referencia que coincida inequív
   const extraccion = await extraerPlanilla(
     buffer,
     mimePlanilla,
-    customPrompt,
-    textoOcr
+    customPrompt
   )
   if (!extraccion.ok) {
     return {
@@ -410,7 +404,7 @@ Cuando la planilla muestre un nombre, código o referencia que coincida inequív
     imagen_path: imagenPath,
     datos: extraccion.data,
     warnings: calidad.warnings,
-    metodo_lectura: textoOcr ? 'ocr' : 'visual',
+    metodo_lectura: 'mistral',
     requiere_revision: calidad.requiereRevision,
     puntaje_calidad: calidad.puntaje,
   }

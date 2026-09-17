@@ -54,6 +54,8 @@ La app necesita recibir todos los datos visibles del remito en el JSON definido 
 
 # POR CADA ROLLO
 
+- Si el artículo leído no existe en el catálogo proporcionado, conservá su nombre literal en articulo para cada rollo del bloque. La app permite solicitar su creación. No lo reemplaces por otro artículo del catálogo ni lo dejes vacío por ser nuevo.
+
 - numero_pieza: identificador del rollo. String, conservar ceros a la izquierda.
 - kilos: peso de la fila en KG (decimal, punto NO coma). Leer solo la columna rotulada KG, KILOS o PESO; no intercambiarla con metros.
 - metros: largo de la fila en MTS (decimal). Leer solo la columna rotulada MTS, METROS o LARGO; no intercambiarla con kilos.

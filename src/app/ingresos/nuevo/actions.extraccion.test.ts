@@ -201,8 +201,7 @@ describe('Server Actions de extracción directa', () => {
     expect(mocks.extraerPlanilla).toHaveBeenCalledWith(
       expect.any(Buffer),
       'image/jpeg',
-      expect.stringContaining('PROMPT INTERNO GALFIONE'),
-      null
+      expect.stringContaining('PROMPT INTERNO GALFIONE')
     )
     const prompt = mocks.extraerPlanilla.mock.calls[0][2]
     expect(prompt).toContain('CATÁLOGO CANÓNICO DE COLORES')
@@ -218,7 +217,7 @@ describe('Server Actions de extracción directa', () => {
     }
   })
 
-  it('normaliza y reenvía el OCR local al contrato universal', async () => {
+  it('ignora el OCR local de clientes anteriores y procesa el archivo con Mistral', async () => {
     const fake = crearSupabaseFake()
     mocks.createClient.mockResolvedValue(fake.supabase)
 
@@ -230,13 +229,11 @@ describe('Server Actions de extracción directa', () => {
         'REMITO 123 FECHA 08/09/2026  \r\nPIEZA    KILOS    COLOR\r\n001      20,5     NEGRO',
     })
 
-    expect(result).toMatchObject({ ok: true, metodo_lectura: 'ocr' })
-    expect(mocks.extraerPlanilla.mock.calls[0][3]).toBe(
-      'REMITO 123 FECHA 08/09/2026\nPIEZA    KILOS    COLOR\n001      20,5     NEGRO'
-    )
+    expect(result).toMatchObject({ ok: true, metodo_lectura: 'mistral' })
+    expect(mocks.extraerPlanilla.mock.calls[0]).toHaveLength(3)
   })
 
-  it('marca para segunda lectura un resultado con campos críticos incompletos', async () => {
+  it('marca para revisión un resultado con campos críticos incompletos', async () => {
     const fake = crearSupabaseFake()
     mocks.createClient.mockResolvedValue(fake.supabase)
     mocks.extraerPlanilla.mockResolvedValue({
@@ -268,7 +265,7 @@ describe('Server Actions de extracción directa', () => {
     expect(result).toMatchObject({
       ok: true,
       requiere_revision: true,
-      metodo_lectura: 'ocr',
+      metodo_lectura: 'mistral',
     })
     expect(result.ok && result.puntaje_calidad).toBeLessThan(90)
   })

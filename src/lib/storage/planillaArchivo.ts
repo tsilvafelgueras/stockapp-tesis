@@ -1,7 +1,7 @@
 export const PLANILLAS_BUCKET = 'planillas'
 
 /**
- * Gemini recibe el archivo inline (base64). Un archivo de 14 MB ocupa cerca
+ * Mistral recibe el archivo inline (base64). Un archivo de 14 MB ocupa cerca
  * de 18,7 MB al codificarse, dejando margen para el prompt y el schema dentro
  * del límite total de la API.
  */
