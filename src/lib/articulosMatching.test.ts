@@ -26,4 +26,21 @@ describe('resolverArticuloCatalogo', () => {
   it('no asigna texto desconocido', () => {
     expect(resolverArticuloCatalogo('Artículo inexistente', articulos)).toBeNull()
   })
+
+  it('matchea una abreviatura contenida en un nombre canónico más largo', () => {
+    expect(
+      resolverArticuloCatalogo('JERSEY ALGODON', [
+        { id: 'j', nombre: 'JERSEY 30/1 ALGODON PEINADO' },
+      ])
+    ).toBe('j')
+  })
+
+  it('no adivina cuando la abreviatura es ambigua entre varios artículos', () => {
+    expect(
+      resolverArticuloCatalogo('JERSEY ALGODON', [
+        { id: 'liso', nombre: 'JERSEY ALGODON PEINADO LISO' },
+        { id: 'rustico', nombre: 'JERSEY ALGODON RUSTICO GRUESO' },
+      ])
+    ).toBeNull()
+  })
 })
