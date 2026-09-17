@@ -1228,14 +1228,14 @@ export default function NuevoIngresoForm({
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-sm font-medium">Fecha *</label>
             <input
               type="date"
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
               required
-              className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.fecha)}`}
+              className={`w-full max-w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${celdaCls(confianzas?.fecha)}`}
             />
           </div>
 
@@ -1268,11 +1268,6 @@ export default function NuevoIngresoForm({
                   : celdaCls(confianzas?.total_rollos_declarado)
               }`}
             />
-            {validations.totalRollosVacio && (
-              <p className="text-xs text-destructive">
-                Ingresá el total de rollos declarado.
-              </p>
-            )}
           </div>
 
           <div className="space-y-1">
@@ -1794,9 +1789,15 @@ export default function NuevoIngresoForm({
         validations.rollosSegundaSinCategoria > 0 ||
         validations.rollosKilosInvalidos > 0 ||
         validations.rollosInconsistentes.length > 0 ||
+        (validations.totalRollosVacio && validations.cantidadRollos > 0) ||
         !validations.cantidadCoincide ||
         !validations.kilosCoinciden) && (
         <div className="rounded-lg border bg-warning/10 border-warning/30 p-3 sm:p-4 space-y-1 text-sm">
+          {validations.totalRollosVacio && validations.cantidadRollos > 0 && (
+            <p className="text-destructive">
+              ⚠ Ingresá el total de rollos declarado.
+            </p>
+          )}
           {validations.duplicados.length > 0 && (
             <p className="text-destructive">
               ⚠ Números de pieza duplicados:{' '}
