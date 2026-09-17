@@ -61,7 +61,7 @@ La app necesita recibir todos los datos visibles del remito en el JSON definido 
 - metros: largo de la fila en MTS (decimal). Leer solo la columna rotulada MTS, METROS o LARGO; no intercambiarla con kilos.
 - ratio: rendimiento m/kg (decimal). A veces "Ratio", "Rdto", "Rto".
 - gramaje_planilla: g/m² (peso por m²). Suele aparecer como "Pm2", "Gramaje", "g/m²".
-- articulo: nombre del artículo/tela del rollo (ej "Algodón Pima", "Modal", "Lino"). Algunas planillas traen un único artículo en el header (en ese caso, copialo en todos los rollos). Otras traen una columna "Artículo" o "Tela" por rollo. Si no aparece en ninguna parte, devolvé value: null y confidence: 0.
+- articulo: nombre del artículo/tela del rollo (ej "Algodón Pima", "Modal", "Lino"). Si el nombre o código leído coincide con un artículo del CATÁLOGO CANÓNICO provisto, devolvé EXACTAMENTE ese nombre canónico (no la abreviatura ni el código de la planilla). Si el artículo NO está en el catálogo, conservá el nombre literal leído. Algunas planillas traen un único artículo en el header (en ese caso, copialo en todos los rollos). Otras traen una columna "Artículo" o "Tela" por rollo. Si no aparece en ninguna parte, devolvé value: null y confidence: 0.
 - color: color del rollo (ej "BLANCO", "NEGRO", "AZUL FRANCIA"). Solo poné value si la planilla tiene una columna "Color" por rollo Y el color de este rollo difiere del color global del header. Si la planilla declara un único color global en el header (y los rollos no tienen columna propia), dejá value: null acá — el color global del header ya cubre el caso. Si no aparece en ninguna parte, devolvé value: null y confidence: 0.
 
 # CONFIANZA

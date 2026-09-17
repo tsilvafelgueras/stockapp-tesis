@@ -89,26 +89,51 @@ export function resolverArticuloCatalogo(
           tokenCoincide(tokenCatalogo, tokenTexto)
         )
       ).length
+      // Cuántos tokens del texto extraído están cubiertos por el catálogo:
+      // permite matchear una abreviatura de la planilla contenida en un nombre
+      // canónico más largo (ej. "JERSEY ALGODÓN" ⊆ "JERSEY 30/1 ALGODÓN PEINADO").
+      const cubiertosTexto = tokensTexto.filter((tokenTexto) =>
+        tokensCatalogo.some((tokenCatalogo) =>
+          tokenCoincide(tokenCatalogo, tokenTexto)
+        )
+      ).length
       return {
         articulo,
         nombre,
         total: tokensCatalogo.length,
         coincidencias,
-        ratio: coincidencias / tokensCatalogo.length,
+        ratioCatalogo: coincidencias / tokensCatalogo.length,
+        coberturaTexto: tokensTexto.length
+          ? cubiertosTexto / tokensTexto.length
+          : 0,
       }
     })
     .filter(
       (candidato) =>
         candidato.total > 0 &&
         candidato.coincidencias >= 1 &&
-        candidato.ratio >= 0.6
+        (candidato.ratioCatalogo >= 0.6 || candidato.coberturaTexto === 1)
     )
     .sort(
       (a, b) =>
         b.coincidencias - a.coincidencias ||
-        b.ratio - a.ratio ||
+        b.ratioCatalogo - a.ratioCatalogo ||
+        b.coberturaTexto - a.coberturaTexto ||
         b.nombre.length - a.nombre.length
     )
 
-  return candidatos[0]?.articulo.id ?? null
+  const mejor = candidatos[0]
+  if (!mejor) return null
+
+  // La vía laxa (cobertura del texto extraído) solo se acepta si el mejor
+  // candidato es único en coincidencias: si hay otro empatado, es ambiguo y
+  // preferimos no adivinar (que el usuario elija) antes que asignar mal.
+  if (
+    mejor.ratioCatalogo < 0.6 &&
+    candidatos[1]?.coincidencias === mejor.coincidencias
+  ) {
+    return null
+  }
+
+  return mejor.articulo.id
 }
