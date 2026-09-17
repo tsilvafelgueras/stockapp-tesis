@@ -15,10 +15,10 @@ import {
 } from './actions'
 import { createColor, solicitarColor } from '@/app/admin/colores/actions'
 import { createClient } from '@/lib/supabase/client'
-import {
-  UMBRAL_BAJA_CONFIANZA,
-  type IngresoExtraido,
-  type Field,
+import { UMBRAL_BAJA_CONFIANZA } from '@/lib/extraccion/constantes'
+import type {
+  IngresoExtraido,
+  Field,
 } from '@/lib/extraccion/extraerPlanilla'
 import { ubicacionesToOptions, type UbicacionOption } from '@/lib/ubicaciones'
 import ScannerByReaderType from '@/components/ScannerByReaderType'
@@ -26,6 +26,10 @@ import SearchableCombobox from '@/components/SearchableCombobox'
 import type { CodeScannerResult } from '@/components/CodeScanner'
 import { extraerCodigoCandidato } from '@/lib/scanner'
 import type { PatronCodigo } from '@/lib/scanner'
+import { resolverColorCatalogo } from '@/lib/coloresMatching'
+import { resolverArticuloCatalogo } from '@/lib/articulosMatching'
+import { agruparArticulosSinAsignar, claveArticuloSugerido } from '@/lib/articulosPendientes'
+import ArticulosDetectados from './ArticulosDetectados'
 import {
   formatBytes,
   MAX_PLANILLA_BYTES,
@@ -37,7 +41,7 @@ import {
 type PatronConTintoreria = PatronCodigo & { tintoreria_id: string | null }
 
 type Catalog = { id: string; nombre: string }
-type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[] }
+type ArticuloCatalog = { id: string; nombre: string; colores: Catalog[]; pendiente?: boolean }
 
 type Modo = 'manual' | 'ia'
 
@@ -70,12 +74,6 @@ function normNombre(s: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, ' ')
-}
-
-function normColor(raw: string | null | undefined): string | null {
-  const trimmed = raw?.trim()
-  if (!trimmed) return null
-  return trimmed.toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase())
 }
 
 /** Tokeniza un nombre normalizado en palabras significativas (len ≥ 2). */
@@ -223,7 +221,9 @@ export default function NuevoIngresoForm({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [imagenPath, setImagenPath] = useState<string | null>(null)
   const [extrayendo, setExtrayendo] = useState(false)
-  const [etapaIA, setEtapaIA] = useState<'subiendo' | 'procesando' | null>(null)
+  const [etapaIA, setEtapaIA] = useState<
+    'subiendo' | 'procesando' | null
+  >(null)
   const [extraccionError, setExtraccionError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [confianzas, setConfianzas] = useState<Confianzas | null>(null)
@@ -284,7 +284,7 @@ export default function NuevoIngresoForm({
   function setRolloArticulo(idx: number, nuevoArticuloId: string | null) {
     setRollos((prev) =>
       prev.map((r, i) =>
-        i === idx ? { ...r, articulo_id: nuevoArticuloId } : r
+        i === idx ? { ...r, articulo_id: nuevoArticuloId, articulo_pendiente: articulos.find(a => a.id === nuevoArticuloId)?.pendiente ?? false } : r
       )
     )
   }
@@ -294,7 +294,10 @@ export default function NuevoIngresoForm({
   // ya viene con esos defaults, sin tener que apretar "Aplicar" cada vez.
   function rolloConDefaults(): RolloInput {
     const base = emptyRollo()
-    if (bulkArticuloId) base.articulo_id = bulkArticuloId
+    if (bulkArticuloId) {
+      base.articulo_id = bulkArticuloId
+      base.articulo_pendiente = articulos.find(a => a.id === bulkArticuloId)?.pendiente ?? false
+    }
     if (bulkColorId) base.color_id = bulkColorId
     if (bulkUbicacion.trim()) base.ubicacion = bulkUbicacion.trim()
     return base
@@ -348,7 +351,7 @@ export default function NuevoIngresoForm({
             .map(({ id, nombre }) => ({ id, nombre }))
           return { id: a.id, nombre: a.nombre, colores: cols }
         })
-        setArticulos(arts)
+        setArticulos(prev => [...arts, ...prev.filter(a => a.pendiente && !arts.some(actual => actual.id === a.id))])
       }
       toast.success('Colores actualizados.')
     } catch {
@@ -431,7 +434,7 @@ export default function NuevoIngresoForm({
     const articulo = articulos.find((a) => a.id === bulkArticuloId)
     // El color es independiente del artículo, así que lo mantenemos tal cual.
     setRollos((prev) =>
-      prev.map((r) => ({ ...r, articulo_id: bulkArticuloId }))
+      prev.map((r) => ({ ...r, articulo_id: bulkArticuloId, articulo_pendiente: articulo?.pendiente ?? false }))
     )
     toast.success(
       `Artículo "${articulo?.nombre ?? ''}" asignado a ${rollos.length} ${rollos.length === 1 ? 'rollo' : 'rollos'}.`
@@ -500,7 +503,10 @@ export default function NuevoIngresoForm({
     await ejecutarExtraccion(file)
   }
 
-  async function ejecutarExtraccion(file: File, pathExistente?: string) {
+  async function ejecutarExtraccion(
+    file: File,
+    pathExistente?: string
+  ) {
     setExtrayendo(true)
     setExtraccionError(null)
     setWarnings([])
@@ -508,7 +514,6 @@ export default function NuevoIngresoForm({
 
     try {
       let path = pathExistente
-
       if (!path) {
         setEtapaIA('subiendo')
         const preparacion = await prepararSubidaPlanilla({
@@ -590,11 +595,9 @@ export default function NuevoIngresoForm({
     )
 
     // Resolución de color: matchea el texto extraído contra el catálogo
-    // por nombre normalizado. Devuelve el ID o null.
+    // tolerando casing, etiquetas y abreviaturas no ambiguas.
     function colorIdFromText(raw: string | null | undefined): string | null {
-      const norm = normColor(raw)
-      if (!norm) return null
-      return colores.find((c) => c.nombre === norm)?.id ?? null
+      return resolverColorCatalogo(raw, colores)
     }
     const colorGlobalId = colorIdFromText(datos.color.value)
     if (colorGlobalId) setBulkColorId(colorGlobalId)
@@ -604,38 +607,7 @@ export default function NuevoIngresoForm({
     // Acá filtramos: si el color global no está en los colores del articulo
     // encontrado, dejamos color_id en null para que el usuario lo elija.
     function articuloIdFromText(nombreRaw: string): string | null {
-      const texto = normNombre(nombreRaw)
-      if (!texto) return null
-      const tokensTexto = tokens(texto)
-      const cat = articulos
-        .map((a) => ({ a, n: normNombre(a.nombre), toks: tokens(normNombre(a.nombre)) }))
-        .filter(({ n }) => n)
-
-      // 1. Match exacto.
-      const exacto = cat.find(({ n }) => n === texto)
-      if (exacto) return exacto.a.id
-
-      // 2. Match por tokens: contamos cuántos tokens del catálogo aparecen en
-      //    el texto extraído (exacto o por prefijo, ej. "ml70" ↔ "ml70c").
-      //    Es candidato si coincide la MAYORÍA de sus tokens (≥ 60%), así
-      //    tolera palabras extra en cualquiera de los dos lados:
-      //    catálogo "ML70 Frisada" ↔ texto "...TELA ML70C FRISADA TERMINADA".
-      //    Elegimos el de más coincidencias (más específico).
-      const candidatos = cat
-        .map(({ a, n, toks }) => {
-          const coinc = toks.filter((ct) =>
-            tokensTexto.some((tt) => tokenMatch(ct, tt))
-          ).length
-          return { a, n, total: toks.length, coinc, ratio: coinc / toks.length }
-        })
-        .filter((c) => c.total > 0 && c.coinc >= 1 && c.ratio >= 0.6)
-        .sort(
-          (x, y) =>
-            y.coinc - x.coinc || y.ratio - x.ratio || y.n.length - x.n.length
-        )
-      if (candidatos.length) return candidatos[0].a.id
-
-      return null
+      return resolverArticuloCatalogo(nombreRaw, articulos)
     }
 
     // Nombre del artículo a nivel header: algunas planillas lo traen en la
@@ -645,7 +617,8 @@ export default function NuevoIngresoForm({
 
     const rollosFromIA: RolloInput[] = datos.rollos.map((r) => {
       const articuloNombre = r.articulo?.value?.trim() ?? ''
-      const articuloId = articuloIdFromText(articuloNombre) ?? articuloHeaderId
+      // Un nombre nuevo explícito no debe quedar reemplazado por otro artículo del header.
+      const articuloId = articuloNombre ? articuloIdFromText(articuloNombre) : articuloHeaderId
       const colorRolloId = colorIdFromText(r.color?.value)
       const colorEfectivoId = colorRolloId ?? colorGlobalId
 
@@ -670,6 +643,8 @@ export default function NuevoIngresoForm({
         ubicacion: '',
         estado: 'pendiente',
         articulo_id: articuloId,
+        articulo_nombre_sugerido: articuloNombre,
+        articulo_pendiente: false,
         color_id: colorValido ? colorEfectivoId : null,
         confianza_ia: avg([
           r.numero_pieza.confidence,
@@ -706,6 +681,19 @@ export default function NuevoIngresoForm({
             : 1,
       })),
     })
+  }
+
+  const articulosSinAsignar = agruparArticulosSinAsignar(rollos)
+  const rollosArticuloPendiente = rollos.filter(r => r.articulo_id && r.articulo_pendiente).length
+
+  function asignarArticuloSolicitado(clave: string, articulo: { id: string; nombre: string; pendiente: boolean }) {
+    setArticulos(prev => prev.some(a => a.id === articulo.id) ? prev : [
+      ...prev, { id: articulo.id, nombre: articulo.nombre, colores, pendiente: articulo.pendiente },
+    ])
+    setRollos(prev => prev.map(r => !r.articulo_id && claveArticuloSugerido(r.articulo_nombre_sugerido ?? '') === clave
+      ? { ...r, articulo_id: articulo.id, articulo_pendiente: articulo.pendiente }
+      : r))
+    toast.success(articulo.pendiente ? 'Solicitud enviada. Ya podés guardar los rollos.' : 'Artículo existente asignado.')
   }
 
   const validations = useMemo(() => {
@@ -1121,12 +1109,12 @@ export default function NuevoIngresoForm({
                     <p className="font-medium">
                       {etapaIA === 'subiendo'
                         ? 'Subiendo planilla de forma segura...'
-                        : 'Procesando planilla con IA...'}
+                        : 'Leyendo los datos de la planilla...'}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {etapaIA === 'subiendo'
                         ? 'Podés usar la foto o PDF original, sin achicarlo.'
-                        : 'Esto puede tomar algunos segundos.'}
+                        : 'Al terminar vas a poder revisar los campos antes de confirmar.'}
                     </p>
                   </div>
                 </div>
@@ -1147,7 +1135,7 @@ export default function NuevoIngresoForm({
                         onClick={reintentarExtraccionIA}
                         className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                       >
-                        Reintentar IA
+                        Reintentar análisis
                       </button>
                     )}
                     <button
@@ -1791,6 +1779,12 @@ export default function NuevoIngresoForm({
           </button>
         </div>
       </div>
+
+      <ArticulosDetectados grupos={articulosSinAsignar} onAsignar={asignarArticuloSolicitado} disabled={submitting || extrayendo} />
+      {rollosArticuloPendiente > 0 && <p className="rounded-md bg-warning/10 p-3 text-sm" role="status">
+        {rollosArticuloPendiente} rollo{rollosArticuloPendiente === 1 ? '' : 's'} con artículo pendiente de aprobación.
+        Podés guardar el ingreso; el administrador lo revisará desde Artículos.
+      </p>}
 
       {/* Validaciones */}
       {(validations.duplicados.length > 0 ||

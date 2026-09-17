@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import DashboardBackButton from '@/components/DashboardBackButton'
 import { NuevoArticuloForm } from './ArticuloForm'
 import ArticulosTabla from './ArticulosTabla'
+import SolicitudesArticulos from './SolicitudesArticulos'
 
 type Role = 'admin' | 'ventas' | 'operario' | 'super'
 
@@ -46,6 +47,11 @@ export default async function ArticulosPage() {
   ])
 
   const role = (profile?.role ?? 'operario') as Role
+  const { data: solicitudes, error: solicitudesError } = await supabase
+    .from('solicitudes_articulo')
+    .select('id, nombre_solicitado')
+    .eq('estado', 'pendiente')
+    .order('created_at')
 
   // Flatten: cada artículo trae `articulo_colores: [{ colores: {...} }]`
   // Supabase puede devolver `colores` como objeto o array dependiendo de
@@ -99,6 +105,9 @@ export default async function ArticulosPage() {
       </div>
 
       <NuevoArticuloForm />
+
+      {solicitudesError && <p className="text-sm text-destructive">No se pudieron cargar las solicitudes de artículos.</p>}
+      <SolicitudesArticulos solicitudes={solicitudes ?? []} esAdmin={role === 'admin'} />
 
       <ArticulosTabla
         articulos={articulos}

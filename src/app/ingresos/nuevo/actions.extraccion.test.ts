@@ -58,6 +58,8 @@ function crearSupabaseFake(opciones?: {
   vinculada?: boolean
   prompt?: string | null
   role?: string
+  colores?: string[]
+  articulos?: string[]
 }) {
   const storageApi = {
     createSignedUploadUrl: vi.fn().mockResolvedValue({
@@ -76,6 +78,25 @@ function crearSupabaseFake(opciones?: {
       select: vi.fn(() => query),
       eq: vi.fn(() => query),
       limit: vi.fn(() => query),
+      order: vi.fn(async () => {
+        if (tabla === 'colores') {
+          return {
+            data: (opciones?.colores ?? ['Blanco', 'Azul Marino']).map(
+              (nombre) => ({ nombre })
+            ),
+            error: null,
+          }
+        }
+        if (tabla === 'articulos') {
+          return {
+            data: (opciones?.articulos ?? ['ML70 Frisada']).map((nombre) => ({
+              nombre,
+            })),
+            error: null,
+          }
+        }
+        return { data: null, error: null }
+      }),
       single: vi.fn(async () => {
         if (tabla === 'profiles') {
           return {
@@ -180,8 +201,73 @@ describe('Server Actions de extracción directa', () => {
     expect(mocks.extraerPlanilla).toHaveBeenCalledWith(
       expect.any(Buffer),
       'image/jpeg',
-      'PROMPT INTERNO GALFIONE'
+      expect.stringContaining('PROMPT INTERNO GALFIONE')
     )
+    const prompt = mocks.extraerPlanilla.mock.calls[0][2]
+    expect(prompt).toContain('CATÁLOGO CANÓNICO DE COLORES')
+    expect(prompt).toContain('["Blanco","Azul Marino"]')
+    expect(prompt).toContain('CATÁLOGO CANÓNICO DE ARTÍCULOS')
+    expect(prompt).toContain('["ML70 Frisada"]')
+
+    for (const tabla of ['articulos', 'colores']) {
+      const indice = fake.from.mock.calls.findIndex(([nombre]) => nombre === tabla)
+      const query = fake.from.mock.results[indice]?.value
+      expect(query?.eq).toHaveBeenCalledWith('empresa_id', EMPRESA_ID)
+      expect(query?.eq).toHaveBeenCalledWith('activo', true)
+    }
+  })
+
+  it('ignora el OCR local de clientes anteriores y procesa el archivo con Mistral', async () => {
+    const fake = crearSupabaseFake()
+    mocks.createClient.mockResolvedValue(fake.supabase)
+
+    const result = await procesarPlanillaConIA({
+      imagen_path: PATH_VALIDO,
+      mime_type: 'image/jpeg',
+      tintoreria_id: TINTORERIA_ID,
+      texto_ocr:
+        'REMITO 123 FECHA 08/09/2026  \r\nPIEZA    KILOS    COLOR\r\n001      20,5     NEGRO',
+    })
+
+    expect(result).toMatchObject({ ok: true, metodo_lectura: 'mistral' })
+    expect(mocks.extraerPlanilla.mock.calls[0]).toHaveLength(3)
+  })
+
+  it('marca para revisión un resultado con campos críticos incompletos', async () => {
+    const fake = crearSupabaseFake()
+    mocks.createClient.mockResolvedValue(fake.supabase)
+    mocks.extraerPlanilla.mockResolvedValue({
+      ok: true,
+      data: {
+        ...datosExtraidos,
+        color: { value: null, confidence: 0 },
+        referencia: { value: null, confidence: 0 },
+        total_kilos_declarado: { value: 20, confidence: 1 },
+        rollos: [
+          {
+            ...datosExtraidos.rollos[0],
+            kilos: { value: null, confidence: 0 },
+            articulo: { value: null, confidence: 0 },
+            color: { value: null, confidence: 0 },
+          },
+        ],
+      },
+    })
+
+    const result = await procesarPlanillaConIA({
+      imagen_path: PATH_VALIDO,
+      mime_type: 'image/jpeg',
+      tintoreria_id: TINTORERIA_ID,
+      texto_ocr:
+        'REMITO 123 FECHA 08/09/2026\nPIEZA    KILOS    COLOR\n001      ilegible  ilegible',
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      requiere_revision: true,
+      metodo_lectura: 'mistral',
+    })
+    expect(result.ok && result.puntaje_calidad).toBeLessThan(90)
   })
 
   it('rechaza un path perteneciente a otra empresa antes de descargarlo', async () => {
